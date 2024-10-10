@@ -22,15 +22,15 @@ col1, col2 = st.columns([10,3])
 
 # st.session_state['login'], st.session_state['username'] = login.login()
 
-# import login_google
-# st.session_state['login'] = login_google.login()
+import login_google
+st.session_state['login'] = login_google.login()
 
-# if st.session_state['login'][0]:
-#     user_email = st.session_state["auth"]
-#     st.write(user_email)
+if st.session_state['login'][0]:
+    user_email = st.session_state["auth"]
+    st.write(user_email)
 
-if True:
-    user_email = 'reymond@mellanni.com'
+# if True:
+#     user_email = 'reymond@mellanni.com'
 
 
     with col2:
