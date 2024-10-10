@@ -22,12 +22,16 @@ col1, col2 = st.columns([10,3])
 
 # st.session_state['login'], st.session_state['username'] = login.login()
 
-import login_google
-st.session_state['login'] = login_google.login()
+# import login_google
+# st.session_state['login'] = login_google.login()
 
-if st.session_state['login'][0]:
-    user_email = st.session_state["auth"]
-    st.write(user_email)
+# if st.session_state['login'][0]:
+#     user_email = st.session_state["auth"]
+#     st.write(user_email)
+
+if True:
+    user_email = '2djohar@gmail.com'
+
 
     with col2:
         # @st.cache_data(show_spinner=False)
@@ -55,7 +59,7 @@ if st.session_state['login'][0]:
                 totp = pyotp.TOTP(text.replace(' ',''))
                 result = totp.now()
                 return result
-            target_key = [x for x in keys if user_email in x][0]
+            target_key = [x if user_email in x else '' for x in keys ][0]
             account_keys = keys.get(target_key, None)
             if account_keys:
                 otps = {f'{key}: {otp(item)}' for key,item in account_keys.items()}
