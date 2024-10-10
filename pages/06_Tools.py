@@ -22,15 +22,15 @@ col1, col2 = st.columns([10,3])
 
 # st.session_state['login'], st.session_state['username'] = login.login()
 
-import login_google
-st.session_state['login'] = login_google.login()
+# import login_google
+# st.session_state['login'] = login_google.login()
 
-if st.session_state['login'][0]:
-    user_email = st.session_state["auth"]
-    st.write(user_email)
+# if st.session_state['login'][0]:
+#     user_email = st.session_state["auth"]
+#     st.write(user_email)
 
-# if True:
-#     user_email = '2djohar@gmail.com'
+if True:
+    user_email = 'reymond@mellanni.com'
 
 
     with col2:
@@ -59,13 +59,16 @@ if st.session_state['login'][0]:
                 totp = pyotp.TOTP(text.replace(' ',''))
                 result = totp.now()
                 return result
-            target_key = [x if user_email in x else '' for x in keys ][0]
-            account_keys = keys.get(target_key, None)
-            if account_keys:
-                otps = {f'{key}: {otp(item)}' for key,item in account_keys.items()}
-                otp_area = st.text_area('OTPs:', '\n'.join(otps), height=200, key=time.time())
-                if st.button('Refresh', key = 'OTP refresh'):
-                    st.rerun()
+            try:
+                target_key = [x for x in keys if user_email in x][0]
+                account_keys = keys.get(target_key, None)
+                if account_keys:
+                    otps = {f'{key}: {otp(item)}' for key,item in account_keys.items()}
+                    otp_area = st.text_area('OTPs:', '\n'.join(otps), height=200, key=time.time())
+                    if st.button('Refresh', key = 'OTP refresh'):
+                        st.rerun()
+            except:
+                pass
 
         with st.expander('Link generator for Seller Central'):
             sc_markets = st.radio('Select marketplace',['US','CA'], horizontal=True, key = 'SC_RADIO')
