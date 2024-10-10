@@ -50,7 +50,8 @@ if st.session_state['login'][0]:
     with col1:
         with st.expander('OTP codes', icon=':material/qr_code_2:'):
             from data.otps import keys
-            account_keys = keys.get(user_email, None)
+            target_key = [x for x in keys if user_email in x]
+            account_keys = keys.get(target_key, None)
             def otp(text: str):
                 global result
                 totp = pyotp.TOTP(text.replace(' ',''))
