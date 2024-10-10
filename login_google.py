@@ -16,7 +16,7 @@ CLIENT_SECRET = os.environ.get("GCLIENT_SECRET")
 AUTHORIZE_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke"
-PREAUTHORIZED_EMAILS = st.secrets['preauthorized_emails']
+PREAUTHORIZED_EMAILS = st.secrets['preauthorized_emails']['emails']
 
 def logout():
     if 'auth' in st.session_state:
