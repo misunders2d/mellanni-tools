@@ -1,0 +1,6 @@
+Below I will provide you with a few products with details, including their main images.
+Please compare the products, surface each product's weak and strong points, suggest improvements to the listing details.
+Also, please try to infer why the product, that sells the most items from the below list, is the top seller, what are the reasons for that
+Stay concise and up to the point.
+Pay very close attention to their main images, because they are the key to product's success.
+Make sure to include the direct image url to your output (use exactly the url from my input), if you are supplied with the image.
