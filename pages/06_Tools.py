@@ -153,7 +153,7 @@ if st.session_state['login'][0]:
                     result = result.reset_index().drop('index', axis = 1)
                 st.data_editor(result)
 
-        with st.expander('Process LD results'):
+        with st.expander('Process LD results', icon=':material/:electric_bolt'):
             input_area = st.empty()
             output_area = st.empty()
             text = input_area.text_area('Input LD data here')
@@ -256,7 +256,7 @@ if st.session_state['login'][0]:
                 except Exception as e:
                     output_area.text_area('results',e, label_visibility='hidden')
 
-        with st.expander('Business report link generator'):
+        with st.expander('Business report link generator', icon=':material/monitoring:'):
             business_markets = st.radio('Select marketplace',['US','CA'], horizontal=True)
             domain = 'com' if business_markets == 'US' else 'ca'
             from datetime import datetime, timedelta
