@@ -381,7 +381,7 @@ if st.session_state['login'][0]:
                 new_links = clean_links(links)
                 links_area.text_area('Clean links','\n\n'.join(new_links))
         try:
-            with st.expander('Upload images to web and get direct links', expanded = True), icon=':material/imagesmode:':
+            with st.expander('Upload images to web and get direct links', expanded = True, icon=':material/imagesmode:'):
                 from imagekitio import ImageKit
                 from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
                 from imagekitio.models.CreateFolderRequestOptions import CreateFolderRequestOptions
