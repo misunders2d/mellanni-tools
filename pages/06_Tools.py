@@ -70,7 +70,7 @@ if st.session_state['login'][0]:
             except:
                 pass
 
-        with st.expander('Link generator for Seller Central', icon=:material/link:):
+        with st.expander('Link generator for Seller Central', icon=':material/link:'):
             sc_markets = st.radio('Select marketplace',['US','CA'], horizontal=True, key = 'SC_RADIO')
             domain = 'com' if sc_markets == 'US' else 'ca'
             result = []
