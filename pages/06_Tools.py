@@ -153,7 +153,7 @@ if st.session_state['login'][0]:
                     result = result.reset_index().drop('index', axis = 1)
                 st.data_editor(result)
 
-        with st.expander('Process LD results', icon=':material/:electric_bolt'):
+        with st.expander('Process LD results', icon=':material/electric_bolt:'):
             input_area = st.empty()
             output_area = st.empty()
             text = input_area.text_area('Input LD data here')
