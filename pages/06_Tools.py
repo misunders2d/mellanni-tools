@@ -294,7 +294,7 @@ if st.session_state['login'][0]:
                 del file['step 0']
                 return file
 
-        with st.expander('Backend checker'):
+        with st.expander('Backend checker', icon=':material/code:'):
             import json
             def process_backend(files):
                 to_df = []
@@ -364,7 +364,7 @@ if st.session_state['login'][0]:
             if but3.button('Reset') and 'asins' in st.session_state:
                 del st.session_state['asins']
 
-        with st.expander('Convert GDrive links to direct links'):
+        with st.expander('Convert GDrive links to direct links', icon=':material/add_to_drive:'):
             import re
             links_area = st.empty()
             def clean_links(links):
@@ -381,7 +381,7 @@ if st.session_state['login'][0]:
                 new_links = clean_links(links)
                 links_area.text_area('Clean links','\n\n'.join(new_links))
         try:
-            with st.expander('Upload images to web and get direct links', expanded = True):
+            with st.expander('Upload images to web and get direct links', expanded = True), icon=':material/imagesmode:':
                 from imagekitio import ImageKit
                 from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
                 from imagekitio.models.CreateFolderRequestOptions import CreateFolderRequestOptions
@@ -437,7 +437,7 @@ if st.session_state['login'][0]:
         except Exception as e:
             st.write(f'Sorry, this block is currently unavailable:\n{e}')
 
-        with st.expander('Text rewriter'):
+        with st.expander('Text rewriter', icon=':material/edit_note:'):
             text_file_obj = st.file_uploader('Upload the excel file with text to work on')
             if text_file_obj:
                 text_file_sheets = pd.ExcelFile(text_file_obj).sheet_names
@@ -488,7 +488,7 @@ if st.session_state['login'][0]:
                 st.download_button('Download results',st.session_state.output.getvalue(), file_name = 'rewrite.xlsx')
 
 
-        with st.expander('Meeting summarizer',expanded = True):
+        with st.expander('Meeting summarizer',expanded = True, icon=':material/summarize:'):
             used_model = st.radio('Choose model to use:', ['gpt-4o','gpt-4o-mini'], index = 1, horizontal=True)
             prompt_text = '''
             Please summarize the following meeting minutes, stay detailed, but concise. Try not to miss any important points.
