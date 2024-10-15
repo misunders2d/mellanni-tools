@@ -12,11 +12,11 @@ COUNTRIES = ['DE','GB','ES','IT','FR','US']
 
 st.subheader('Negative comments classifier')
 
-import login_google
-st.session_state['login'] = login_google.login()
+# import login_google
+# st.session_state['login'] = login_google.login()
 
-if st.session_state['login'][0]:
-# if True:
+# if st.session_state['login'][0]:
+if True:
     # initialize dictionary and selectors
     date_to = pd.to_datetime('today').date()
     date_from = date_to - pd.Timedelta(days = 10)
@@ -105,6 +105,7 @@ if st.session_state['login'][0]:
                     #     st.dataframe(reasons[reasons['Label'].isin(filter_labels)])
                     # else:
                     #     st.dataframe(reasons)
+                    reasons = pd.merge(reasons, dictionary.drop_duplicates('asin')[['asin','collection','size','color']], how = 'left', on = 'asin')
                     st.dataframe(reasons)
             else:
                 st.info('No complaints to analyze')
