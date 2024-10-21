@@ -30,7 +30,7 @@ if st.session_state['login'][0]:
     st.write(user_email)
 
 # if True:
-#     user_email = 'reymond@mellanni.com'
+#     user_email = 'vicky@mellanni.com'
 
 
     with col2:
@@ -60,10 +60,12 @@ if st.session_state['login'][0]:
                 result = totp.now()
                 return result
             try:
-                target_key = [x for x in keys if user_email in x][0]
-                account_keys = keys.get(target_key, None)
+                target_keys = [x for x in keys if user_email in x]  
+                account_keys = [keys.get(x, None) for x in target_keys]
+
                 if account_keys:
-                    otps = {f'{key}: {otp(item)}' for key,item in account_keys.items()}
+                    otps = {f'{key}: {otp(item)}' for subkey in account_keys for key, item in subkey.items()}
+
                     otp_area = st.text_area('OTPs:', '\n'.join(otps), height=200, key=time.time())
                     if st.button('Refresh', key = 'OTP refresh'):
                         st.rerun()

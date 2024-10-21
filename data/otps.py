@@ -50,11 +50,12 @@ keys = {
     ('vitalii@mellanni.com',):{
         'US: Vitalii': 'WVLI UDRI KLY3 5OZG 2ZOL CAWD PSPC 7WI5 PMOY GHVE YEA2 Y6U5 573A',
     },
-    ('dariyka@mellanni.com',):{
-        'US: Vova/Dariyka': 'SOJM NDXX EWYQ AMGE HTOB I3G3 DJTB J7K7 UBQC 2LDE QTGQ PCWZ O2VA',
-        'FB Dariyka': 'ZFY5 G644 ZISK WKQX 4TK7 4JM7 T4FI BA6V'
+    ('dariyka@mellanni.com'):{
+        'US: Vova/Dariyka': 'SOJM NDXX EWYQ AMGE HTOB I3G3 DJTB J7K7 UBQC 2LDE QTGQ PCWZ O2VA'
     },
-    ('mohammad@mellanni.com',):{
+    ('dariyka@mellanni.com','fabiana@mellanni.com','evelyn@mellanni.com','vicky@mellanni.com','sergey@mellanni.com'):{
+        'FB Dariyka': 'ZFY5 G644 ZISK WKQX 4TK7 4JM7 T4FI BA6V'
+    },    ('mohammad@mellanni.com',):{
         'US: Mohammad':'MOCW DOLS D4MG KQK6 WOKV 45UT VZ6M EYDW IMBP CBFL 3MP6 I64W 4ANQ'
     }
     }
