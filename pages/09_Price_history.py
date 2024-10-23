@@ -16,7 +16,7 @@ from io import BytesIO
 import altair as alt
 # from matplotlib import pyplot as plt
 
-DAYS_TO_PULL = 180
+DAYS_TO_PULL = 60
 START_DATE = (pd.to_datetime('today') - pd.Timedelta(days = DAYS_TO_PULL)).date().strftime('%Y-%m-%d')
 
 st.set_page_config(page_title = 'Price tracker', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
@@ -82,7 +82,7 @@ if 'data' not in st.session_state:
 
     query_short = '''SELECT datetime, asin, brand, final_price, image, coupon, full_price
                 FROM `auxillary_development.price_comparison`
-                WHERE DATE(datetime) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY) AND CURRENT_DATE()'''
+                WHERE DATE(datetime) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) AND CURRENT_DATE()'''
     query_long = f'''SELECT datetime, asin, brand, final_price, image, coupon, full_price
                 FROM `auxillary_development.price_comparison`
                 WHERE DATE(datetime) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL {DAYS_TO_PULL} DAY) AND CURRENT_DATE()'''
