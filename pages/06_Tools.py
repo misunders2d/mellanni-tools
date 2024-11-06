@@ -30,7 +30,7 @@ if st.session_state['login'][0]:
     st.write(user_email)
 
 # if True:
-#     user_email = 'vicky@mellanni.com'
+#     user_email = 'ann@mellanni.com'
 
 
     with col2:
