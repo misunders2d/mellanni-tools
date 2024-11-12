@@ -79,7 +79,7 @@ if st.session_state['login'][0]:
                 pdf.add_page()
             pdf.set_font('Arial', style ='', size = 8)
 
-            for _ in range(number_barcodes):
+            for num_record in range(number_barcodes):
                 for p,s in enumerate(title_str):
                     pdf.text(x_coords[ix]+.1+(p/3), y_coords[iy]+0.5+(p/10), s)
                 pdf.text(x_coords[ix]+.1, y_coords[iy]+0.6, 'New')
@@ -92,7 +92,7 @@ if st.session_state['login'][0]:
                     iy +=1
                 if iy == 10:
                     iy = 0
-                    if number_barcodes % 30 != 0 or mode == 'combined':
+                    if num_record < number_barcodes-1 or mode=='combined':
                         pdf.add_page()
         # pdf.output('barcodes.pdf', 'F')
         return pdf
