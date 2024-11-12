@@ -189,7 +189,7 @@ if st.session_state['login'][0]:
         if col3.button('Clear'):
             remove_images()
     with col2:
-        barcode_type = col2.radio('Select barcode type:',['FNSKU','ITF14','UPC upload with qty'])
+        barcode_type = col2.radio('Select barcode type:',['FNSKU','ITF14','SKU upload with qty'])
         
         if barcode_type == 'ITF14':
             layout = col2.radio('Layout type',['Letter','Zebra'])
@@ -198,14 +198,14 @@ if st.session_state['login'][0]:
         elif barcode_type == 'FNSKU':
             layout = 'Letter'
             qty_type = col2.radio('Labels per sheet',[1,30])
-        elif barcode_type == 'UPC upload with qty':
+        elif barcode_type == 'SKU upload with qty':
             layout = 'Letter'
 
     with col1:
         if barcode_type in ('ITF14','FNSKU'):
             skus = st.text_area('Input SKUs', height = 300, help = 'Input a list of SKUs you want to generate barcodes for').split('\n')
             sku_list = [x for x in skus if x != '']
-        elif barcode_type == 'UPC upload with qty':
+        elif barcode_type == 'SKU upload with qty':
             qty_file_obj = st.file_uploader('Upload file with SKUs and quantities (make sure it has columns "sku" and "qty")')
             if qty_file_obj:
                 qty_file = pd.read_excel(qty_file_obj)
@@ -217,7 +217,7 @@ if st.session_state['login'][0]:
                 st.session_state.file = dictionary[dictionary['sku'].isin(sku_list)].reset_index()
                 del st.session_state.file['index']
 
-                if barcode_type != 'UPC upload with qty':
+                if barcode_type != 'SKU upload with qty':
                     st.session_state.file['qty'] = qty_type
                 else:
                     st.session_state.file = pd.merge(st.session_state.file, qty_file, how = 'outer', on = 'sku')
@@ -230,8 +230,8 @@ if st.session_state['login'][0]:
                 # upcs = st.session_state.file['upc']
                 # skus = st.session_state.file['sku']
                 # qty = [qty_type]*len(sku_list)
-                if barcode_type in ('FNSKU','UPC upload with qty'):
-                    st.session_state.pdf = generate_pdf(fnsku_dict, mode='separate' if barcode_type == 'UPC upload with qty' else 'combined')
+                if barcode_type in ('FNSKU','SKU upload with qty'):
+                    st.session_state.pdf = generate_pdf(fnsku_dict, mode='separate' if barcode_type == 'SKU upload with qty' else 'combined')
                     st.session_state.file_name = 'Individual barcodes.pdf'
                 elif barcode_type == 'ITF14':
                     qty = qty_type
