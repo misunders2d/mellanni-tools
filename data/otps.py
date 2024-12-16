@@ -59,6 +59,9 @@ keys = {
     ('mohammad@mellanni.com',):{
         'US: Mohammad':'MOCW DOLS D4MG KQK6 WOKV 45UT VZ6M EYDW IMBP CBFL 3MP6 I64W 4ANQ'
     },
+    ('hans@mellanni.com',):{
+        'US: Hans': 'XHQE HT73 4FOA QVW6 OI2W 4RKH EQ44 LPYW QT6Q FCYQ DYCL LAMB 4JHA'
+    },
     ('ann@mellanni.com',):{
         'US: Anna': 'D2SY IRLN IWHE ZOB4 AR3K ONZW QNSU X6FG CMS4 V5VL R5RM MIYX KRXQ'
     }
