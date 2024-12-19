@@ -29,6 +29,8 @@ if st.session_state['login'][0]:
 
     top_area = st.empty()
     bottom_area = st.empty()
+    st.divider()
+    inv_report_area = st.container()
     col1, col2, col3 = top_area.columns([4,3,2])
 
 
@@ -210,7 +212,7 @@ if st.session_state['login'][0]:
             if qty_file_obj:
                 qty_file = pd.read_excel(qty_file_obj)
                 sku_list = qty_file['sku'].unique().tolist()
-        if col1.button('Create barcodes') and len(sku_list) > 0:
+        if col1.button('Create barcodes', icon=':material/barcode:') and len(sku_list) > 0:
             with st.spinner('Please wait'):
                 dictionary = gc.pull_dictionary(combine = True)
                 check_skus(sku_list,dictionary)
@@ -259,3 +261,20 @@ if st.session_state['login'][0]:
 
 
     bottom_area.markdown('\nAdditional tool to optimize package dimensions\n\nhttps://package-optimizer.streamlit.app/')
+
+    ###### inventory report section
+
+    def download_inv_report(inv_date):
+        query = f'''SELECT * FROM `reports.fba_inventory_planning` WHERE DATE(snapshot_date)=DATE("{inv_date}")'''
+        client = gc.gcloud_connect()
+        result = client.query(query).to_dataframe()
+        inv_report_area.dataframe(result)
+        # inv_report_area.write(query)
+    if st.session_state['login'][0] in ('sergey@mellanni.com','natalie@mellanni.com'):
+        today = pd.to_datetime('today').date()
+        default_date = today - pd.Timedelta(days=1)
+        inv_date = inv_report_area.date_input('Select report date', value=default_date, max_value=today)
+        inv_report_area.button('Download inventory',key='inv_button',icon=':material/inventory_2:', on_click=lambda:download_inv_report(inv_date))
+    else:
+        inv_report_area.write(f'{st.session_state['login'][0]} is not allowed to access this section.\nIf you believe you need access to inventory reports, please contact Sergey')
+    
