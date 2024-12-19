@@ -263,7 +263,7 @@ if st.session_state['login'][0]:
     bottom_area.markdown('\nAdditional tool to optimize package dimensions\n\nhttps://package-optimizer.streamlit.app/')
 
     ###### inventory report section
-    if st.session_state['login'][1] in ('sergey@mellanni.com','natalie@mellanni.com'):
+    if st.session_state['login'][1] in ('sergey@mellanni.com','natalie@mellanni.com', 'ruslan@mellanni.com'):
         # @st.cache_data
         def download_inv_report(inv_date, market):
             query = f'''SELECT * FROM `reports.fba_inventory_planning` WHERE DATE(snapshot_date)=DATE("{inv_date}") AND marketplace="{market}"'''
