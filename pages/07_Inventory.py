@@ -263,21 +263,39 @@ if st.session_state['login'][0]:
     bottom_area.markdown('\nAdditional tool to optimize package dimensions\n\nhttps://package-optimizer.streamlit.app/')
 
     ###### inventory report section
-    if st.session_state['login'][1] in ('sergey@mellanni.com','natalie@mellanni.com', 'ruslan@mellanni.com'):
+    if st.session_state['login'][1] in ('sergey@mellanni.com','natalie@mellanni.com', 'ruslan@mellanni.com', 'andreia@mellanni.com'):
         # @st.cache_data
         def download_inv_report(inv_date, market):
             query = f'''SELECT * FROM `reports.fba_inventory_planning` WHERE DATE(snapshot_date)=DATE("{inv_date}") AND marketplace="{market}"'''
+            if 'WM' in market:
+                if market=='WM':
+                    query = f'''SELECT sku, shipNode, 
+                                inputQty.amount as input_amount, inputQty.unit as input_unit, 
+                                availToSellQty.amount as avail_amount, availToSellQty.unit as avail_unit, 
+                                reservedQty.amount as reserved_amount, reservedQty.unit as reserved_unit, 
+                                date, item_id 
+                                FROM `walmart.inventory` WHERE DATE(date)=DATE("{inv_date}")'''
+                elif market=='WM wfs':
+                    query = f'SELECT * FROM `walmart.inventory_wfs` WHERE DATE(date)=DATE("{inv_date}")'
             result = client.query(query).to_dataframe()
             inv_report_area.dataframe(result)
         @st.cache_data
         def get_markets():
             markets_query = client.query('SELECT DISTINCT marketplace FROM `reports.fba_inventory_planning`').result()
-            return [x[0] for x in markets_query]
+            return [x[0] for x in markets_query] + ['WM','WM wfs']
         @st.cache_data
         def get_max_date(market):
-            date_query = client.query(f'SELECT MIN(snapshot_date) as min_date, MAX(snapshot_date) as max_date FROM `reports.fba_inventory_planning` WHERE marketplace="{market}"').result()
+            query=f'SELECT MIN(snapshot_date) as min_date, MAX(snapshot_date) as max_date FROM `reports.fba_inventory_planning` WHERE marketplace="{market}"'
+            if 'WM' in market:
+                if market=='WM':
+                    query = 'SELECT MIN(date) as min_date, MAX(date) as max_date FROM `walmart.inventory`'
+                elif market=='WM wfs':
+                    query = 'SELECT MIN(date) as min_date, MAX(date) as max_date FROM `walmart.inventory_wfs`'
+                else:
+                    return 0, 0
+            
+            date_query = client.query(query).result()
             dates = [x for x in date_query]
-            # st.write(dates[0][0].date())
             return dates[0][0].date(), dates[0][1].date()
 
         client = gc.gcloud_connect()
