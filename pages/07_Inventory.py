@@ -17,9 +17,9 @@ from barcode.writer import ImageWriter
 
 import login_google
 st.session_state['login'] = login_google.login()
+# st.session_state['login'] = (True,'sergey@mellanni.com')
 
 if st.session_state['login'][0]:
-# if True:
     width = 2.2
     height = 0.4
     options_fnsku = {'module_width':height, 'module_height':width+7, 'font_size':10, 'text_distance':4}
@@ -263,18 +263,34 @@ if st.session_state['login'][0]:
     bottom_area.markdown('\nAdditional tool to optimize package dimensions\n\nhttps://package-optimizer.streamlit.app/')
 
     ###### inventory report section
-
-    def download_inv_report(inv_date):
-        query = f'''SELECT * FROM `reports.fba_inventory_planning` WHERE DATE(snapshot_date)=DATE("{inv_date}")'''
-        client = gc.gcloud_connect()
-        result = client.query(query).to_dataframe()
-        inv_report_area.dataframe(result)
-        # inv_report_area.write(query)
     if st.session_state['login'][1] in ('sergey@mellanni.com','natalie@mellanni.com'):
-        today = pd.to_datetime('today').date()
-        default_date = today - pd.Timedelta(days=1)
-        inv_date = inv_report_area.date_input('Select report date', value=default_date, max_value=today)
-        inv_report_area.button('Download inventory',key='inv_button',icon=':material/inventory_2:', on_click=lambda:download_inv_report(inv_date))
+        # @st.cache_data
+        def download_inv_report(inv_date, market):
+            query = f'''SELECT * FROM `reports.fba_inventory_planning` WHERE DATE(snapshot_date)=DATE("{inv_date}") AND marketplace="{market}"'''
+            result = client.query(query).to_dataframe()
+            inv_report_area.dataframe(result)
+        @st.cache_data
+        def get_markets():
+            markets_query = client.query('SELECT DISTINCT marketplace FROM `reports.fba_inventory_planning`').result()
+            return [x[0] for x in markets_query]
+        @st.cache_data
+        def get_max_date(market):
+            date_query = client.query(f'SELECT MIN(snapshot_date) as min_date, MAX(snapshot_date) as max_date FROM `reports.fba_inventory_planning` WHERE marketplace="{market}"').result()
+            dates = [x for x in date_query]
+            # st.write(dates[0][0].date())
+            return dates[0][0].date(), dates[0][1].date()
+
+        client = gc.gcloud_connect()
+        markets = get_markets()
+        market_radio = inv_report_area.radio('Select marketplace', markets, index=markets.index('US'), horizontal=True)
+        min_date, max_date = get_max_date(market_radio)
+        inv_date = inv_report_area.date_input(
+            f'Select report date (latest date for {market_radio} is {max_date}, earliest date is {min_date})',
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date
+            )
+        inv_report_area.button('Download inventory',key='inv_button',icon=':material/inventory_2:', on_click=lambda:download_inv_report(inv_date,market_radio))
     else:
         inv_report_area.write(f'{st.session_state['login'][1]} is not allowed to access this section.\nIf you believe you need access to inventory reports, please contact Sergey')
     
