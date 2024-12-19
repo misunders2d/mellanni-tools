@@ -270,11 +270,11 @@ if st.session_state['login'][0]:
         result = client.query(query).to_dataframe()
         inv_report_area.dataframe(result)
         # inv_report_area.write(query)
-    if st.session_state['login'][0] in ('sergey@mellanni.com','natalie@mellanni.com'):
+    if st.session_state['login'][1] in ('sergey@mellanni.com','natalie@mellanni.com'):
         today = pd.to_datetime('today').date()
         default_date = today - pd.Timedelta(days=1)
         inv_date = inv_report_area.date_input('Select report date', value=default_date, max_value=today)
         inv_report_area.button('Download inventory',key='inv_button',icon=':material/inventory_2:', on_click=lambda:download_inv_report(inv_date))
     else:
-        inv_report_area.write(f'{st.session_state['login'][0]} is not allowed to access this section.\nIf you believe you need access to inventory reports, please contact Sergey')
+        inv_report_area.write(f'{st.session_state['login'][1]} is not allowed to access this section.\nIf you believe you need access to inventory reports, please contact Sergey')
     
