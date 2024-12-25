@@ -113,7 +113,7 @@ class KeepaProduct():
                 columns=['datetime', '% off','$ off','SNS']
                 )
         else:
-            coupon_history = pd.DataFrame([[self._today, 0,0,0]],columns=['datetime', '% off','$ off','SNS'])
+            coupon_history = pd.DataFrame({'datetime':[pd.to_datetime(self._today)],'% off':[0],'$ off':[0],'SNS':[0]})
         
         sales_history = pd.merge(sales, coupon_history, how='outer', on='datetime').ffill()#.fillna(0)
         
