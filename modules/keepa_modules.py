@@ -163,6 +163,7 @@ class KeepaProduct():
             minutely_history = pd.merge(lifetime_df, short_history, how='left', on='datetime').ffill()
             #remove price info with full price == -1 product blocked
             minutely_history.loc[minutely_history['full price']==-1, 'final price'] = nan
+            minutely_history['full price'] = minutely_history['full price'].replace(-1, nan)
     
             minutely_history['sales min'] = minutely_history['monthlySoldMin']/(60*24*30)
             minutely_history['sales max'] = minutely_history['monthlySoldMax']/(60*24*30)
