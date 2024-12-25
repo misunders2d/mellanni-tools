@@ -51,7 +51,9 @@ class KeepaProduct():
         self.data = None
         self.brand = None
         self.parent = None
+        self._today =pd.to_datetime('today').date().strftime("%Y-%m-%d %H:%M:%S")
         self.pivot = pd.DataFrame()
+        self._default_df = pd.DataFrame([0],index=[self._today],columns=['value'])
     
     def __str__(self):
         self.get_last_days(days=30)
@@ -59,7 +61,7 @@ class KeepaProduct():
         sales_max = int(self.last_days['sales max'].sum())
         avg_price = self.last_days['final price'].mean()
         return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {sales_min} - {sales_max} units\nAverage price last 30 days: ${avg_price:.2f}'
-        
+    
     def _format_numbers(self, df):
         df['full price'] = round(df['full price'],2)
         df['final price'] = round(df['final price'],2)
@@ -97,7 +99,7 @@ class KeepaProduct():
             self.image = 'https://m.media-amazon.com/images/I/' + img_links.split(',')[0]
         self.brand = self.data[0].get('brand')
         self.parent = self.data[0].get('parentAsin')
-        sales = self.data[0].get('data',{}).get('df_NEW')
+        sales = self.data[0].get('data',{}).get('df_NEW', self._default_df)
         sales = sales.reset_index().rename(columns = {'index':'datetime','value':'full price'}).fillna(-1)
         coupons = self.data[0].get('couponHistory')
         if coupons:
@@ -111,23 +113,19 @@ class KeepaProduct():
                 columns=['datetime', '% off','$ off','SNS']
                 )
         else:
-            coupon_history = pd.DataFrame([[pd.to_datetime('today'), 0,0,0]],columns=['datetime', '% off','$ off','SNS'])
+            coupon_history = pd.DataFrame([[self._today, 0,0,0]],columns=['datetime', '% off','$ off','SNS'])
         
         sales_history = pd.merge(sales, coupon_history, how='outer', on='datetime').ffill()#.fillna(0)
         
-        lds = self.data[0].get('data',{}).get('df_LIGHTNING_DEAL')
-        if isinstance(lds, pd.DataFrame) and len(lds)>0:
-            lds = lds.fillna(0)
-            lds = lds.reset_index().rename(columns = {'index':'datetime','value':'LD'})
-        else:
-            lds = pd.DataFrame([[pd.to_datetime('today'), 0]], columns = ['datetime', 'LD'])
+        lds = self.data[0].get('data',{}).get('df_LIGHTNING_DEAL', self._default_df)
+        lds = lds.fillna(0)
+        lds = lds.reset_index().rename(columns = {'index':'datetime','value':'LD'})
             
         sales_history = pd.merge(sales_history, lds, how='outer', on='datetime').ffill().fillna(0)
             
-        bsr = self.data[0].get('data',{}).get('df_SALES').replace(-1,nan)
-        if len(bsr)>0:
-            bsr = bsr.reset_index().rename(columns = {'index':'datetime','value':'BSR'})
-            sales_history = pd.merge(sales_history, bsr, how='outer', on='datetime').ffill().fillna(0)
+        bsr = self.data[0].get('data',{}).get('df_SALES', self._default_df).replace(-1,nan)
+        bsr = bsr.reset_index().rename(columns = {'index':'datetime','value':'BSR'})
+        sales_history = pd.merge(sales_history, bsr, how='outer', on='datetime').ffill().fillna(0)
         
         sales_history['final price'] = sales_history['full price'] * (1+ sales_history['% off']/100) - sales_history['$ off']
         sales_history.loc[sales_history['LD'] != 0, 'final price'] = sales_history['LD']
@@ -143,9 +141,10 @@ class KeepaProduct():
                 data = list(zip(times, monthly_units)),
                 columns = ['datetime', 'monthlySoldMin']
                 )
-            monthly_sold_history['monthlySoldMax'] = monthly_sold_history['monthlySoldMin'].map(KeepaProduct.sales_tiers)
         else:
-            monthly_sold = pd.DataFrame(columns = ['datetime', 'monthlySoldMin'])
+            monthly_sold_history = pd.DataFrame([[self._today,-1]],columns = ['datetime', 'monthlySoldMin'])
+        monthly_sold_history['monthlySoldMax'] = monthly_sold_history['monthlySoldMin'].map(KeepaProduct.sales_tiers)
+            
         self.sales_history_monthly = pd.merge(
             sales_history,
             monthly_sold_history,
@@ -156,40 +155,46 @@ class KeepaProduct():
         
     def generate_daily_sales(self):
         short_history = self.pull_monthly_sold()
-        lifetime = pd.date_range(short_history['datetime'].min(), pd.to_datetime('today'), freq='min')
-        lifetime_df = pd.DataFrame(lifetime, columns=['datetime'])
-        minutely_history = pd.merge(lifetime_df, short_history, how='left', on='datetime').ffill()
-        #remove price info with full price == -1 product blocked
-        minutely_history.loc[minutely_history['full price']==-1, 'final price'] = nan
-
-        minutely_history['sales min'] = minutely_history['monthlySoldMin']/(60*24*30)
-        minutely_history['sales max'] = minutely_history['monthlySoldMax']/(60*24*30)
-        minutely_history['date'] = minutely_history['datetime'].dt.date
-        self.pivot = minutely_history.pivot_table(
-            values = [
-                'full price','% off', '$ off', 'SNS', 'LD', 'final price',
-                'sales min','sales max','BSR'
-                ],
-            index = 'date',
-            aggfunc = {
-                'full price':'mean',
-                '% off':'min',
-                '$ off':'min',
-                'SNS':'min',
-                'LD':'max',
-                'final price':'mean',
-                'sales min':'sum',
-                'sales max':'sum',
-                'BSR':'min'
-                }
-            )
-        self.pivot = self._format_numbers(self.pivot)
-        self.pivot = self.pivot.replace(0,nan)
+        if len(short_history)==1:
+            self.pivot = pd.DataFrame([[0,0,0]], columns=['final price','sales min','sales max'])
+        else:
+            lifetime = pd.date_range(short_history['datetime'].min(), self._today, freq='min')
+            lifetime_df = pd.DataFrame(lifetime, columns=['datetime'])
+            minutely_history = pd.merge(lifetime_df, short_history, how='left', on='datetime').ffill()
+            #remove price info with full price == -1 product blocked
+            minutely_history.loc[minutely_history['full price']==-1, 'final price'] = nan
+    
+            minutely_history['sales min'] = minutely_history['monthlySoldMin']/(60*24*30)
+            minutely_history['sales max'] = minutely_history['monthlySoldMax']/(60*24*30)
+            minutely_history['date'] = minutely_history['datetime'].dt.date
+            self.pivot = minutely_history.pivot_table(
+                values = [
+                    'full price','% off', '$ off', 'SNS', 'LD', 'final price',
+                    'sales min','sales max','BSR'
+                    ],
+                index = 'date',
+                aggfunc = {
+                    'full price':'mean',
+                    '% off':'min',
+                    '$ off':'min',
+                    'SNS':'min',
+                    'LD':'max',
+                    'final price':'mean',
+                    'sales min':'sum',
+                    'sales max':'sum',
+                    'BSR':'min'
+                    }
+                )
+            self.pivot = self._format_numbers(self.pivot)
+            self.pivot = self.pivot.replace(0,nan)
     
     def get_last_days(self, days=360):
         if len(self.pivot)==0:
             self.generate_daily_sales()
-        self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
+        elif len(self.pivot)==1:
+            self.last_days = self.pivot
+        else:
+            self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
         
 
 def get_tokens(api_key = KEEPA_KEY):
