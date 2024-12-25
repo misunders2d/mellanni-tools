@@ -104,8 +104,9 @@ class KeepaProduct():
         
         sales_history = pd.merge(sales, coupon_history, how='outer', on='datetime').ffill()#.fillna(0)
         
-        lds = self.data[0].get('data',{}).get('df_LIGHTNING_DEAL', pd.DataFrame()).fillna(0)
-        if len(lds)>0:
+        lds = self.data[0].get('data',{}).get('df_LIGHTNING_DEAL')
+        if isinstance(lds, pd.DataFrame) and len(lds)>0:
+            lds = lds.fillna(0)
             lds = lds.reset_index().rename(columns = {'index':'datetime','value':'LD'})
             sales_history = pd.merge(sales_history, lds, how='outer', on='datetime').ffill().fillna(0)
             
