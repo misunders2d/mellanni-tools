@@ -19,7 +19,7 @@ if st.session_state['login'][0]:
     df_area = st.container()
     plot_area = st.container()
 
-    asin = input_area.text_input('ASIN', max_chars=10, key = 'ASIN', help='Enter ASIN or Amazon link to check latest stats')
+    asin = input_area.text_input('ASIN', max_chars=10, key = 'ASIN', help='Enter ASIN or Amazon link to check latest stats. Currently available for US only')
     submit_button = input_area.button('Submit')
     if submit_button and asin:
         asin_clean = re.search('[A-Z0-9]{10}', asin).group()
@@ -27,6 +27,7 @@ if st.session_state['login'][0]:
         try:
             product.generate_daily_sales()
             product_title_area.write(product)
+            product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{product.asin}")
             product_image_area.image(product.image)
             product.get_last_days(days=360)
             df_area.write('Latest price history and average sales per day:')

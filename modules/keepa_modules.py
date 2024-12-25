@@ -59,7 +59,7 @@ class KeepaProduct():
         sales_max = int(self.last_days['sales max'].sum())
         avg_price = self.last_days['final price'].mean()
         return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {sales_min} - {sales_max} units\nAverage price last 30 days: ${avg_price:.2f}'
-    
+        
     def _format_numbers(self, df):
         df['full price'] = round(df['full price'],2)
         df['final price'] = round(df['final price'],2)
