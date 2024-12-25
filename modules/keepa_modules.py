@@ -108,7 +108,10 @@ class KeepaProduct():
         if isinstance(lds, pd.DataFrame) and len(lds)>0:
             lds = lds.fillna(0)
             lds = lds.reset_index().rename(columns = {'index':'datetime','value':'LD'})
-            sales_history = pd.merge(sales_history, lds, how='outer', on='datetime').ffill().fillna(0)
+        else:
+            lds = pd.DataFrame([[pd.to_datetime('today'), 0]], columns = ['datetime', 'LD'])
+            
+        sales_history = pd.merge(sales_history, lds, how='outer', on='datetime').ffill().fillna(0)
             
         bsr = self.data[0].get('data',{}).get('df_SALES').replace(-1,nan)
         if len(bsr)>0:
