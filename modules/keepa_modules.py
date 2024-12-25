@@ -190,6 +190,9 @@ class KeepaProduct():
         self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
         
 
+def get_tokens(api_key = KEEPA_KEY):
+    api = keepa.Keepa(KEEPA_KEY)
+    return api.tokens_left
 
 def get_product_details(asins: list[str]):
     api = keepa.Keepa(KEEPA_KEY)
