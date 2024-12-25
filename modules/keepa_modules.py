@@ -92,7 +92,9 @@ class KeepaProduct():
         if not self.data:
             self.query()
         self.title = self.data[0].get('title')
-        self.image = 'https://m.media-amazon.com/images/I/' + self.data[0].get('imagesCSV',['','']).split(',')[0]
+        img_links = self.data[0].get('imagesCSV')
+        if img_links and len(img_links.split(',')>0):
+            self.image = 'https://m.media-amazon.com/images/I/' + img_links.split(',')[0]
         self.brand = self.data[0].get('brand')
         self.parent = self.data[0].get('parentAsin')
         sales = self.data[0].get('data',{}).get('df_NEW')

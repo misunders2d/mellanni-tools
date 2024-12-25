@@ -29,7 +29,8 @@ if st.session_state['login'][0]:
             product.generate_daily_sales()
             product_title_area.write(product)
             product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{product.asin}")
-            product_image_area.image(product.image)
+            if product.image:
+                product_image_area.image(product.image)
             product.get_last_days(days=360)
             df_area.write('Latest price history and average sales per day:')
             df_area.dataframe(product.last_days)
