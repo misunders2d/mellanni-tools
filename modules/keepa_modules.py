@@ -57,7 +57,16 @@ class KeepaProduct():
         self.get_last_days(days=30)
         sales_min = int(self.last_days['sales min'].sum())
         sales_max = int(self.last_days['sales max'].sum())
-        return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {sales_min} - {sales_max} units'
+        avg_price = self.last_days['final price'].mean()
+        return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {sales_min} - {sales_max} units\nAverage price last 30 days: ${avg_price:.2f}'
+    
+    def _format_numbers(self, df):
+        df['full price'] = round(df['full price'],2)
+        df['final price'] = round(df['final price'],2)
+        df['sales max'] = df.loc[~df['sales max'].isnull(), 'sales max'].astype(int)
+        df['sales min'] = df.loc[~df['sales min'].isnull(), 'sales min'].astype(int)
+        df['LD'] = round(df['LD'],2)
+        return df
 
     def query(self):
         if not self.data:
@@ -172,6 +181,7 @@ class KeepaProduct():
                 'BSR':'min'
                 }
             )
+        self.pivot = self._format_numbers(self.pivot)
         self.pivot = self.pivot.replace(0,nan)
     
     def get_last_days(self, days=360):
