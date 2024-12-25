@@ -189,12 +189,13 @@ class KeepaProduct():
             self.pivot = self.pivot.replace(0,nan)
     
     def get_last_days(self, days=360):
-        if len(self.pivot)==0:
-            self.generate_daily_sales()
-        elif len(self.pivot)==1:
+        self.generate_daily_sales()
+        
+        if len(self.pivot)==1:
             self.last_days = self.pivot
         else:
             self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
+        
         
 
 def get_tokens(api_key = KEEPA_KEY):
