@@ -95,7 +95,7 @@ class KeepaProduct():
             self.query()
         self.title = self.data[0].get('title')
         img_links = self.data[0].get('imagesCSV')
-        if img_links and len(img_links.split(',')>0):
+        if img_links and len(img_links.split(','))>0:
             self.image = 'https://m.media-amazon.com/images/I/' + img_links.split(',')[0]
         self.brand = self.data[0].get('brand')
         self.parent = self.data[0].get('parentAsin')
