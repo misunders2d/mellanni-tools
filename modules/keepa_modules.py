@@ -217,6 +217,8 @@ class KeepaProduct():
                 'BSR':'min'
                 }
             )
+        self.short_history['final price'] = self.short_history['final price'].replace(-1,nan)
+        self.short_history['LD'] = self.short_history['LD'].replace(0,nan)
         self.pivot = self._format_numbers(self.pivot)
         self.pivot = self.pivot.replace(0,nan)
         

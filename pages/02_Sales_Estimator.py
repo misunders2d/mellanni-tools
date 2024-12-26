@@ -18,23 +18,25 @@ if st.session_state['login'][0]:
     input_area=st.container()
     plot_container=st.container()
     plot_area, selector_area = plot_container.columns([5,1])
-    plot_selection = selector_area.radio('Select plot type',['Monthly','Keepa'], disabled=True)
+    plot_selection = selector_area.radio('Select plot type',['Monthly','Keepa'], disabled=False)
     product_area=st.container()
     product_title_area, product_image_area=product_area.columns([3,1])
     df_area=st.container()
 
     def show_plot(df, type='Monthly'):
+        min_sales_col = 'sales min' if type=='Monthly' else 'monthlySoldMin'
+        max_sales_col = 'sales max' if type=='Monthly' else 'monthlySoldMax'
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=df.index, y=df['sales min'],
+                x=df.index, y=df[min_sales_col],
                 name='Sales min',
                 mode='lines',
                 yaxis='y1',
                 line=dict(color='lightgrey')
                 ))
         fig.add_trace(
-            go.Scatter(x=df.index, y=df['sales max'],
+            go.Scatter(x=df.index, y=df[max_sales_col],
                        name='Sales max',
                        mode='lines',
                        yaxis='y1',
@@ -44,6 +46,9 @@ if st.session_state['login'][0]:
                        ))
 
         fig.add_trace(go.Scatter(x=df.index, y=df['final price'], name='Final price', mode='lines', yaxis='y2',line=dict(color='red')))
+        if type=='Keepa':
+            fig.add_trace(go.Scatter(x=df.index, y=df['LD'], name='Lightning Deal', mode='lines', yaxis='y2',line=dict(color='darkred')))
+
 
         fig.add_trace(go.Scatter(x=df.index, y=df['BSR'], name='BSR', mode='lines', yaxis='y3',line=dict(color='lightgreen')))
 
