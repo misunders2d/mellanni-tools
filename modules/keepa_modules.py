@@ -223,16 +223,17 @@ class KeepaProduct():
     def generate_monthly_summary(self):
         if not self.pivot:
             self.generate_daily_sales()
-        summary = self.pivot.copy()
-        summary = summary[summary.index>=pd.to_datetime('2020-01-01').date()]
-        summary['year-month'] = pd.to_datetime(summary.index).year.astype(str) + '-' + pd.to_datetime(summary.index).month.astype(str).str.zfill(2)
-        self.summary = summary.pivot_table(
-            values = ['final price', 'full price','sales max', 'sales min','BSR'],
-            index = 'year-month',
-            aggfunc = {'final price':'mean', 'full price':'mean','sales max':'sum', 'sales min':'sum','BSR':'mean'}
-            )
-        self.summary[['final price', 'full price']] = self.summary[['final price', 'full price']].round(2)
-        self.summary[['BSR', 'sales max', 'sales min']] = self.summary[['BSR', 'sales max', 'sales min']].round(0)
+        if self.data:
+            summary = self.pivot.copy()
+            summary = summary[summary.index>=pd.to_datetime('2020-01-01').date()]
+            summary['year-month'] = pd.to_datetime(summary.index).year.astype(str) + '-' + pd.to_datetime(summary.index).month.astype(str).str.zfill(2)
+            self.summary = summary.pivot_table(
+                values = ['final price', 'full price','sales max', 'sales min','BSR'],
+                index = 'year-month',
+                aggfunc = {'final price':'mean', 'full price':'mean','sales max':'sum', 'sales min':'sum','BSR':'mean'}
+                )
+            self.summary[['final price', 'full price']] = self.summary[['final price', 'full price']].round(2)
+            self.summary[['BSR', 'sales max', 'sales min']] = self.summary[['BSR', 'sales max', 'sales min']].round(0)
     
     def get_last_days(self, days=360):
         self.generate_daily_sales()
