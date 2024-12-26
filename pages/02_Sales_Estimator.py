@@ -16,9 +16,9 @@ if st.session_state['login'][0]:
     st.subheader('_Get ASIN sales_')
 
     input_area=st.container()
+    plot_area=st.container()
     product_area=st.container()
     product_title_area, product_image_area=product_area.columns([3,1])
-    plot_area=st.container()
     df_area=st.container()
 
     asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN or Amazon link to check latest stats. Currently available for US only')
