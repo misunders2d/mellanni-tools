@@ -58,18 +58,20 @@ if st.session_state['login'][0]:
         return
 
     if submit_button and asin:
+        if 'product' in st.session_state:
+            del st.session_state['product']
         asin_clean=re.search('[A-Z0-9]{10}', asin).group()
-        product=KeepaProduct(asin_clean.upper())
+        st.session_state.product=KeepaProduct(asin_clean.upper())
         try:
-            product.generate_monthly_summary()
-            product_title_area.write(product)
-            if product.exists:
-                product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{product.asin}")
-                if product.image:
-                    product_image_area.image(product.image)
-                product.get_last_days(days=360)
+            st.session_state.product.generate_monthly_summary()
+            product_title_area.write(st.session_state.product)
+            if st.session_state.product.exists:
+                product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{st.session_state.product.asin}")
+                if st.session_state.product.image:
+                    product_image_area.image(st.session_state.product.image)
+                st.session_state.product.get_last_days(days=360)
                 df_area.write('Latest price history and average sales per day:')
-                df_area.dataframe(product.last_days)
-                show_plot(product.summary)
+                df_area.dataframe(st.session_state.product.last_days)
+                show_plot(st.session_state.product.summary)
         except Exception as e:
             st.write(e)
