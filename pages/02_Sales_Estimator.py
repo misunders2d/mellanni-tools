@@ -23,7 +23,7 @@ if st.session_state['login'][0]:
     asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN or Amazon link to check latest stats. Currently available for US only')
     submit_button=input_area.button('Submit')
     if submit_button and asin:
-        asin_clean=re.search('[A-Za-z0-9]{10}', asin).group()
+        asin_clean=re.search('[A-Z0-9]{10}', asin).group()
         product=KeepaProduct(asin_clean.upper())
         try:
             product.generate_daily_sales()
