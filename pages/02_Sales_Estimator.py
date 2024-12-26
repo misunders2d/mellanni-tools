@@ -49,7 +49,7 @@ if st.session_state['login'][0]:
             xaxis=dict(title='Months'),
             yaxis=dict(title='Sales min-max', side='left', showgrid=False),
             yaxis2=dict(
-                title='Final price', side='left', overlaying='y', position=0.1,
+                title='Final price', side='left', overlaying='y', position=0.05,
                 showgrid=False, range=[0, max(df['final price'])*1.3],
                 titlefont=dict(color='red'), tickfont=dict(color='red')
                 ),
