@@ -44,14 +44,15 @@ class KeepaProduct():
         100000: 150000}
 
     def __init__(self, asin=None, domain="US"):
-        self.exists = False
-        self.asin = input('ASIN?\n\n') if not asin else asin
-        self.domain = domain
-        self.title = None
-        self.image = None
-        self.data = None
-        self.brand = None
-        self.parent = None
+        self.exists: bool = False
+        self.asin: str = input('ASIN?\n\n') if not asin else asin
+        self.domain: str = domain
+        self.title: str = None
+        self.image: str = None
+        self.data: dict|None = None
+        self.brand: str = None
+        self.parent: str = None
+        self.pivot: pd.DataFrame|None = None
     
     def __str__(self):
         self.get_last_days(days=30)
@@ -218,13 +219,26 @@ class KeepaProduct():
             )
         self.pivot = self._format_numbers(self.pivot)
         self.pivot = self.pivot.replace(0,nan)
+        
+    def generate_monthly_summary(self):
+        if not self.pivot:
+            self.generate_daily_sales()
+        summary = self.pivot.copy()
+        summary = summary[summary.index>=pd.to_datetime('2024-01-01').date()]
+        summary['year-month'] = pd.to_datetime(summary.index).year.astype(str) + '-' + pd.to_datetime(summary.index).month.astype(str).str.zfill(2)
+        self.summary = summary.pivot_table(
+            values = ['final price', 'full price','sales max', 'sales min','BSR'],
+            index = 'year-month',
+            aggfunc = {'final price':'mean', 'full price':'mean','sales max':'sum', 'sales min':'sum','BSR':'mean'}
+            )
+        self.summary[['final price', 'full price']] = self.summary[['final price', 'full price']].round(2)
+        self.summary[['BSR', 'sales max', 'sales min']] = self.summary[['BSR', 'sales max', 'sales min']].round(0)
     
     def get_last_days(self, days=360):
         self.generate_daily_sales()
         if not self.exists:
             return
         self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
-
         
         
 

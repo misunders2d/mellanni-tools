@@ -14,6 +14,7 @@ openai
 openpyxl
 pandas_gbq
 pinecone
+plotly
 pyotp
 python-barcode
 streamlit
