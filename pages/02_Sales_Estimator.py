@@ -52,7 +52,7 @@ if st.session_state['login'][0]:
         fig.update_layout(
             xaxis=dict(title='Months'),
             yaxis=dict(title='Sales min-max', side='left', showgrid=False),
-            yaxis2=dict(title='Final price', side='right', overlaying='y', position=0.8, showgrid=False),
+            yaxis2=dict(title='Final price', side='right', overlaying='y', position=0.8, showgrid=False, range=[0, max(df['final price'])*1.3]),
             yaxis3=dict(title='BSR', side='right', overlaying='y', anchor='free', position=0.9, showgrid=False)
         )
         plot_area.plotly_chart(fig, use_container_width=True)
