@@ -224,7 +224,7 @@ class KeepaProduct():
         if not self.pivot:
             self.generate_daily_sales()
         summary = self.pivot.copy()
-        summary = summary[summary.index>=pd.to_datetime('2024-01-01').date()]
+        summary = summary[summary.index>=pd.to_datetime('2020-01-01').date()]
         summary['year-month'] = pd.to_datetime(summary.index).year.astype(str) + '-' + pd.to_datetime(summary.index).month.astype(str).str.zfill(2)
         self.summary = summary.pivot_table(
             values = ['final price', 'full price','sales max', 'sales min','BSR'],
