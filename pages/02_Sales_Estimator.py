@@ -21,7 +21,8 @@ if st.session_state['login'][0]:
     product_title_area, product_image_area=product_area.columns([3,1])
     df_area=st.container()
 
-    asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN or Amazon link to check latest stats. Currently available for US only')
+    asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
+    
     submit_button=input_area.button('Submit')
     
     def show_plot(df):
@@ -60,7 +61,7 @@ if st.session_state['login'][0]:
     if submit_button and asin:
         if 'product' in st.session_state:
             del st.session_state['product']
-        asin_clean=re.search('[A-Z0-9]{10}', asin).group()
+        asin_clean=re.search('[A-Z0-9]{10}', asin).group() if len(asin)>10 else asin
         st.session_state.product=KeepaProduct(asin_clean.upper())
         try:
             st.session_state.product.generate_monthly_summary()
