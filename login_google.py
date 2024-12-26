@@ -53,7 +53,7 @@ def login():
             time.sleep(0.5)
             st.rerun()
     else:
-        st.write(f"You are logged in as {st.session_state["auth"]}")
+        # st.write(f"You are logged in as {st.session_state["auth"]}")
         if st.session_state['auth'] in PREAUTHORIZED_EMAILS:
             return True, st.session_state["auth"]
         # st.write(st.session_state["token"])
