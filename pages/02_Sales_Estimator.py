@@ -21,10 +21,6 @@ if st.session_state['login'][0]:
     product_title_area, product_image_area=product_area.columns([3,1])
     df_area=st.container()
 
-    asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
-    
-    submit_button=input_area.button('Submit')
-    
     def show_plot(df):
         fig = go.Figure()
         fig.add_trace(
@@ -52,16 +48,20 @@ if st.session_state['login'][0]:
         fig.update_layout(
             xaxis=dict(title='Months'),
             yaxis=dict(title='Sales min-max', side='left', showgrid=False),
-            yaxis2=dict(title='Final price', side='right', overlaying='y', position=0.8, showgrid=False, range=[0, max(df['final price'])*1.3]),
-            yaxis3=dict(title='BSR', side='right', overlaying='y', anchor='free', position=0.9, showgrid=False)
+            yaxis2=dict(title='Final price', side='left', overlaying='y', position=0.1, showgrid=False, range=[0, max(df['final price'])*1.3]),
+            yaxis3=dict(title='BSR', side='right', overlaying='y', anchor='free', position=1, showgrid=False)
         )
         plot_area.plotly_chart(fig, use_container_width=True)
         return
 
-    if submit_button and asin:
+    st.session_state.asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
+    
+    submit_button=input_area.button('Submit', icon=':material/local_fire_department:')
+
+    if submit_button and st.session_state.asin:
         if 'product' in st.session_state:
             del st.session_state['product']
-        asin_clean=re.search('[A-Z0-9]{10}', asin).group() if len(asin)>10 else asin
+        asin_clean=re.search('[A-Z0-9]{10}', st.session_state.asin).group() if len(st.session_state.asin)>10 else st.session_state.asin
         st.session_state.product=KeepaProduct(asin_clean.upper())
         try:
             st.session_state.product.generate_monthly_summary()
