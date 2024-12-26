@@ -54,14 +54,14 @@ if st.session_state['login'][0]:
         plot_area.plotly_chart(fig, use_container_width=True)
         return
 
-    st.session_state.asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
+    asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
     
     submit_button=input_area.button('Submit', icon=':material/local_fire_department:')
 
-    if submit_button and st.session_state.asin:
+    if submit_button and len(asin)>=10:
         if 'product' in st.session_state:
             del st.session_state['product']
-        asin_clean=re.search('[A-Z0-9]{10}', st.session_state.asin).group() if len(st.session_state.asin)>10 else st.session_state.asin
+        asin_clean=re.search('[A-Z0-9]{10}', asin).group() if len(asin)>10 else asin
         st.session_state.product=KeepaProduct(asin_clean.upper())
         try:
             st.session_state.product.generate_monthly_summary()
