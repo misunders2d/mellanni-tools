@@ -223,7 +223,7 @@ class KeepaProduct():
     def generate_monthly_summary(self):
         if not self.data:
             self.generate_daily_sales()
-        if self.data and self.data != {}:
+        if self.data and self.pivot:
             summary = self.pivot.copy()
             summary = summary[summary.index>=pd.to_datetime('2020-01-01').date()]
             summary['year-month'] = pd.to_datetime(summary.index).year.astype(str) + '-' + pd.to_datetime(summary.index).month.astype(str).str.zfill(2)
