@@ -48,8 +48,15 @@ if st.session_state['login'][0]:
         fig.update_layout(
             xaxis=dict(title='Months'),
             yaxis=dict(title='Sales min-max', side='left', showgrid=False),
-            yaxis2=dict(title='Final price', side='left', overlaying='y', position=0.1, showgrid=False, range=[0, max(df['final price'])*1.3]),
-            yaxis3=dict(title='BSR', side='right', overlaying='y', anchor='free', position=1, showgrid=False)
+            yaxis2=dict(
+                title='Final price', side='left', overlaying='y', position=0.1,
+                showgrid=False, range=[0, max(df['final price'])*1.3],
+                titlefont=dict(color='red'), tickfont=dict(color='red')
+                ),
+            yaxis3=dict(
+                title='BSR', side='right', overlaying='y', anchor='free', position=1, showgrid=False,
+                titlefont=dict(color='lightgreen'), tickfont=dict(color='lightgreen')
+                )
         )
         plot_area.plotly_chart(fig, use_container_width=True)
         return
