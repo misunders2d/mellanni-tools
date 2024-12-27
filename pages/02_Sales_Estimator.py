@@ -8,7 +8,7 @@ st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',
 
 import login_google
 st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
+st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -62,7 +62,7 @@ if st.session_state['login'][0]:
                 ),
             yaxis3=dict(
                 title='BSR', side='right', overlaying='y', anchor='free', position=1,
-                showgrid=False, range=[1, 1000, max(100000, max(df['BSR'])*1.01)],
+                showgrid=False, range=[1, max(100000, max(df['BSR'])*1.01)],
                 titlefont=dict(color='lightgreen'), tickfont=dict(color='lightgreen')
                 )
         )
