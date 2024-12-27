@@ -8,7 +8,7 @@ st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',
 
 import login_google
 st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
+st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -24,19 +24,18 @@ if st.session_state['login'][0]:
     df_area=st.container()
 
     def show_plot(df, type='Monthly'):
-        min_sales_col = 'sales min' if type=='Monthly' else 'monthlySoldMin'
-        max_sales_col = 'sales max' if type=='Monthly' else 'monthlySoldMax'
+        price_col = 'final price' if type=='Monthly' else 'full price'
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=df.index, y=df[min_sales_col],
+                x=df.index, y=df['sales min'],
                 name='Sales min',
                 mode='lines',
                 yaxis='y1',
                 line=dict(color='lightgrey')
                 ))
         fig.add_trace(
-            go.Scatter(x=df.index, y=df[max_sales_col],
+            go.Scatter(x=df.index, y=df['sales max'],
                        name='Sales max',
                        mode='lines',
                        yaxis='y1',
@@ -45,9 +44,10 @@ if st.session_state['login'][0]:
                        line=dict(color='lightgrey')
                        ))
 
-        fig.add_trace(go.Scatter(x=df.index, y=df['final price'], name='Final price', mode='lines', yaxis='y2',line=dict(color='red')))
+        fig.add_trace(go.Scatter(x=df.index, y=df[price_col], name='Price', mode='lines', yaxis='y2',line=dict(color='red')))
         if type=='Keepa':
-            fig.add_trace(go.Scatter(x=df.index, y=df['LD'], name='Lightning Deal', mode='lines', yaxis='y2',line=dict(color='darkred')))
+            fig.add_trace(go.Scatter(x=df.index, y=df['LD'], name='Lightning Deal', mode='lines+markers', yaxis='y2',line=dict(color='pink'), marker=dict(symbol='circle')))
+            fig.add_trace(go.Scatter(x=df.index, y=df['coupon'], name='Coupon', mode='lines', yaxis='y2',line=dict(color='green')))
 
 
         fig.add_trace(go.Scatter(x=df.index, y=df['BSR'], name='BSR', mode='lines', yaxis='y3',line=dict(color='lightgreen')))

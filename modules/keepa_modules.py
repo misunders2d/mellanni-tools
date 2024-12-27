@@ -189,6 +189,9 @@ class KeepaProduct():
         self.short_history = self.pull_monthly_sold()
         if not self.exists:
             return
+        self.short_history['sales min'] = self.short_history['monthlySoldMin']/(60*24*30)
+        self.short_history['sales max'] = self.short_history['monthlySoldMax']/(60*24*30)
+
         lifetime = pd.date_range(self.short_history.index.min(), self.short_history.index.max(), freq='min')
         lifetime_df = pd.DataFrame(index=lifetime)
         minutely_history = pd.merge(lifetime_df, self.short_history, how='left', left_index=True, right_index=True).ffill()
@@ -196,8 +199,6 @@ class KeepaProduct():
         minutely_history.loc[minutely_history['full price']==-1, 'final price'] = nan
         minutely_history['full price'] = minutely_history['full price'].replace(-1, nan)
 
-        minutely_history['sales min'] = minutely_history['monthlySoldMin']/(60*24*30)
-        minutely_history['sales max'] = minutely_history['monthlySoldMax']/(60*24*30)
         minutely_history['date'] = minutely_history.index.date
         self.pivot = minutely_history.pivot_table(
             values = [
@@ -217,8 +218,10 @@ class KeepaProduct():
                 'BSR':'min'
                 }
             )
-        self.short_history['final price'] = self.short_history['final price'].replace(-1,nan)
-        self.short_history['LD'] = self.short_history['LD'].replace(0,nan)
+        self.short_history['LD'] = minutely_history['LD'].replace(0,nan)
+        self.short_history['full price'] = self.short_history['full price'].replace(-1, nan)
+        self.short_history['coupon'] = (minutely_history['full price'] - minutely_history['$ off']) * (1+minutely_history['% off']/100)
+        self.short_history.loc[self.short_history['coupon']==self.short_history['full price'], 'coupon'] = nan
         self.pivot = self._format_numbers(self.pivot)
         self.pivot = self.pivot.replace(0,nan)
         
