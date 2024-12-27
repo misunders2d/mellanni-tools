@@ -8,7 +8,7 @@ st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',
 
 import login_google
 st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
+st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -54,14 +54,15 @@ if st.session_state['login'][0]:
 
         fig.update_layout(
             xaxis=dict(title='Months') if type=='Monthly' else dict(title='Hour'),
-            yaxis=dict(title='Sales min-max', side='left', showgrid=False),
+            yaxis=dict(title='Sales min-max', side='left', showgrid=False, range=[0, max(10,max(df['sales max'])*1.01)]),
             yaxis2=dict(
                 title='Final price', side='left', overlaying='y', position=0.05,
                 showgrid=False, range=[0, max(df['final price'])*1.3],
                 titlefont=dict(color='red'), tickfont=dict(color='red')
                 ),
             yaxis3=dict(
-                title='BSR', side='right', overlaying='y', anchor='free', position=1, showgrid=False,
+                title='BSR', side='right', overlaying='y', anchor='free', position=1,
+                showgrid=False, range=[1, 1000, max(100000, max(df['BSR'])*1.01)],
                 titlefont=dict(color='lightgreen'), tickfont=dict(color='lightgreen')
                 )
         )
