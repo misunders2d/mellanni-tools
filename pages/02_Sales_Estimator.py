@@ -54,15 +54,15 @@ if st.session_state['login'][0]:
 
         fig.update_layout(
             xaxis=dict(title='Months') if type=='Monthly' else dict(title='Hour'),
-            yaxis=dict(title='Sales min-max', side='left', showgrid=False, range=[0, max(10,max(df['sales max'])*1.01)]),
+            yaxis=dict(title='Sales min-max', side='left', showgrid=False, range=[0, max(2,max(df['sales max'])*1.01)]),
             yaxis2=dict(
                 title='Final price', side='left', overlaying='y', position=0.05,
-                showgrid=False, range=[0, max(df['final price'])*1.3],
+                showgrid=False, range=[0, max(df['final price'])*1.1],
                 titlefont=dict(color='red'), tickfont=dict(color='red')
                 ),
             yaxis3=dict(
                 title='BSR', side='right', overlaying='y', anchor='free', position=1,
-                showgrid=False, range=[1, max(100000, max(df['BSR'])*1.01)],
+                showgrid=False, range=[1, max(1000, max(df['BSR']))],
                 titlefont=dict(color='lightgreen'), tickfont=dict(color='lightgreen')
                 )
         )
