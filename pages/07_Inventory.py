@@ -285,7 +285,7 @@ if st.session_state['login'][0]:
         def get_markets():
             markets_query = client.query('SELECT DISTINCT marketplace FROM `reports.fba_inventory_planning`').result()
             return [x[0] for x in markets_query] + ['WM','WM wfs']
-        @st.cache_data
+        # @st.cache_data
         def get_max_date(market):
             query=f'SELECT MIN(snapshot_date) as min_date, MAX(snapshot_date) as max_date FROM `reports.fba_inventory_planning` WHERE marketplace="{market}"'
             if 'WM' in market:
