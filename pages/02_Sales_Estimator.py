@@ -68,29 +68,29 @@ if st.session_state['login'][0]:
         )
         return fig
 
-    st.session_state.asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
+    asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
     
     submit_button=input_area.button('Submit', icon=':material/local_fire_department:')
 
-    if submit_button and len(st.session_state.asin)>=10:
-        st.session_state.asin_clean=re.search('[A-Z0-9]{10}', st.session_state.asin).group() if len(st.session_state.asin)>10 else st.session_state.asin
-        st.session_state.product=KeepaProduct(st.session_state.asin_clean.upper())
+    if submit_button and len(asin)>=10:
+        asin_clean=re.search('[A-Z0-9]{10}', asin).group() if len(asin)>10 else asin
+        product=KeepaProduct(asin_clean.upper())
         try:
-            st.session_state.product.generate_monthly_summary()
+            product.generate_monthly_summary()
         except Exception as e:
             st.write(e)
-    if 'product' in st.session_state:
-        product_title_area.write(st.session_state.product)
-        if st.session_state.product.exists:
-            product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{st.session_state.asin}")
-            if st.session_state.product.image:
-                product_image_area.image(st.session_state.product.image)
-            st.session_state.product.get_last_days(days=360)
+    if product:
+        product_title_area.write(product)
+        if product.exists:
+            product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{asin}")
+            if product.image:
+                product_image_area.image(product.image)
+            product.get_last_days(days=360)
             df_area.write('Latest price history and average sales per day:')
-            df_area.dataframe(st.session_state.product.last_days)
+            df_area.dataframe(product.last_days)
             if plot_selection=='Monthly':
-                fig = show_plot(st.session_state.product.summary, type=plot_selection)
+                fig = show_plot(product.summary, type=plot_selection)
             elif plot_selection=='Keepa':
-                fig = show_plot(st.session_state.product.short_history, type=plot_selection)
+                fig = show_plot(product.short_history, type=plot_selection)
             plot_area.plotly_chart(fig, use_container_width=True)
 
