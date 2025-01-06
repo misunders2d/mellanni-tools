@@ -79,18 +79,18 @@ if st.session_state['login'][0]:
             product.generate_monthly_summary()
         except Exception as e:
             st.write(e)
-    if product:
-        product_title_area.write(product)
-        if product.exists:
-            product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{asin}")
-            if product.image:
-                product_image_area.image(product.image)
-            product.get_last_days(days=360)
-            df_area.write('Latest price history and average sales per day:')
-            df_area.dataframe(product.last_days)
-            if plot_selection=='Monthly':
-                fig = show_plot(product.summary, type=plot_selection)
-            elif plot_selection=='Keepa':
-                fig = show_plot(product.short_history, type=plot_selection)
-            plot_area.plotly_chart(fig, use_container_width=True)
+        if product:
+            product_title_area.write(product)
+            if product.exists:
+                product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{asin}")
+                if product.image:
+                    product_image_area.image(product.image)
+                product.get_last_days(days=360)
+                df_area.write('Latest price history and average sales per day:')
+                df_area.dataframe(product.last_days)
+                if plot_selection=='Monthly':
+                    fig = show_plot(product.summary, type=plot_selection)
+                elif plot_selection=='Keepa':
+                    fig = show_plot(product.short_history, type=plot_selection)
+                plot_area.plotly_chart(fig, use_container_width=True)
 
