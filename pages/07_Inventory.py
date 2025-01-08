@@ -264,7 +264,8 @@ if st.session_state['login'][0]:
 
     ###### inventory report section
     if st.session_state['login'][1] in (
-        'sergey@mellanni.com','natalie@mellanni.com', 'ruslan@mellanni.com', 'andreia@mellanni.com','dariyka@mellanni.com'
+        'sergey@mellanni.com','natalie@mellanni.com', 'ruslan@mellanni.com', 'andreia@mellanni.com','dariyka@mellanni.com',
+        'karl@mellanni.com','ahmad@mellanni.com'
         ):
         # @st.cache_data
         def download_inv_report(inv_date, market):
