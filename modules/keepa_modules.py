@@ -203,7 +203,7 @@ class KeepaProduct():
         self.short_history = minutely_history.copy()
         sum_cols = self.short_history.columns
         self.short_history['sum1'] = self.short_history[sum_cols].sum(axis=1)
-        self.short_history['sum2'] = self.short_history[sum_cols].shift(1).sum(axis=1)
+        self.short_history['sum2'] = self.short_history[sum_cols].shift(-1).sum(axis=1)
         self.short_history['diff'] = self.short_history['sum1'] - self.short_history['sum2']
         self.short_history = self.short_history[self.short_history['diff']!=0][sum_cols]
         
