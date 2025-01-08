@@ -198,7 +198,15 @@ class KeepaProduct():
         #remove price info with full price == -1 product blocked
         minutely_history.loc[minutely_history['full price']==-1, 'final price'] = nan
         minutely_history['full price'] = minutely_history['full price'].replace(-1, nan)
-
+        
+        #trim minutely history into short history
+        self.short_history = minutely_history.copy()
+        sum_cols = self.short_history.columns
+        self.short_history['sum1'] = self.short_history[sum_cols].sum(axis=1)
+        self.short_history['sum2'] = self.short_history[sum_cols].shift(1).sum(axis=1)
+        self.short_history['diff'] = self.short_history['sum1'] - self.short_history['sum2']
+        self.short_history = self.short_history[self.short_history['diff']!=0][sum_cols]
+        
         minutely_history['date'] = minutely_history.index.date
         self.pivot = minutely_history.pivot_table(
             values = [
@@ -218,7 +226,7 @@ class KeepaProduct():
                 'BSR':'min'
                 }
             )
-        self.short_history['LD'] = minutely_history['LD'].replace(0,nan)
+        self.short_history['LD'] = self.short_history['LD'].replace(0,nan)
         self.short_history['full price'] = self.short_history['full price'].replace(-1, nan)
         self.short_history['coupon'] = (minutely_history['full price'] - minutely_history['$ off']) * (1+minutely_history['% off']/100)
         self.short_history.loc[self.short_history['coupon']==self.short_history['full price'], 'coupon'] = nan
