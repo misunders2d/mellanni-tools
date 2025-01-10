@@ -17,7 +17,7 @@ from barcode.writer import ImageWriter
 
 import login_google
 st.session_state['login'] = login_google.login()
-# st.session_state['login'] = (True,'sergey@mellanni.com')
+st.session_state['login'] = (True,'sergey@mellanni.com')
 
 if st.session_state['login'][0]:
     width = 2.2
@@ -281,6 +281,7 @@ if st.session_state['login'][0]:
                 elif market=='WM wfs':
                     query = f'SELECT * FROM `walmart.inventory_wfs` WHERE DATE(date)=DATE("{inv_date}")'
             result = client.query(query).to_dataframe()
+            result.index = range(1,len(result)+1)
             inv_report_area.dataframe(result)
         @st.cache_data
         def get_markets():
