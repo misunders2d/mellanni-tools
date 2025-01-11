@@ -17,7 +17,7 @@ from barcode.writer import ImageWriter
 
 import login_google
 st.session_state['login'] = login_google.login()
-st.session_state['login'] = (True,'sergey@mellanni.com')
+# st.session_state['login'] = (True,'sergey@mellanni.com')
 
 if st.session_state['login'][0]:
     width = 2.2
