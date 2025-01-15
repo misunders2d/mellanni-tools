@@ -1,7 +1,7 @@
 import streamlit as st
 from typing import Any
 from modules import formatting as ff
-import textwrap
+import textwrap, difflib
 # from PIL import Image
 # from PIL import ImageDraw
 from modules import gcloud_modules as gc
@@ -31,6 +31,8 @@ if st.session_state['login'][0]:
     bottom_area = st.empty()
     st.divider()
     inv_report_area = st.container()
+    st.divider()
+    title_check_area = st.container()
     col1, col2, col3 = top_area.columns([4,3,2])
 
 
@@ -316,3 +318,15 @@ if st.session_state['login'][0]:
     else:
         inv_report_area.write(f'{st.session_state['login'][1]} is not allowed to access this section.\nIf you believe you need access to inventory reports, please contact Sergey')
     
+    title_check_area.write('Check titles for variability')
+    parent = title_check_area.text_input('Input baseline (or parent) title', value = '', max_chars=200)
+    titles = title_check_area.text_area('Input children titles')
+    if title_check_area.button('Check'):
+        titles = titles.split('\n')
+        diffs = {}
+        for title in titles:
+            diffs[title] = difflib.SequenceMatcher(None, parent, title).ratio()
+        
+        title_df = pd.DataFrame(data=diffs.items(), columns=['Title','Difference']).sort_values('Difference')
+        
+        title_check_area.dataframe(title_df, hide_index=True)
