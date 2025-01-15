@@ -494,13 +494,13 @@ if st.session_state['login'][0]:
             used_model = st.radio('Choose model to use:', ['gpt-4o','gpt-4o-mini'], index = 1, horizontal=True)
             prompt_text = '''
             Please summarize the following meeting minutes, stay detailed, but concise. Try not to miss any important points.
-            Make sure to explicitly and separately list key talking points and action items, if any,  in the following format:
+            Make sure to explicitly and separately list key talking points (including timestamps) and action items, if any,  in the following format:
 
             Summary
 
             Key talking points:
-            - key talking point 1
-            - key talking point 2
+            - [timestamp] key talking point 1
+            - [timestamp] key talking point 2
             - etc
 
             Action items:
