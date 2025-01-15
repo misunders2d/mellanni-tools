@@ -327,6 +327,6 @@ if st.session_state['login'][0]:
         for title in titles:
             diffs[title] = difflib.SequenceMatcher(None, parent, title).ratio()
         
-        title_df = pd.DataFrame(data=diffs.items(), columns=['Title','Difference']).sort_values('Difference')
+        title_df = pd.DataFrame(data=diffs.items(), columns=['Title','Similarity']).sort_values('Similarity')
         
         title_check_area.dataframe(title_df, hide_index=True)
