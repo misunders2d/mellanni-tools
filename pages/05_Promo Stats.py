@@ -190,6 +190,7 @@ if st.session_state['login'][0]:
         client.close()
         data['date'] = pd.to_datetime(data['date'], format = 'mixed', yearfirst=True)
         data = data.sort_values('date')
+        data = data.rename(columns={'adGroupId':'ad_group_name','totalAttributedSales14d':'Sales, $','totalUnitsSold14d':'quantity'})
         numerics = ['int','float']
         num_cols = data.select_dtypes(include = numerics).columns
         float_cols = data.select_dtypes('float').columns
@@ -200,7 +201,7 @@ if st.session_state['login'][0]:
             aggfunc = 'sum'
             ).reset_index()
         data_pivot[float_cols] = round(data_pivot[float_cols],2)
-        data_pivot.rename(columns = {'_14_day_total_sales':'Sales, $','_14_day_total_units_sold':'quantity'}, inplace = True)
+        # data_pivot.rename(columns = {'_14_day_total_sales':'Sales, $','_14_day_total_units_sold':'quantity'}, inplace = True)
         data_pivot['Discount, $'] = 0
         data_pivot = data_pivot.sort_values('Sales, $', ascending = False)
         return data_pivot, data
@@ -219,7 +220,7 @@ if st.session_state['login'][0]:
             spinner_str = 'Pulling full promo report'
         with st.spinner(spinner_str):
             promos = read_promos(code_list=code_list, start = start, end = end, coupons = coupons)
-            code_pattern = '\(([A-Za-z0-9\s]{8,13})\-{0,1}\d{0,1}\)'
+            code_pattern = r'\(([A-Za-z0-9\s]{8,13})\-{0,1}\d{0,1}\)'
             promos['promo_code'] = promos['description'].str.extract(code_pattern).fillna(' ')
             promos['promo_code'] = promos['promo_code'].str.strip()
             if code_list != None:
