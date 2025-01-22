@@ -18,6 +18,7 @@ import login_google
 st.session_state['login'] = login_google.login()
 
 if st.session_state['login'][0]:
+# if True:
 
     bad_chars = [
         '%off any%',
@@ -60,7 +61,7 @@ if st.session_state['login'][0]:
 
     @st.cache_data(show_spinner=False)
     def read_promos(
-        report = 'auxillary_development',
+        report = 'reports',
         table = 'promotions',
         column = 'description',
         code_list = None,
@@ -92,8 +93,8 @@ if st.session_state['login'][0]:
     @st.cache_data(show_spinner=False)
     def read_all_orders(
         order_list,
-        report = 'auxillary_development',
-        table = 'all_order_report',
+        report = 'reports',
+        table = 'all_orders',
         skus = False
         ) -> pd.DataFrame:
         '''
@@ -178,7 +179,7 @@ if st.session_state['login'][0]:
 
     @st.cache_data(show_spinner= False)
     def read_attribution(
-        report = 'auxillary_development',
+        report = 'reports',
         table = 'attribution',
         start = None, end = None
         ):
