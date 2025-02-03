@@ -185,14 +185,16 @@ class KeepaProduct():
             ).ffill()
         return self.sales_history_monthly
         
-    def generate_daily_sales(self):
+    def generate_daily_sales(self, days=360):
         self.short_history = self.pull_monthly_sold()
         if not self.exists:
             return
         self.short_history['sales min'] = self.short_history['monthlySoldMin']/(60*24*30)
         self.short_history['sales max'] = self.short_history['monthlySoldMax']/(60*24*30)
 
-        lifetime = pd.date_range(self.short_history.index.min(), self.short_history.index.max(), freq='min')
+        # lifetime = pd.date_range(self.short_history.index.min(), self.short_history.index.max(), freq='min')
+        lifetime = pd.date_range((pd.to_datetime('today')-pd.Timedelta(days=days)).date(), self.short_history.index.max(), freq='min')
+
         lifetime_df = pd.DataFrame(index=lifetime)
         minutely_history = pd.merge(lifetime_df, self.short_history, how='left', left_index=True, right_index=True).ffill()
         #remove price info with full price == -1 product blocked
