@@ -53,6 +53,7 @@ class KeepaProduct():
         self.brand: str = None
         self.parent: str = None
         self.pivot: pd.DataFrame|None = None
+        self.initial_days: int = 360
     
     def __str__(self):
         self.get_last_days(days=30)
@@ -243,7 +244,7 @@ class KeepaProduct():
         
     def generate_monthly_summary(self):
         if not self.data:
-            self.generate_daily_sales()
+            self.generate_daily_sales(days=self.initial_days)
         if self.data and isinstance(self.pivot, pd.DataFrame):
             summary = self.pivot.copy()
             summary = summary[summary.index>=pd.to_datetime('2020-01-01').date()]
@@ -257,7 +258,7 @@ class KeepaProduct():
             self.summary[['BSR', 'sales max', 'sales min']] = self.summary[['BSR', 'sales max', 'sales min']].round(0)
     
     def get_last_days(self, days=360):
-        self.generate_daily_sales()
+        self.generate_daily_sales(days=days)
         if not self.exists:
             return
         self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]

@@ -6,9 +6,9 @@ from modules.keepa_modules import KeepaProduct, get_tokens
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-import login_google
-st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
+# import login_google
+# st.session_state['login']=login_google.login()
+st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -19,6 +19,7 @@ if st.session_state['login'][0]:
     plot_container=st.container()
     plot_area, selector_area = plot_container.columns([5,1])
     plot_selection = selector_area.radio('Select plot type',['Monthly','Keepa'], disabled=False)
+    plot_last_days = selector_area.number_input('Enter # of days to show the plot for', min_value=1, max_value=3600, value=360, step=1)
     product_area=st.container()
     product_title_area, product_image_area=product_area.columns([3,1])
     df_area=st.container()
@@ -75,8 +76,12 @@ if st.session_state['login'][0]:
     submit_button=input_area.button('Submit', icon=':material/local_fire_department:')
 
     if submit_button and len(asin)>=10:
-        asin_clean=re.search('[A-Z0-9]{10}', asin).group() if len(asin)>10 else asin
+        try:
+            asin_clean=re.search('[A-Z0-9]{10}', asin.upper()).group() if len(asin)>10 else asin.upper()
+        except Exception:
+            st.warning('Wrong ASIN combination')
         product=KeepaProduct(asin_clean.upper())
+        product.initial_days = plot_last_days
         try:
             product.generate_monthly_summary()
         except Exception as e:
@@ -87,7 +92,7 @@ if st.session_state['login'][0]:
                 product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{asin}")
                 if product.image:
                     product_image_area.image(product.image)
-                product.get_last_days(days=360)
+                product.get_last_days(days=int(plot_last_days))
                 df_area.write('Latest price history and average sales per day:')
                 df_area.dataframe(product.last_days)
                 if plot_selection=='Monthly':
