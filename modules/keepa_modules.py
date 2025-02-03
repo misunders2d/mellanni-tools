@@ -259,6 +259,7 @@ class KeepaProduct():
         if not self.exists:
             return
         self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
+        self.last_days['asin'] = self.asin
         
         
 
