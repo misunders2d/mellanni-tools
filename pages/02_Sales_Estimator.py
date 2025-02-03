@@ -58,13 +58,13 @@ if st.session_state['login'][0]:
             yaxis2=dict(
                 title='Final price', side='left', overlaying='y', position=0.05,
                 showgrid=False, range=[0, max(df['final price'])*1.1],
-                # titlefont=dict(color='red'),
+                titlefont=dict(color='red'),
                 tickfont=dict(color='red')
                 ),
             yaxis3=dict(
                 title='BSR', side='right', overlaying='y', anchor='free', position=1,
                 showgrid=False, range=[1, max(1000, max(df['BSR']))],
-                # titlefont=dict(color='lightgreen'),
+                titlefont=dict(color='lightgreen'),
                 tickfont=dict(color='lightgreen')
                 )
         )
