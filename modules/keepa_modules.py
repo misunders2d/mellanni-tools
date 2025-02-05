@@ -157,7 +157,7 @@ class KeepaProduct():
         bsr = bsr.rename(columns = {'value':'BSR'})
         sales_history = pd.merge(sales_history, bsr, how='outer', left_index=True, right_index=True).ffill()
         
-        sales_history['final price'] = sales_history['full price'] * (1+ sales_history['% off']/100) - sales_history['$ off']
+        sales_history['final price'] = sales_history['full price'] * (1+ sales_history['% off']/100) * (1+ sales_history['SNS']/100)- sales_history['$ off']
         sales_history.loc[sales_history['LD'] != 0, 'final price'] = sales_history['LD']
         return sales_history
        
