@@ -6,9 +6,9 @@ from modules.keepa_modules import KeepaProduct, get_tokens
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-# import login_google
-# st.session_state['login']=login_google.login()
-st.session_state['login']=(True, 'sergey@mellanni.com')
+import login_google
+st.session_state['login']=login_google.login()
+# st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -18,14 +18,14 @@ if st.session_state['login'][0]:
     input_area=st.container()
     plot_container=st.container()
     plot_area, selector_area = plot_container.columns([5,1])
-    plot_selection = selector_area.radio('Select plot type',['Monthly','Keepa'], disabled=False)
+    plot_selection = selector_area.radio('Select plot type',['Monthly','Daily','Keepa'], disabled=False)
     plot_last_days = selector_area.number_input('Enter # of days to show the plot for', min_value=1, max_value=3600, value=360, step=1)
     product_area=st.container()
     product_title_area, product_image_area=product_area.columns([3,1])
     df_area=st.container()
 
     def show_plot(df, type='Monthly'):
-        price_col = 'final price' if type=='Monthly' else 'full price'
+        price_col = 'full price' if type=='Keepa' else 'final price'
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
@@ -99,5 +99,7 @@ if st.session_state['login'][0]:
                     fig = show_plot(product.summary, type=plot_selection)
                 elif plot_selection=='Keepa':
                     fig = show_plot(product.short_history, type=plot_selection)
+                elif plot_selection=='Daily':
+                    fig = show_plot(product.last_days, type=plot_selection)
                 plot_area.plotly_chart(fig, use_container_width=True)
 
