@@ -7,7 +7,7 @@ import time
 
 KEEPA_KEY = os.getenv('KEEPA_KEY')
 
-class KeepaProduct():
+class KeepaProduct:
     api = keepa.Keepa(KEEPA_KEY)
     #create sales ranges (min - max)
     sales_tiers:dict = {
@@ -54,15 +54,24 @@ class KeepaProduct():
         self.parent: str = None
         self.pivot: pd.DataFrame|None = None
         self.initial_days: int = 360
+        self.variations = set()
     
+    def __ge__(self, other):
+        return self.max_sales >= other.max_sales
+    def __le__(self, other):
+        return self.max_sales <= other.max_sales
+    def __gt__(self, other):
+        return self.max_sales > other.max_sales
+    def __lt__(self, other):
+        return self.max_sales < other.max_sales
+    def __eq__(self, other):
+        return self.max_sales == other.max_sales
+
     def __str__(self):
         self.get_last_days(days=30)
         if not self.exists:
             return f'{self.asin} does not exist or there is no Keepa data for it'
-        sales_min = int(self.last_days['sales min'].sum())
-        sales_max = int(self.last_days['sales max'].sum())
-        avg_price = self.last_days['final price'].mean()
-        return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {sales_min} - {sales_max} units\nAverage price last 30 days: ${avg_price:.2f}'
+        return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {self.min_sales:,.0f} - {self.max_sales:,.0f} units\nAverage price last 30 days: ${self.avg_price:.2f}'
     
     def _format_numbers(self, df):
         df['full price'] = round(df['full price'],2)
@@ -95,7 +104,13 @@ class KeepaProduct():
         if x == -1:
             return 0
         return KeepaProduct.sales_tiers[x]
-
+    
+    def get_variations(self):
+        if not self.data:
+            self.query()
+        if 'variations' in self.data[0].keys():
+            self.variations.update([x['asin'] for x in self.data[0]['variations']])
+        
     def pull_sales(self):
         if not self.data:
             self.query()
@@ -263,8 +278,14 @@ class KeepaProduct():
             return
         self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
         self.last_days['asin'] = self.asin
+        self.min_sales = int(self.last_days['sales min'].sum())
+        self.max_sales = int(self.last_days['sales max'].sum())
+        self.avg_price = self.last_days['final price'].mean()
         
-        
+def get_products(asins:list, domain = 'US'):
+    api = keepa.Keepa(KEEPA_KEY)
+    products = api.query(asins, domain=domain)
+    return products
 
 def get_tokens(api_key = KEEPA_KEY):
     api = keepa.Keepa(KEEPA_KEY)

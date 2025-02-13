@@ -2,7 +2,7 @@
 import streamlit as st
 import re
 import plotly.graph_objects as go
-from modules.keepa_modules import KeepaProduct, get_tokens
+from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
@@ -20,9 +20,37 @@ if st.session_state['login'][0]:
     plot_area, selector_area = plot_container.columns([5,1])
     plot_selection = selector_area.radio('Select plot type',['Monthly','Daily','Keepa'], disabled=False)
     plot_last_days = selector_area.number_input('Enter # of days to show the plot for', min_value=1, max_value=3600, value=360, step=1)
+    include_variations = selector_area.checkbox('Include variations', value=False, help='Check to calculate sales and price for all variations')
+
+
     product_area=st.container()
     product_title_area, product_image_area=product_area.columns([3,1])
+    variations_area = st.container()
+    variations_info, variations_image = variations_area.columns([3,1])
     df_area=st.container()
+
+    def calculate_variation_sales(product:KeepaProduct):
+        
+        asins = list(product.variations)
+        products_data = get_products(asins)
+        
+        products = [KeepaProduct(asin) for asin in asins]
+        for ap in products:
+            ap.extract_from_products(products_data)
+            ap.get_last_days(30)
+        
+        min_sales = 0
+        max_sales = 0
+        min_dollar_sales = 0
+        max_dollar_sales = 0
+        for ap in products:
+            ap.get_last_days(30)
+            min_sales += ap.min_sales
+            max_sales += ap.max_sales
+            min_dollar_sales += (ap.min_sales * ap.avg_price)
+            max_dollar_sales += (ap.max_sales * ap.avg_price)        
+        
+        return int(min_sales), int(max_sales), round(min_dollar_sales / min_sales,2), max(products), min(products)
 
     def show_plot(df, type='Monthly'):
         price_col = 'full price' if type=='Keepa' else 'final price'
@@ -87,7 +115,7 @@ if st.session_state['login'][0]:
         except Exception as e:
             st.write(e)
         if product:
-            product_title_area.write(product)
+            product_title_area.markdown(f'### ASIN result:\n{product}')
             if product.exists:
                 product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{asin}")
                 if product.image:
@@ -103,3 +131,12 @@ if st.session_state['login'][0]:
                     fig = show_plot(product.last_days, type=plot_selection)
                 plot_area.plotly_chart(fig, use_container_width=True)
 
+                if include_variations:
+                    product.get_variations()
+                    if product.variations:
+                        min_sales, max_sales, avg_price, bestseller, worstseller = calculate_variation_sales(product)
+                        variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} per month, average price: ${avg_price}"
+                        bestseller_str = f"Bestseller: {bestseller}"
+                        variations_info.markdown(f'### Parent results:\n{variations_str}\n### Bestseller - {bestseller}')
+                        if bestseller.image:
+                            variations_image.image(bestseller.image)
