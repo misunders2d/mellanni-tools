@@ -7,9 +7,9 @@ from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-import login_google
-st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
+# import login_google
+# st.session_state['login']=login_google.login()
+st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -25,9 +25,9 @@ if st.session_state['login'][0]:
 
 
     product_area=st.container()
-    product_title_area, product_image_area=product_area.columns([3,1])
+    product_title_area, product_image_area=product_area.columns([10,1])
     variations_area = st.container()
-    variations_info, variations_image = variations_area.columns([3,1])
+    variations_info, variations_image = variations_area.columns([10,1])
     df_area=st.container()
 
     def calculate_variation_sales(product:KeepaProduct):
@@ -120,7 +120,7 @@ if st.session_state['login'][0]:
             if product.exists:
                 product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{asin}")
                 if product.image:
-                    product_image_area.image(product.image)
+                    product_image_area.image(product.image, caption=product.asin)
                 product.get_last_days(days=int(plot_last_days))
                 df_area.write('Latest price history and average sales per day:')
                 df_area.dataframe(product.last_days)
@@ -131,13 +131,18 @@ if st.session_state['login'][0]:
                 elif plot_selection=='Daily':
                     fig = show_plot(product.last_days, type=plot_selection)
                 plot_area.plotly_chart(fig, use_container_width=True)
+                product_title_area.divider()
 
                 if include_variations:
                     product.get_variations()
-                    if product.variations:
+                    if product.variations and len(product.variations) < (tokens_left*0.8):
                         min_sales, max_sales, avg_price, bestseller, worstseller = calculate_variation_sales(product)
                         variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} per month, average price: ${avg_price}"
                         bestseller_str = f"Bestseller: {bestseller}"
                         variations_info.markdown(f'### Parent results:\n{variations_str}\n### Bestseller - {bestseller}')
+                        variations_info.write(f"View Bestseller on Amazon: https://www.amazon.com/dp/{bestseller.asin}")
                         if bestseller.image:
-                            variations_image.image(bestseller.image)
+                            variations_image.image(bestseller.image, caption=bestseller.asin)
+                        variations_info.divider()
+                    elif len(product.variations) > (tokens_left*0.8):
+                        st.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
