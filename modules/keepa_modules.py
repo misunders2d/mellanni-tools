@@ -116,6 +116,10 @@ class KeepaProduct:
             self.query()
         if 'variations' in self.data[0].keys():
             self.variations.update([x['asin'] for x in self.data[0]['variations']])
+            self.variation_theme_dict = [
+                theme['attributes'] for theme in self.data[0]['variations'] if theme['asin'] == self.asin
+                ][0]
+            self.variation_theme = {x['dimension']:x['value'] for x in self.variation_theme_dict}
         
     def pull_sales(self):
         if not self.data:

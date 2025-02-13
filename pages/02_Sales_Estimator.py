@@ -41,8 +41,9 @@ if st.session_state['login'][0]:
         for ap in products:
             ap.extract_from_products(products_data)
             ap.get_last_days(30)
+            ap.get_variations()
         
-        variations_df = pd.DataFrame(columns=['ASIN','Sales min','Sales max','Avg price'])
+        variations_df = pd.DataFrame()
         min_sales = 0
         max_sales = 0
         min_dollar_sales = 0
@@ -54,6 +55,8 @@ if st.session_state['login'][0]:
             min_dollar_sales += (ap.min_sales * ap.avg_price)
             max_dollar_sales += (ap.max_sales * ap.avg_price)
             temp_df = pd.DataFrame({'ASIN':ap.asin, 'Sales min':ap.min_sales, 'Sales max':ap.max_sales, 'Avg price':ap.avg_price}, index=[0])
+            for key, value in ap.variation_theme.items():
+                temp_df[key] = value
             variations_df = pd.concat([variations_df, temp_df])
         variations_df.set_index('ASIN', inplace=True)
         variations_df.sort_values(by='Sales max', ascending=False, inplace=True)
