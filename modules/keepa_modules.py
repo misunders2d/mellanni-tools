@@ -146,10 +146,10 @@ class KeepaProduct:
             times = [self.convert_time(x) for x in coupons[::3]]
             discounts = coupons[1::3]
             perc_off = [x if x < 0 else 0 for x in discounts] # separate % off discounts
-            money_off = [-x/100 if x > 0 else 0 for x in discounts] # separate $ off discounts
+            money_off = [x/100 if x > 0 else 0 for x in discounts] # separate $ off discounts
             sns_coupons = coupons[2::3]
             sns_perc_off = [x if x < 0 else 0 for x in sns_coupons] # separate % off sns
-            sns_money_off = [-x/100 if x > 0 else 0 for x in sns_coupons] # separate $ off sns
+            sns_money_off = [x/100 if x > 0 else 0 for x in sns_coupons] # separate $ off sns
             
             coupon_history = pd.DataFrame(
                 data=list(zip(perc_off, money_off, sns_perc_off, sns_money_off)),
