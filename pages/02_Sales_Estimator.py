@@ -141,16 +141,19 @@ if st.session_state['login'][0]:
 
                 if include_variations:
                     product.get_variations()
-                    if product.variations and len(product.variations) < (tokens_left*0.8):
-                        min_sales, max_sales, avg_price, bestseller, worstseller, variations_df = calculate_variation_sales(product)
-                        variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} per month, average price: ${avg_price}"
-                        bestseller_str = f"Bestseller: {bestseller}"
-                        variations_info.markdown(f'### Parent results:\n{variations_str}\n### Bestseller - {bestseller}')
-                        variations_info.write(f"View Bestseller on Amazon: https://www.amazon.com/dp/{bestseller.asin}")
-                        if bestseller.image:
-                            variations_image.image(bestseller.image, caption=bestseller.asin)
-                        variations_info.divider()
-                        df_variations.write('Variations performance')
-                        df_variations.dataframe(variations_df)
-                    elif len(product.variations) > (tokens_left*0.8):
-                        st.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
+                    try:
+                        if product.variations and len(product.variations) < (tokens_left*0.8):
+                            min_sales, max_sales, avg_price, bestseller, worstseller, variations_df = calculate_variation_sales(product)
+                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} per month, average price: ${avg_price}"
+                            bestseller_str = f"Bestseller: {bestseller}"
+                            variations_info.markdown(f'### Parent results:\n{variations_str}\n### Bestseller - {bestseller}')
+                            variations_info.write(f"View Bestseller on Amazon: https://www.amazon.com/dp/{bestseller.asin}")
+                            if bestseller.image:
+                                variations_image.image(bestseller.image, caption=bestseller.asin)
+                            variations_info.divider()
+                            df_variations.write('Variations performance')
+                            df_variations.dataframe(variations_df)
+                        elif len(product.variations) > (tokens_left*0.8):
+                            st.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
+                    except Exception as e:
+                        st.warning(f'Sorry, error occurred.\n{e}')
