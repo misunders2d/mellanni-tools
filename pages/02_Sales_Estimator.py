@@ -54,7 +54,7 @@ if st.session_state['login'][0]:
             max_sales += ap.max_sales
             min_dollar_sales += (ap.min_sales * ap.avg_price)
             max_dollar_sales += (ap.max_sales * ap.avg_price)
-            temp_df = pd.DataFrame({'ASIN':ap.asin, 'Sales min':ap.min_sales, 'Sales max':ap.max_sales, 'Avg price':ap.avg_price}, index=[0])
+            temp_df = pd.DataFrame({'ASIN':ap.asin, 'Sales min':ap.min_sales, 'Sales max':ap.max_sales, 'Avg price':round(ap.avg_price,2)}, index=[0])
             for key, value in ap.variation_theme.items():
                 temp_df[key] = value
             variations_df = pd.concat([variations_df, temp_df])
