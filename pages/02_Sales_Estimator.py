@@ -2,6 +2,7 @@
 import streamlit as st
 import re
 import plotly.graph_objects as go
+from modules import keepa_modules
 from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
