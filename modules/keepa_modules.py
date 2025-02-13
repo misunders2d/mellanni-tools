@@ -55,6 +55,7 @@ class KeepaProduct:
         self.pivot: pd.DataFrame|None = None
         self.initial_days: int = 360
         self.variations = set()
+        self.avg_price = 0
     
     def __ge__(self, other):
         return self.max_sales >= other.max_sales
@@ -74,11 +75,16 @@ class KeepaProduct:
         return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {self.min_sales:,.0f} - {self.max_sales:,.0f} units\nAverage price last 30 days: ${self.avg_price:.2f}'
     
     def _format_numbers(self, df):
-        df['full price'] = round(df['full price'],2)
-        df['final price'] = round(df['final price'],2)
-        df['sales max'] = df.loc[~df['sales max'].isnull(), 'sales max'].astype(int)
-        df['sales min'] = df.loc[~df['sales min'].isnull(), 'sales min'].astype(int)
-        df['LD'] = round(df['LD'],2)
+        if 'full price' in df.columns:
+            df['full price'] = round(df['full price'],2)
+        if 'final price' in df.columns:
+            df['final price'] = round(df['final price'],2)
+        if 'sales max' in df.columns:
+            df['sales max'] = df.loc[~df['sales max'].isnull(), 'sales max'].astype(int)
+        if 'sales min' in df.columns:
+            df['sales min'] = df.loc[~df['sales min'].isnull(), 'sales min'].astype(int)
+        if 'LD' in df.columns:
+            df['LD'] = round(df['LD'],2)
         return df
 
     def query(self):
@@ -192,6 +198,7 @@ class KeepaProduct:
         else:
             monthly_sold_history = pd.DataFrame([-1], index=[self.last_sales_date], columns=['monthlySoldMin'])
         monthly_sold_history['monthlySoldMax'] = monthly_sold_history['monthlySoldMin'].map(KeepaProduct.sales_tiers)
+        monthly_sold_history = monthly_sold_history.replace(-1,0)
             
         self.sales_history_monthly = pd.merge(
             sales_history,
@@ -280,7 +287,8 @@ class KeepaProduct:
         self.last_days['asin'] = self.asin
         self.min_sales = int(self.last_days['sales min'].sum())
         self.max_sales = int(self.last_days['sales max'].sum())
-        self.avg_price = self.last_days['final price'].mean()
+        if 'final price' in self.last_days.columns:
+            self.avg_price = self.last_days['final price'].mean()
         
 def get_products(asins:list, domain = 'US'):
     api = keepa.Keepa(KEEPA_KEY)
