@@ -2,6 +2,7 @@
 import streamlit as st
 import re
 import plotly.graph_objects as go
+import pandas as pd
 from modules import keepa_modules
 from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
@@ -29,6 +30,7 @@ if st.session_state['login'][0]:
     variations_area = st.container()
     variations_info, variations_image = variations_area.columns([10,1])
     df_area=st.container()
+    df_history, df_variations = df_area.columns([5,5])
 
     def calculate_variation_sales(product:KeepaProduct):
         
@@ -40,6 +42,7 @@ if st.session_state['login'][0]:
             ap.extract_from_products(products_data)
             ap.get_last_days(30)
         
+        variations_df = pd.DataFrame(columns=['ASIN','Sales min','Sales max','Avg price'])
         min_sales = 0
         max_sales = 0
         min_dollar_sales = 0
@@ -49,9 +52,11 @@ if st.session_state['login'][0]:
             min_sales += ap.min_sales
             max_sales += ap.max_sales
             min_dollar_sales += (ap.min_sales * ap.avg_price)
-            max_dollar_sales += (ap.max_sales * ap.avg_price)        
-        
-        return int(min_sales), int(max_sales), round(min_dollar_sales / min_sales,2), max(products), min(products)
+            max_dollar_sales += (ap.max_sales * ap.avg_price)
+            temp_df = pd.DataFrame({'ASIN':ap.asin, 'Sales min':ap.min_sales, 'Sales max':ap.max_sales, 'Avg price':ap.avg_price})
+            variations_df = pd.concat([variations_df, temp_df])
+        variations_df.set_index('ASIN', inplace=True)
+        return int(min_sales), int(max_sales), round(min_dollar_sales / min_sales,2), max(products), min(products), variations_df
 
     def show_plot(df, type='Monthly'):
         price_col = 'full price' if type=='Keepa' else 'final price'
@@ -122,8 +127,8 @@ if st.session_state['login'][0]:
                 if product.image:
                     product_image_area.image(product.image, caption=product.asin)
                 product.get_last_days(days=int(plot_last_days))
-                df_area.write('Latest price history and average sales per day:')
-                df_area.dataframe(product.last_days)
+                df_history.write('Latest price history and average sales per day:')
+                df_history.dataframe(product.last_days)
                 if plot_selection=='Monthly':
                     fig = show_plot(product.summary, type=plot_selection)
                 elif plot_selection=='Keepa':
@@ -136,7 +141,7 @@ if st.session_state['login'][0]:
                 if include_variations:
                     product.get_variations()
                     if product.variations and len(product.variations) < (tokens_left*0.8):
-                        min_sales, max_sales, avg_price, bestseller, worstseller = calculate_variation_sales(product)
+                        min_sales, max_sales, avg_price, bestseller, worstseller, variations_df = calculate_variation_sales(product)
                         variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} per month, average price: ${avg_price}"
                         bestseller_str = f"Bestseller: {bestseller}"
                         variations_info.markdown(f'### Parent results:\n{variations_str}\n### Bestseller - {bestseller}')
@@ -144,5 +149,7 @@ if st.session_state['login'][0]:
                         if bestseller.image:
                             variations_image.image(bestseller.image, caption=bestseller.asin)
                         variations_info.divider()
+                        df_variations.write('Variations performance')
+                        df_variations.dataframe(variations_df)
                     elif len(product.variations) > (tokens_left*0.8):
                         st.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
