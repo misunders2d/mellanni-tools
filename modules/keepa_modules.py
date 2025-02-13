@@ -177,8 +177,10 @@ class KeepaProduct:
         bsr = self.data[0].get('data',{}).get('df_SALES', pd.DataFrame([nan], index=[self.last_sales_date], columns=['BSR'])).replace(-1,nan)
         bsr = bsr.rename(columns = {'value':'BSR'})
         sales_history = pd.merge(sales_history, bsr, how='outer', left_index=True, right_index=True).ffill()
-        
         sales_history['final price'] = sales_history['full price'] * (1+ sales_history['% off']/100) * (1+ sales_history['SNS']/100)- sales_history['$ off']
+        sales_history.loc[
+            sales_history['SNS']>0, 'final price'
+            ] = sales_history['full price'] * (1+ sales_history['% off']/100) - (sales_history['SNS']/100)- sales_history['$ off']
         sales_history.loc[sales_history['LD'] != 0, 'final price'] = sales_history['LD']
         return sales_history
        
@@ -259,7 +261,10 @@ class KeepaProduct:
             )
         self.short_history['LD'] = self.short_history['LD'].replace(0,nan)
         self.short_history['full price'] = self.short_history['full price'].replace(-1, nan)
-        self.short_history['coupon'] = (minutely_history['full price'] - minutely_history['$ off']) * (1+minutely_history['% off']/100)
+        self.short_history['coupon'] = (minutely_history['full price'] - minutely_history['$ off']) * (1+minutely_history['% off']/100) * (1+minutely_history['SNS']/100)
+        self.short_history.loc[
+            self.short_history['SNS']>0, 'coupon'
+            ] = (minutely_history['full price'] - minutely_history['$ off'] - (minutely_history['SNS']/100)) * (1+minutely_history['% off']/100)
         self.short_history.loc[self.short_history['coupon']==self.short_history['full price'], 'coupon'] = nan
         self.pivot = self._format_numbers(self.pivot)
         self.pivot = self.pivot.replace(0,nan)
