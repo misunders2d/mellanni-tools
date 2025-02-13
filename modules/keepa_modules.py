@@ -157,7 +157,7 @@ class KeepaProduct:
                 columns=['% off','$ off','SNS %', 'SNS $']
                 )
         else:
-            coupon_history = pd.DataFrame([[0,0,0]], index =[self.last_sales_date], columns=['% off','$ off','SNS %', 'SNS $'])
+            coupon_history = pd.DataFrame([[0,0,0,0]], index =[self.last_sales_date], columns=['% off','$ off','SNS %', 'SNS $'])
         
         sales_history = pd.merge(sales, coupon_history, how='outer', left_index=True, right_index=True).ffill()
         return sales_history

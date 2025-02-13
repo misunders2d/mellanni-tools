@@ -53,9 +53,10 @@ if st.session_state['login'][0]:
             max_sales += ap.max_sales
             min_dollar_sales += (ap.min_sales * ap.avg_price)
             max_dollar_sales += (ap.max_sales * ap.avg_price)
-            temp_df = pd.DataFrame({'ASIN':ap.asin, 'Sales min':ap.min_sales, 'Sales max':ap.max_sales, 'Avg price':ap.avg_price})
+            temp_df = pd.DataFrame({'ASIN':ap.asin, 'Sales min':ap.min_sales, 'Sales max':ap.max_sales, 'Avg price':ap.avg_price}, index=[0])
             variations_df = pd.concat([variations_df, temp_df])
         variations_df.set_index('ASIN', inplace=True)
+        variations_df.sort_values(by='Sales max', ascending=False, inplace=True)
         return int(min_sales), int(max_sales), round(min_dollar_sales / min_sales,2), max(products), min(products), variations_df
 
     def show_plot(df, type='Monthly'):
