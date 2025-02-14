@@ -173,3 +173,6 @@ if st.session_state['login'][0]:
                             st.warning('No variations found')
                     except Exception as e:
                         st.warning(f'Sorry, error occurred.\n{e}')
+                        df_variations.write('Variations performance')
+                        product_df = pd.DataFrame({'ASIN':product.asin, 'Brand':product.brand, 'Sales min':product.min_sales, 'Sales max':product.max_sales, 'Avg price':round(product.avg_price,2)}, index=[0])
+                        df_variations.dataframe(product_df)
