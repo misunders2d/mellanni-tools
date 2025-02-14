@@ -72,7 +72,10 @@ class KeepaProduct:
         self.get_last_days(days=30)
         if not self.exists:
             return f'{self.asin} does not exist or there is no Keepa data for it'
-        return f'{self.asin}: {self.brand}\n{self.title}\nLatest monthly sales: {self.min_sales:,.0f} - {self.max_sales:,.0f} units ({(self.min_sales + self.max_sales)/2:,.0f} average)\nAverage price last 30 days: ${self.avg_price:.2f}'
+        return f'''{self.asin}: {self.brand}
+{self.title}
+Latest monthly sales: {self.min_sales:,.0f} - {self.max_sales:,.0f} units ({self.avg_sales:,.0f} average)
+Average price last 30 days: \${self.avg_price:.2f}, total sales: \${(self.avg_sales*self.avg_price):,.0f}'''
     
     def _format_numbers(self, df):
         if 'full price' in df.columns:
@@ -295,6 +298,7 @@ class KeepaProduct:
         self.last_days['asin'] = self.asin
         self.min_sales = int(self.last_days['sales min'].sum())
         self.max_sales = int(self.last_days['sales max'].sum())
+        self.avg_sales = self.min_sales + self.max_sales / 2
         if 'final price' in self.last_days.columns:
             self.avg_price = self.last_days['final price'].mean()
         
