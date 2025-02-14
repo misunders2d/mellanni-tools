@@ -8,9 +8,9 @@ from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-import login_google
-st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
+# import login_google
+# st.session_state['login']=login_google.login()
+st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -147,7 +147,7 @@ if st.session_state['login'][0]:
                     try:
                         if product.variations and (len(product.variations) < (tokens_left*0.8)):
                             min_sales, max_sales, avg_price, bestseller, worstseller, variations_df = calculate_variation_sales(product)
-                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} per month, average price: ${avg_price}"
+                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} ({(min_sales + max_sales)/2:,.0f} average) per month, average price: ${avg_price}"
                             bestseller_str = f"Bestseller: {bestseller}"
                             variations_info.markdown(f'### Parent results:\n{variations_str}\n### Bestseller - {bestseller}')
                             variations_info.write(f"View Bestseller on Amazon: https://www.amazon.com/dp/{bestseller.asin}")
