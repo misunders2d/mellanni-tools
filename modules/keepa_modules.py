@@ -114,7 +114,7 @@ class KeepaProduct:
     def get_variations(self):
         if not self.data:
             self.query()
-        if 'variations' in self.data[0].keys():
+        if 'variations' in self.data[0].keys() and self.data[0]['variations']:
             self.variations.update([x['asin'] for x in self.data[0]['variations']])
             self.variation_theme_dict = [
                 theme['attributes'] for theme in self.data[0]['variations'] if theme['asin'] == self.asin

@@ -8,9 +8,9 @@ from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-import login_google
-st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
+# import login_google
+# st.session_state['login']=login_google.login()
+st.session_state['login']=(True, 'sergey@mellanni.com')
 
 
 if st.session_state['login'][0]:
@@ -145,7 +145,7 @@ if st.session_state['login'][0]:
                 if include_variations:
                     product.get_variations()
                     try:
-                        if product.variations and len(product.variations) < (tokens_left*0.8):
+                        if product.variations and (len(product.variations) < (tokens_left*0.8)):
                             min_sales, max_sales, avg_price, bestseller, worstseller, variations_df = calculate_variation_sales(product)
                             variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} per month, average price: ${avg_price}"
                             bestseller_str = f"Bestseller: {bestseller}"
@@ -156,7 +156,9 @@ if st.session_state['login'][0]:
                             variations_info.divider()
                             df_variations.write('Variations performance')
                             df_variations.dataframe(variations_df)
-                        elif len(product.variations) > (tokens_left*0.8):
+                        elif product.variations and len(product.variations) > (tokens_left*0.8):
                             st.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
+                        elif not product.variations:
+                            st.warning('No variations found')
                     except Exception as e:
                         st.warning(f'Sorry, error occurred.\n{e}')
