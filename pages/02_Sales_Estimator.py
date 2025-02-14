@@ -32,7 +32,7 @@ if st.session_state['login'][0]:
     df_area=st.container()
     df_history, df_variations = df_area.columns([5,5])
 
-    def calculate_variation_sales(product:KeepaProduct):
+    def calculate_variation_sales(product:KeepaProduct, days=plot_last_days):
         
         asins = list(product.variations)
         products_data = get_products(asins)
@@ -40,7 +40,7 @@ if st.session_state['login'][0]:
         products = [KeepaProduct(asin) for asin in asins]
         for ap in products:
             ap.extract_from_products(products_data)
-            ap.get_last_days(30)
+            ap.get_last_days(days)
             ap.get_variations()
         
         variations_df = pd.DataFrame()
@@ -50,7 +50,6 @@ if st.session_state['login'][0]:
         max_dollar_sales = 0
         revenue = 0
         for ap in products:
-            ap.get_last_days(30)
             min_sales += ap.min_sales
             max_sales += ap.max_sales
             min_dollar_sales += (ap.min_sales * ap.avg_price)
@@ -128,7 +127,7 @@ if st.session_state['login'][0]:
             st.write(e)
         if product:
             product_title_area.markdown('### ASIN result:')
-            for chunk in str(product).split('\n'):
+            for chunk in product.__str__(days=plot_last_days).split('\n'):
                 product_title_area.markdown(chunk)
             if product.exists:
                 product_title_area.write(f"View on Amazon: https://www.amazon.com/dp/{asin}")
@@ -151,8 +150,8 @@ if st.session_state['login'][0]:
                     try:
                         if product.variations and (len(product.variations) < (tokens_left*0.8)):
                             min_sales, max_sales, avg_price, bestseller, worstseller, revenue, variations_df = calculate_variation_sales(product)
-                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} (**{(min_sales + max_sales)/2:,.0f}** average) per month\nAverage price: **\${avg_price}** (**\${revenue:,.0f}** total revenue)"
-                            bestseller_str = f"Bestseller: {bestseller}"
+                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} (**{(min_sales + max_sales)/2:,.0f}** average) last {plot_last_days} days\nAverage price: **\${avg_price}** (**\${revenue:,.0f}** total revenue)"
+                            bestseller_str = f"Bestseller: {bestseller.__str__(days=plot_last_days)}"
                             ### render variations and bestseller
                             variations_info.markdown('### Parent results:')
                             for chunk in variations_str.split('\n'):
