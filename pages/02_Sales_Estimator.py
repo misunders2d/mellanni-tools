@@ -171,8 +171,9 @@ if st.session_state['login'][0]:
                             st.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
                         elif not product.variations:
                             st.warning('No variations found')
+                            df_variations.write('Variations performance')
+                            product_df = pd.DataFrame({'ASIN':product.asin, 'Brand':product.brand, 'Sales min':product.min_sales, 'Sales max':product.max_sales, 'Avg price':round(product.avg_price,2)}, index=[0])
+                            product_df.set_index('ASIN', inplace=True)
+                            df_variations.dataframe(product_df)
                     except Exception as e:
                         st.warning(f'Sorry, error occurred.\n{e}')
-                        df_variations.write('Variations performance')
-                        product_df = pd.DataFrame({'ASIN':product.asin, 'Brand':product.brand, 'Sales min':product.min_sales, 'Sales max':product.max_sales, 'Avg price':round(product.avg_price,2)}, index=[0])
-                        df_variations.dataframe(product_df)
