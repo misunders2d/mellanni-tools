@@ -20,8 +20,8 @@ if st.session_state['login'][0]:
     input_area=st.container()
     plot_container=st.container()
     plot_area, selector_area = plot_container.columns([5,1])
-    plot_selection = selector_area.radio('Select plot type',['Monthly','Daily','Keepa'], disabled=False)
-    plot_last_days = selector_area.number_input('Enter # of days to show the plot for', min_value=1, max_value=3600, value=360, step=1)
+    plot_selection = selector_area.radio('Select plot type',['Monthly','Daily','Keepa'], disabled=False, index=2)
+    plot_last_days = selector_area.number_input('Enter # of days to show the plot for', min_value=1, max_value=3600, value=30, step=1)
     include_variations = selector_area.checkbox('Include variations', value=False, help='Check to calculate sales and price for all variations')
 
 
@@ -91,9 +91,16 @@ if st.session_state['login'][0]:
 
 
         fig.add_trace(go.Scatter(x=df.index, y=df['BSR'], name='BSR', mode='lines', yaxis='y3',line=dict(color='lightgreen')))
+        
+        # if type=='Monthly':
+        #     plot_title = 'Months'
+        # elif type == "Daily":
+        #     plot_title = 'Days'
+        # else:
+        #     plot_title = 'Minutes'
 
         fig.update_layout(
-            xaxis=dict(title='Months') if type=='Monthly' else dict(title='Hour'),
+            # xaxis=dict(title=plot_title),
             yaxis=dict(title='Sales min-max', side='left', showgrid=False, range=[0, max(2,max(df['sales max'])*1.01)]),
             yaxis2=dict(
                 title='Final price', side='left', overlaying='y', position=0.05,
