@@ -44,12 +44,19 @@ if st.session_state['login'][0]:
             ap.get_variations()
         
         variations_df = pd.DataFrame()
+        min_price = 100000
+        max_price = 0
         min_sales = 0
         max_sales = 0
         min_dollar_sales = 0
         max_dollar_sales = 0
         revenue = 0
         for ap in products:
+            if ap.full_price > max_price:
+                max_price = ap.full_price
+            if ap.full_price < min_price:
+                min_price = ap.full_price
+
             min_sales += ap.min_sales
             max_sales += ap.max_sales
             min_dollar_sales += (ap.min_sales * ap.avg_price)
@@ -61,7 +68,9 @@ if st.session_state['login'][0]:
             variations_df = pd.concat([variations_df, temp_df])
         variations_df.set_index('ASIN', inplace=True)
         variations_df.sort_values(by='Sales max', ascending=False, inplace=True)
-        return int(min_sales), int(max_sales), round(min_dollar_sales / min_sales,2), max(products), min(products), revenue, variations_df
+        real_prices = variations_df['Avg price'].min(), variations_df['Avg price'].max()
+        std_prices = min_price, max_price
+        return int(min_sales), int(max_sales), round(min_dollar_sales / min_sales,2), max(products), min(products), revenue, variations_df, real_prices, std_prices
 
     def show_plot(df, type='Monthly'):
         price_col = 'full price' if type=='Keepa' else 'final price'
@@ -156,8 +165,11 @@ if st.session_state['login'][0]:
                     product.get_variations()
                     try:
                         if product.variations and (len(product.variations) < (tokens_left*0.8)):
-                            min_sales, max_sales, avg_price, bestseller, worstseller, revenue, variations_df = calculate_variation_sales(product)
-                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} (**{(min_sales + max_sales)/2:,.0f}** average) last {plot_last_days} days\nAverage price: **\${avg_price}** (**\${revenue:,.0f}** total revenue)"
+                            min_sales, max_sales, avg_price, bestseller, worstseller, revenue, variations_df, real_prices, std_prices = calculate_variation_sales(product)
+                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} (**{(min_sales + max_sales)/2:,.0f}** average) last {plot_last_days} days\
+                                \nAverage price: **\${avg_price}** (**\${revenue:,.0f}** total revenue)\
+                                \nReal price range: \${real_prices[0]:.2f} - \${real_prices[1]:.2f}\
+                                \nStandard prices: \${std_prices[0]:.2f} - \${std_prices[1]:.2f}"
                             bestseller_str = f"Bestseller: {bestseller.__str__(days=plot_last_days)}"
                             ### render variations and bestseller
                             variations_info.markdown('### Parent results:')

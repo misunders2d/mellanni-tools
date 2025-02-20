@@ -296,6 +296,7 @@ class KeepaProduct:
         self.min_sales = int(self.last_days['sales min'].sum())
         self.max_sales = int(self.last_days['sales max'].sum())
         self.avg_sales = (self.min_sales + self.max_sales) / 2
+        self.full_price = self.last_days['full price'].mean()
         if 'final price' in self.last_days.columns:
             self.avg_price = self.last_days['final price'].mean()
         
