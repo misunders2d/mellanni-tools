@@ -59,8 +59,10 @@ def get_embedding_df(df: pd.DataFrame, df_col: str) -> pd.DataFrame:
     clean_df = df.copy()
     clean_df = clean_df.dropna(subset = df_col)
     clean_df = clean_df[clean_df[df_col] != 'nan']
+    if len(clean_df) == 0:
+        return df
     result = pd.DataFrame()
-    if len(df) > EMB_ROW_LIMIT:
+    if len(clean_df) > EMB_ROW_LIMIT:
         df_list = split_df(clean_df, EMB_ROW_LIMIT)
     else:
         df_list = [clean_df]

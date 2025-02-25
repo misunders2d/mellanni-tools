@@ -86,7 +86,8 @@ if st.session_state['login'][0]:
             with st.spinner(f'Please wait, pulling data from {country} for {len(asins)} variations...', _cache = True):
                 with gc.gcloud_connect() as client:
                     st.session_state.returns = client.query(query).to_dataframe()
-            if 'returns' in st.session_state and len(st.session_state.returns) > 0:
+            if 'returns' in st.session_state and len(st.session_state.returns[st.session_state.returns['customer_comments'] != 'nan']) > 0:
+                st.session_state.returns['customer_comments'] = st.session_state.returns['customer_comments'].astype(str)
                 with st.spinner(f'Please wait, analyzing {len(st.session_state.returns)} complaints'):
                     embedded_returns = em.get_embedding_df(st.session_state.returns, 'customer_comments')
                     label_relevances = em.measure_label_relevance(embedded_returns, 'emb', labels, 'Return reason')
@@ -99,12 +100,7 @@ if st.session_state['login'][0]:
                     reasons['Label'] = reasons['Label'].fillna('Unknown')
                     summary = reasons.groupby('Label')['quantity'].agg('sum').reset_index().sort_values('quantity', ascending = False)
                     chart_area.bar_chart(data = summary, x = 'Label', y = 'quantity')
-                    # labels_list = reasons['Label'].unique()
-                    # filter_labels = st.multiselect('Select reason to filter:', labels_list)
-                    # if filter_labels:
-                    #     st.dataframe(reasons[reasons['Label'].isin(filter_labels)])
-                    # else:
-                    #     st.dataframe(reasons)
+
                     reasons = pd.merge(reasons, dictionary.drop_duplicates('asin')[['asin','collection','size','color']], how = 'left', on = 'asin')
                     st.dataframe(reasons)
             else:
