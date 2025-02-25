@@ -46,6 +46,7 @@ if st.session_state['login'][0]:
     choice = st.radio('Switch between Returns comments and Negative Reviews classifier',['Returns','Reviews'], horizontal = True, disabled=True)
     chart_area, filters_area = st.columns([0.75, 0.25])
     country = filters_area.radio('Country', options = COUNTRIES, index = len(COUNTRIES)-1, horizontal=True, label_visibility='hidden')
+    country = "EU" if country in ('DE','GB','ES','IT','FR') else "US"
     start = filters_area.date_input('From', date_from)
     end = filters_area.date_input('To', date_to)
 
