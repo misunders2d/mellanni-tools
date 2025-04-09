@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import json
 from io import BytesIO
 from modules import formatting as ff
 # import login
@@ -25,12 +26,12 @@ col1, col2 = st.columns([10,3])
 import login_google
 st.session_state['login'] = login_google.login()
 
-if st.session_state['login'][0]:
-    user_email = st.session_state["auth"]
-    st.write(user_email)
+# if st.session_state['login'][0]:
+#     user_email = st.session_state["auth"]
+#     st.write(user_email)
 
 # if True:
-#     user_email = 'ann@mellanni.com'
+#     user_email = 'sergey@mellanni.com'
 
 
     with col2:
@@ -53,20 +54,24 @@ if st.session_state['login'][0]:
 
     with col1:
         with st.expander('OTP codes', icon=':material/qr_code_2:'):
-            from data.otps import keys
+            keys = json.loads(st.secrets["otps"]["users"])
             def otp(text: str):
                 global result
                 totp = pyotp.TOTP(text.replace(' ',''))
                 result = totp.now()
                 return result
             try:
-                target_keys = [x for x in keys if user_email in x]  
-                account_keys = [keys.get(x, None) for x in target_keys]
-
-                if account_keys:
-                    otps = {f'{key}: {otp(item)}' for subkey in account_keys for key, item in subkey.items()}
-
-                    otp_area = st.text_area('OTPs:', '\n'.join(otps), height=200, key=time.time())
+                all_keys = (x for x in keys if user_email in x['emails'])
+                sorted_keys = dict()
+                for key in keys:
+                    if user_email in key['emails']:
+                        for data, value in key['data'].items():
+                            sorted_keys[data]= value
+                sorted_keys = dict(sorted(sorted_keys.items()))
+                if sorted_keys:
+                    otps = {key: otp(item) for key, item in sorted_keys.items()}
+                    output = '\n'.join(f"{k}: ".ljust(50 - len(v)) + v for k, v in sorted(otps.items()))
+                    otp_area = st.text_area('OTPs',output, height=200, key=time.time())
                     if st.button('Refresh', key = 'OTP refresh'):
                         st.rerun()
             except:
@@ -297,7 +302,6 @@ if st.session_state['login'][0]:
                 return file
 
         with st.expander('Backend checker', icon=':material/code:'):
-            import json
             def process_backend(files):
                 to_df = []
                 for file in files:
