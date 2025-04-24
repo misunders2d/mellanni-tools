@@ -37,7 +37,7 @@ if 'optimized_bullets' not in st.session_state:
     st.session_state.optimized_bullets = ('',True)
 
 product = product_description_area.text_area('Describe your product',placeholder='Example: A bed sheet set made of microfiber with 1 flat sheet, 1 fitted sheet and 2 pillowcases')
-title_current = title_area1.text_area('Current title', height = 2, max_chars=200, placeholder='Input your current title here')
+title_current = title_area1.text_area('Current title', height = 70, max_chars=200, placeholder='Input your current title here')
 title_optimized = title_area2.text_area('Optimized title will be shown here', value = st.session_state.optimized_title[0], disabled = st.session_state.optimized_title[1], max_chars=200)
 
 bullets_real_col, bullets_opt_col = bullets_area.columns([1,1])
