@@ -109,7 +109,7 @@ class KeepaProduct:
         '''map minimal sales tiers to sales tiers dict to get min-max sales'''
         if x == -1:
             return 0
-        return KeepaProduct.sales_tiers[x]
+        return KeepaProduct.sales_tiers.get(x, x*1.3)
     
     def get_variations(self):
         if not self.data:
@@ -204,7 +204,7 @@ class KeepaProduct:
                 )
         else:
             monthly_sold_history = pd.DataFrame([-1], index=[self.last_sales_date], columns=['monthlySoldMin'])
-        monthly_sold_history['monthlySoldMax'] = monthly_sold_history['monthlySoldMin'].map(KeepaProduct.sales_tiers)
+        monthly_sold_history['monthlySoldMax'] = monthly_sold_history['monthlySoldMin'].map(self.apply_sales_tiers)
         monthly_sold_history = monthly_sold_history.replace(-1,0)
             
         self.sales_history_monthly = pd.merge(

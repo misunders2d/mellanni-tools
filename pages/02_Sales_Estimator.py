@@ -3,7 +3,7 @@ import streamlit as st
 import re
 import plotly.graph_objects as go
 import pandas as pd
-from modules import keepa_modules
+# from modules import keepa_modules
 from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
@@ -18,6 +18,7 @@ if st.session_state['login'][0]:
     st.subheader('_Get ASIN sales_')
 
     input_area=st.container()
+    text_col, market_col = input_area.columns([4,1])
     plot_container=st.container()
     plot_area, selector_area = plot_container.columns([5,1])
     plot_selection = selector_area.radio('Select plot type',['Monthly','Daily','Keepa'], disabled=False, index=2)
@@ -32,12 +33,12 @@ if st.session_state['login'][0]:
     df_area=st.container()
     df_history, df_variations = df_area.columns([5,5])
 
-    def calculate_variation_sales(product:KeepaProduct, days=plot_last_days):
+    def calculate_variation_sales(product:KeepaProduct, days=plot_last_days, market="US"):
         
         asins = list(product.variations)
         products_data = get_products(asins)
         
-        products = [KeepaProduct(asin) for asin in asins]
+        products = [KeepaProduct(asin, domain=market) for asin in asins]
         for ap in products:
             ap.extract_from_products(products_data)
             ap.get_last_days(days)
@@ -126,8 +127,8 @@ if st.session_state['login'][0]:
         )
         return fig
 
-    asin=input_area.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
-    
+    asin=text_col.text_input(f'ASIN ({tokens_left} tokens left)', key='ASIN', help='Enter ASIN (all caps) or Amazon link to check latest stats. Currently available for US only')
+    market=market_col.radio('Select market (experimental)', ['US', 'GB', 'FR'], index=0, horizontal=True) #['US', 'UK', 'DE', 'FR', 'IT', 'ES', 'JP']
     submit_button=input_area.button('Submit', icon=':material/local_fire_department:')
 
     if submit_button and len(asin)>=10:
@@ -135,7 +136,7 @@ if st.session_state['login'][0]:
             asin_clean=re.search('[A-Z0-9]{10}', asin.upper()).group() if len(asin)>10 else asin.upper()
         except Exception:
             st.warning('Wrong ASIN combination')
-        product=KeepaProduct(asin_clean.upper())
+        product=KeepaProduct(asin_clean.upper(), domain=market)
         product.initial_days = plot_last_days
         try:
             product.generate_monthly_summary()
@@ -165,7 +166,7 @@ if st.session_state['login'][0]:
                     product.get_variations()
                     try:
                         if product.variations and (len(product.variations) < (tokens_left*0.8)):
-                            min_sales, max_sales, avg_price, bestseller, worstseller, revenue, variations_df, real_prices, std_prices = calculate_variation_sales(product)
+                            min_sales, max_sales, avg_price, bestseller, worstseller, revenue, variations_df, real_prices, std_prices = calculate_variation_sales(product, market=market)
                             variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} (**{(min_sales + max_sales)/2:,.0f}** average) last {plot_last_days} days\
                                 \nAverage price: **\${avg_price}** (**\${revenue:,.0f}** total revenue)\
                                 \nReal price range: \${real_prices[0]:.2f} - \${real_prices[1]:.2f}\
