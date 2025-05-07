@@ -183,7 +183,8 @@ if st.session_state['login'][0] and user_email in markets_access:
             progress_bar=False
             )
         # changes_df.to_gbq(target_report, chunksize=1000, if_exists='replace', project_id = 'mellanni-project-da', progress_bar=True)
-        st.success('Changes saved to BigQuery')
+        st.toast('Changes saved to BigQuery')
+        st.balloons()
         time.sleep(2)
         st.rerun()
         return None
