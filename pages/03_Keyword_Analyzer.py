@@ -306,12 +306,26 @@ if st.session_state['login'][0]:
     if 'search_term' not in st.session_state:
         st.session_state['search_term'] = None 
 
+    @st.fragment
+    def create_bytes_df(dfs, sheet_names, **kwargs):
+        df_bytes = ff.prepare_for_export(
+            dfs, sheet_names,
+            numeric_cols=['Search Query Volume','Impressions: Total Count','Clicks: Total Count','Cart Adds: Total Count','Purchases: Total Count',
+                            'Impressions: Brand Count','Clicks: Brand Count','Cart Adds: Brand Count','Purchases: Brand Count','ASINs shown'],
+            currency_cols=['Clicks: Price (Median)','Cart Adds: Price (Median)','Purchases: Price (Median)','Clicks: Brand Price (Median)',
+                            'Cart Adds: Brand Price (Median)','Purchases: Brand Price (Median)'],
+            percent_cols=['ASINs glance rate','KW ctr','ASIN ctr','KW ATC %','ASINs ATC %','KW ATC conversion','ASINs ATC conversion',
+                            'KW conversion','ASINs conversion'])
+        return df_bytes
+
+    @st.fragment
     def filter_df(search_term, threshold=70):
         bq = st.session_state['bq_data'].copy()
         if search_term:
             bq = bq[bq['Search Query'].apply(lambda x: is_similar(x, search_term, threshold))]
         st.session_state['filtered_bq'] = bq.copy()
 
+    @st.fragment
     def create_figure(
             df,
             title='Search Query Volume and KW Conversion Over Time',
@@ -345,7 +359,7 @@ if st.session_state['login'][0]:
 
 
     controls_area = st.container()
-    kw_filter_area, slider_area, button_area = st.columns([4,8,1], vertical_alignment='center', gap='medium')
+    kw_filter_area, slider_area, button_area = st.columns([3,7,2], vertical_alignment='center', gap='medium')
     plots_area_top = st.empty()
     plots_area_bottom = st.empty()
     plot1, plot2 = plots_area_top.columns([1,1], gap='small')
@@ -400,18 +414,9 @@ if st.session_state['login'][0]:
             plot3.plotly_chart(fig3, use_container_width=True)
             plot4.plotly_chart(fig4, use_container_width=True)
 
-            df_bytes = ff.prepare_for_export(
-                [bq_dates, bq_search],
-                ['Reporting Date', 'Search Query'],
-                numeric_cols=['Search Query Volume','Impressions: Total Count','Clicks: Total Count','Cart Adds: Total Count','Purchases: Total Count',
-                              'Impressions: Brand Count','Clicks: Brand Count','Cart Adds: Brand Count','Purchases: Brand Count','ASINs shown'],
-                currency_cols=['Clicks: Price (Median)','Cart Adds: Price (Median)','Purchases: Price (Median)','Clicks: Brand Price (Median)',
-                               'Cart Adds: Brand Price (Median)','Purchases: Brand Price (Median)'],
-                percent_cols=['ASINs glance rate','KW ctr','ASIN ctr','KW ATC %','ASINs ATC %','KW ATC conversion','ASINs ATC conversion',
-                              'KW conversion','ASINs conversion'])
             st.download_button(
                 label="Download SQP data",
-                data=df_bytes,
+                data=create_bytes_df([bq_dates, bq_search],['Reporting Date', 'Search Query']),
                 file_name='SQP_data.xlsx',
                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 key='download_sqp_data'
