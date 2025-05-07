@@ -11,14 +11,14 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title = 'SQP analyzer', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-# import login_google
-# st.session_state['login']=login_google.login()
+import login_google
+st.session_state['login']=login_google.login()
 
-# if st.session_state['login'][0]:
-#     user_email = st.session_state["auth"]
+if st.session_state['login'][0]:
+    user_email = st.session_state["auth"]
 
-if True:
-    user_email = 'sergey@mellanni.com'
+# if True:
+#     user_email = 'sergey@mellanni.com'
 
     renaming = {'search_query': 'Search Query',
                 'search_query_volume': 'Search Query Volume',
