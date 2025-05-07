@@ -114,3 +114,29 @@ def get_last_date(client,report = 'reports',table = 'business_report'):
     except:
         pass
     return date
+
+def normalize_columns(df):
+    import re
+    pattern = '^([0-9].)'
+    new_cols = [x.strip()
+                .replace(' ','_')
+                .replace('-','_')
+                .replace('?','')
+                .replace(',','')
+                .replace('.','')
+                .replace('/','_')
+                .replace('(','')
+                .replace(')','')
+                .lower()
+                for x in df.columns]
+    new_cols = [re.sub(pattern, '_'+re.findall(pattern,x)[0], x) if re.findall(pattern,x) else x for x in new_cols]
+    df.columns = new_cols
+    date_cols = [x for x in df.columns if 'date' in x.lower()]
+    if date_cols !=[]:
+        df[date_cols] = df[date_cols].astype('str')
+        df = df.sort_values(date_cols, ascending = True)
+    float_cols = [x for x in df.select_dtypes('float64').columns]
+    int_cols = [x for x in df.select_dtypes('int64').columns]
+    df[float_cols] = df[float_cols].astype('float32')
+    df[int_cols] = df[int_cols].astype('int32')
+    return df

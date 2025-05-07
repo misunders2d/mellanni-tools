@@ -107,9 +107,11 @@ if st.session_state['login'][0]:
         total_df = pd.DataFrame()
         for file in file_list:
             check_file(file, scope='bq')
+            file.seek(0)
             header = pd.read_csv(file, nrows=1)
             columns = header.columns.tolist()
             sqp = process_header_columns(columns)
+            file.seek(0)
             temp = pd.read_csv(file, skiprows=1)
             year = int(sqp['year'])
             week = int(sqp['week'].split(' ')[1])
@@ -125,20 +127,28 @@ if st.session_state['login'][0]:
             query = f'''DELETE FROM `auxillary_development.sqp_brand_weekly` WHERE reporting_date IN ("{dates_str}")'''
             result = client.query(query)
             while result.running():
-                print('Wait, deleting rows')
+                st.toast('Wait, deleting rows')
                 time.sleep(2)
                 result.reload()
-            print(f'Deleted {result.num_dml_affected_rows} rows from the table, pushing new data')
-            pandas_gbq.to_gbq(total_df, 'auxillary_development.sqp_brand_weekly', if_exists='append')
+            st.toast(f'Deleted {result.num_dml_affected_rows} rows from the table, pushing new data')
+            pandas_gbq.to_gbq(total_df, 'auxillary_development.sqp_brand_weekly', if_exists='append', bigquery_client=client)
+        st.balloons()
+        st.toast(f'Pushed {total_df.shape[0]} rows to the table')
         return
 
-    def check_file(filename: str, scope: Literal['general', 'bq'] = 'general') -> None:
+    def check_file(file, scope: Literal['general', 'bq'] = 'general') -> None:
         """Check if the file is a valid SQP file."""
+        if isinstance(file, str):
+            filename = file_list
+        else:
+            filename = file.name
         if not os.path.splitext(filename)[1]=='.csv':
+            st.error(BaseException(f"Files must be csv:\n{filename}"))
             raise BaseException(f"Files must be csv:\n{filename}")
-        test = pd.read_csv(filename)
+        test = pd.read_csv(file)
         condition = ("ASIN" in test.columns.tolist()[0] or "Brand" in test.columns.tolist()[0]) if scope == 'general' else ("Brand" in test.columns.tolist()[0])
         if not condition:
+            st.error(BaseException(f"Wrong / non-SQP file provided:\n{filename}"))
             raise BaseException(f"Wrong / non-SQP file provided:\n{filename}")
 
     def process_header_columns(columns: list) -> dict:
@@ -424,4 +434,15 @@ if st.session_state['login'][0]:
                         key='download_sqp_data')
 
     if user_email=='sergey@mellanni.com':
-        st.button('Push SQP data to BigQuery')
+        if st.button('Push SQP data to BigQuery'):
+            file_upload = st.file_uploader(
+                label='Upload SQP files',
+                type=['csv'],
+                accept_multiple_files=True,
+                key='sqp_files'
+            )
+        if 'sqp_files' in st.session_state and len(st.session_state['sqp_files'])>0:
+            file_list = st.session_state['sqp_files']
+            with st.spinner('Processing files...', show_time=True):
+                push_to_bq(file_list)
+                st.success('Files processed and pushed to BigQuery successfully!')
