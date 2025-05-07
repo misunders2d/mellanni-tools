@@ -305,7 +305,6 @@ if st.session_state['login'][0]:
     #############################################################################gui section#####################################################
     if 'search_term' not in st.session_state:
         st.session_state['search_term'] = None
-    st.session_state['allow_export'] = False
 
     @st.fragment
     def create_bytes_df(dfs, sheet_names, **kwargs):
@@ -383,7 +382,6 @@ if st.session_state['login'][0]:
     if selected_dates:
         if button_area.button('Pull SQP data', key='pull_sqp_data', on_click=read_bq, args=(selected_dates[0], selected_dates[1]), kwargs=({'name':'bq_data'}), disabled=False):
             st.session_state['filtered_bq'] = st.session_state['bq_data'].copy()
-            st.session_state['allow_export'] = True
         def update_search_term():
             st.session_state['search_term'] = st.session_state['keyword_input']
             filter_df(st.session_state['search_term'])
@@ -416,7 +414,7 @@ if st.session_state['login'][0]:
             plot3.plotly_chart(fig3, use_container_width=True)
             plot4.plotly_chart(fig4, use_container_width=True)
 
-            if st.session_state['allow_export']:
+            if st.checkbox('Export SQP data to Excel', value=False, key='export_sqp_data'):
                 with st.spinner('Preparing data for download...', show_time=True):
                     st.download_button(
                         label="Download SQP data",
