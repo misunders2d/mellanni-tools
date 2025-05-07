@@ -11,14 +11,14 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title = 'SQP analyzer', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-import login_google
-st.session_state['login']=login_google.login()
+# import login_google
+# st.session_state['login']=login_google.login()
 
-if st.session_state['login'][0]:
-    user_email = st.session_state["auth"]
+# if st.session_state['login'][0]:
+#     user_email = st.session_state["auth"]
 
-# if True:
-#     user_email = 'sergey@mellanni.com'
+if True:
+    user_email = 'sergey@mellanni.com'
 
     renaming = {'search_query': 'Search Query',
                 'search_query_volume': 'Search Query Volume',
@@ -366,7 +366,8 @@ if st.session_state['login'][0]:
         key='date_range'
     )
     if selected_dates:
-        button_area.button('Pull SQP data', key='pull_sqp_data', on_click=read_bq, args=(selected_dates[0], selected_dates[1]), kwargs=({'name':'bq_data'}), disabled=False)
+        if button_area.button('Pull SQP data', key='pull_sqp_data', on_click=read_bq, args=(selected_dates[0], selected_dates[1]), kwargs=({'name':'bq_data'}), disabled=False):
+            st.session_state['filtered_bq'] = st.session_state['bq_data'].copy()
         def update_search_term():
             st.session_state['search_term'] = st.session_state['keyword_input']
             filter_df(st.session_state['search_term'])
@@ -398,6 +399,23 @@ if st.session_state['login'][0]:
             plot2.plotly_chart(fig2, use_container_width=True)
             plot3.plotly_chart(fig3, use_container_width=True)
             plot4.plotly_chart(fig4, use_container_width=True)
+
+            df_bytes = ff.prepare_for_export(
+                [bq_dates, bq_search],
+                ['Reporting Date', 'Search Query'],
+                numeric_cols=['Search Query Volume','Impressions: Total Count','Clicks: Total Count','Cart Adds: Total Count','Purchases: Total Count',
+                              'Impressions: Brand Count','Clicks: Brand Count','Cart Adds: Brand Count','Purchases: Brand Count','ASINs shown'],
+                currency_cols=['Clicks: Price (Median)','Cart Adds: Price (Median)','Purchases: Price (Median)','Clicks: Brand Price (Median)',
+                               'Cart Adds: Brand Price (Median)','Purchases: Brand Price (Median)'],
+                percent_cols=['ASINs glance rate','KW ctr','ASIN ctr','KW ATC %','ASINs ATC %','KW ATC conversion','ASINs ATC conversion',
+                              'KW conversion','ASINs conversion'])
+            st.download_button(
+                label="Download SQP data",
+                data=df_bytes,
+                file_name='SQP_data.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                key='download_sqp_data'
+            )
 
     if user_email=='sergey@mellanni.com':
         st.button('Push SQP data to BigQuery')
