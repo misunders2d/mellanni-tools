@@ -414,13 +414,14 @@ if st.session_state['login'][0]:
             plot3.plotly_chart(fig3, use_container_width=True)
             plot4.plotly_chart(fig4, use_container_width=True)
 
-            st.download_button(
-                label="Download SQP data",
-                data=create_bytes_df([bq_dates, bq_search],['Reporting Date', 'Search Query']),
-                file_name='SQP_data.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                key='download_sqp_data'
-            )
+            with st.spinner('Preparing data for download...', show_time=True):
+                st.download_button(
+                    label="Download SQP data",
+                    data=create_bytes_df([bq_dates, bq_search],['Reporting Date', 'Search Query']),
+                    file_name='SQP_data.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    key='download_sqp_data'
+                )
 
     if user_email=='sergey@mellanni.com':
         st.button('Push SQP data to BigQuery')
