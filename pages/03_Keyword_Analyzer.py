@@ -87,9 +87,10 @@ if st.session_state['login'][0]:
     def is_similar(query, target, threshold):
         """Check if the query is similar to the target string using fuzzy matching."""
         words = query.lower().split()
-        for word in words:
-            if any([fuzz.ratio(word, x.lower()) >= threshold for x in target.split()]):
-                return True
+        targets = target.lower().split()
+
+        if all([any([fuzz.ratio(search_term, word)>=70 for word in words]) for search_term in targets]):
+            return True
         return False
 
     @session_state_decorator
