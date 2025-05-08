@@ -527,7 +527,7 @@ if st.session_state['login'][0]:
             bq_dates = refine_file(bq_dates, scope='brand')
             bq_search = refine_file(bq_search, scope='brand')
             df_area.dataframe(
-                bq_search,
+                bq_search.sort_values('Purchases: Total Count', ascending=False),
                 use_container_width=True,
                 hide_index=True,
                 key='bq_search',
