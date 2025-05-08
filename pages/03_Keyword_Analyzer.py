@@ -20,6 +20,13 @@ if st.session_state['login'][0]:
 # if True:
 #     user_email = 'sergey@mellanni.com'
 
+    numeric_cols=['Search Query Volume','Impressions: Total Count','Clicks: Total Count','Cart Adds: Total Count','Purchases: Total Count',
+                            'Impressions: Brand Count','Clicks: Brand Count','Cart Adds: Brand Count','Purchases: Brand Count','ASINs shown'],
+    currency_cols=['Clicks: Price (Median)','Cart Adds: Price (Median)','Purchases: Price (Median)','Clicks: Brand Price (Median)',
+                    'Cart Adds: Brand Price (Median)','Purchases: Brand Price (Median)'],
+    percent_cols=['ASINs glance rate','KW ctr','ASIN ctr','KW ATC %','ASINs ATC %','KW ATC conversion','ASINs ATC conversion',
+                            'KW conversion','ASINs conversion']
+
     renaming = {'search_query': 'Search Query',
                 'search_query_volume': 'Search Query Volume',
                 'impressions:_total_count': 'Impressions: Total Count',
@@ -55,6 +62,112 @@ if st.session_state['login'][0]:
                 'reporting_date': 'Reporting Date',
                 'year': 'year',
                 'week': 'week'}
+
+    df_columns_config = {
+                    'Search Query': st.column_config.TextColumn(
+                        pinned=True
+                    ),
+                    'Search Query Volume': st.column_config.NumberColumn(
+                        help='Search Query Volume',
+                        format='localized',
+                    ),
+                    'Impressions: Total Count': st.column_config.NumberColumn(
+                        help='How many asins were shown for the search query',
+                        format='localized',
+                    ),
+                    'Clicks: Total Count': st.column_config.NumberColumn(
+                        help='Total number of clicks for the search query',
+                        format='localized',
+                    ),
+                    'Cart Adds: Total Count': st.column_config.NumberColumn(
+                        help='Total number of cart adds for the search query',
+                        format='localized',
+                    ),
+                    'Purchases: Total Count': st.column_config.NumberColumn(
+                        help='Total number of purchases for the search query',
+                        format='localized',
+                    ),
+                    'Impressions: Brand Count': st.column_config.NumberColumn(
+                        help="How many brand's asins were shown for the search query",
+                        format='localized',
+                    ),
+                    'Clicks: Brand Count': st.column_config.NumberColumn(
+                        help="Number of clicks for the brand's asins",
+                        format='localized',
+                    ),
+                    'Cart Adds: Brand Count': st.column_config.NumberColumn(
+                        help="Number of cart adds for the brand's asins",
+                        format='localized',
+                    ),
+                    'Purchases: Brand Count': st.column_config.NumberColumn(
+                        help="Number of purchases for the brand's asins",
+                        format='localized',
+                    ),
+                    'ASINs shown': st.column_config.NumberColumn(
+                        help='number of Asins shown per each search query - in other words, the spots you need to be in in order to be seen',
+                        format='%.0f',
+                    ),
+                    'Clicks: Price (Median)': st.column_config.NumberColumn(
+                        help='Median price of products clicked on',
+                        format='dollar',
+                    ),
+                    'Cart Adds: Price (Median)': st.column_config.NumberColumn(
+                        help='Median price of products added to cart',
+                        format='dollar',
+                    ),
+                    'Purchases: Price (Median)': st.column_config.NumberColumn(
+                        help='Median price of products purchased',
+                        format='dollar',
+                    ),
+                    'Clicks: Brand Price (Median)': st.column_config.NumberColumn(
+                        help="Median price of a brand's products clicked on",
+                        format='dollar',
+                    ),
+                    'Cart Adds: Brand Price (Median)': st.column_config.NumberColumn(
+                        help="Median price of a brand's products added to cart",
+                        format='dollar',
+                    ),
+                    'Purchases: Brand Price (Median)': st.column_config.NumberColumn(
+                        help="Median price of a brand's products purchased",
+                        format='dollar',
+                    ),
+                    'ASINs glance rate': st.column_config.NumberColumn(
+                        help="Share of impressions that were shown for the brand's asins. Less than 100% means lost impressions",
+                        format='percent',
+                    ),
+                    'KW ctr': st.column_config.NumberColumn(
+                        help='Click-through rate for the search query',
+                        format='percent',
+                    ),
+                    'ASIN ctr': st.column_config.NumberColumn(
+                        help="Click-through rate for the brand's asins",
+                        format='percent',
+                    ),
+                    'KW ATC %': st.column_config.NumberColumn(
+                        help="Click to add-to-cart conversion rate for the search query",
+                        format='percent',
+                    ),
+                    'ASINs ATC %': st.column_config.NumberColumn(
+                        help="Click to add-to-cart conversion rate for the brand's asins",
+                        format='percent',
+                    ),
+                    'KW ATC conversion': st.column_config.NumberColumn(
+                        help="Add-to-cart to purchase conversion rate for the search query",
+                        format='percent',
+                    ),
+                    'ASINs ATC conversion': st.column_config.NumberColumn(
+                        help="Add-to-cart to purchase conversion rate for the brand's asins",
+                        format='percent',
+                    ),
+                    'KW conversion': st.column_config.NumberColumn(
+                        help="Total conversion rate for the search query (purchases / clicks)",
+                        format='percent',
+                    ),
+                    'ASINs conversion': st.column_config.NumberColumn(
+                        help="Brand's total conversion rate (purchases / clicks)",
+                        format='percent',
+                    )
+            }
 
     combined_result_asin = {
         "Weekly":{str(year): {} for year in range(2020, 2030)},
@@ -242,7 +355,7 @@ if st.session_state['login'][0]:
 
         df['KW conversion'] = df['Purchases: Total Count'] / df['Clicks: Total Count']
         df['ASINs conversion'] = df[f'Purchases: {entity} Count'] / df[f'Clicks: {entity} Count']
-        return df
+        return df.fillna(0)
 
     def combine_files(
             dfs: list,
@@ -285,7 +398,7 @@ if st.session_state['login'][0]:
         asin_df[f'Cart Adds: {entity} Price (Median)'] = asin_df['median_atc_product'] / asin_df[f'Cart Adds: {entity} Count']
         asin_df[f'Purchases: {entity} Price (Median)'] = asin_df['median_purchase_product'] / asin_df[f'Purchases: {entity} Count']
         
-        summary = pd.merge(common_df, asin_df, how='outer', on=column, validate="1:1")
+        summary = pd.merge(common_df, asin_df, how='outer', on=column, validate="1:1").fillna(0)
 
         for col in ('median_click_product','median_atc_product','median_purchase_product',
                     'median_click_total','median_atc_total','median_purchase_total'):
@@ -412,7 +525,12 @@ if st.session_state['login'][0]:
             bq_search = combine_files([bq], scope='brand', column='Search Query')
             bq_dates = refine_file(bq_dates, scope='brand')
             bq_search = refine_file(bq_search, scope='brand')
-            df_area.dataframe(bq_search, use_container_width=True, hide_index=True, key='bq_search')
+            df_area.dataframe(
+                bq_search,
+                use_container_width=True,
+                hide_index=True,
+                key='bq_search',
+                column_config=df_columns_config)
         
             fig1 = create_figure(bq_dates, title="Search performance over time", left1='Search Query Volume', right1='KW ctr', right2='ASIN ctr')
             fig2 = create_figure(bq_dates, title="Add-to-cart performance over time", left1='Cart Adds: Total Count', right1='KW ATC %', right2='ASINs ATC %')
