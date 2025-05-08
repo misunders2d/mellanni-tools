@@ -550,7 +550,9 @@ if st.session_state['login'][0]:
                         data=create_bytes_df([bq_dates, bq_search],['Reporting Date', 'Search Query']),
                         file_name='SQP_data.xlsx',
                         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        key='download_sqp_data')
+                        key='download_sqp_data',
+                        on_click=lambda: st.session_state.update({'export_sqp_data': False})
+                        )
 
     if user_email=='sergey@mellanni.com':
         if st.button('Push SQP data to BigQuery'):
