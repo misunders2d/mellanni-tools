@@ -161,107 +161,108 @@ if st.session_state['login'][0]:
                 st.data_editor(result)
 
         with st.expander('Process LD results', icon=':material/electric_bolt:'):
-            input_area = st.empty()
-            output_area = st.empty()
-            text = input_area.text_area('Input LD data here')
+            st.markdown('**Note:** This tool has been replaced with a [Chrome Extension](https://chromewebstore.google.com/detail/amazon-ld-manager/lknmibmhladlajjjiccipambbikcchnf?pli=1)')
+            # input_area = st.empty()
+            # output_area = st.empty()
+            # text = input_area.text_area('Input LD data here')
 
 
-            def process_ld(text):
-                rows = re.split('\t|\n',text)
-                if 'Glance views' in rows[0:20]:
-                    ld = 'ended'
-                else:
-                    ld = 'upcoming'
+            # def process_ld(text):
+            #     rows = re.split('\t|\n',text)
+            #     if 'Glance views' in rows[0:20]:
+            #         ld = 'ended'
+            #     else:
+            #         ld = 'upcoming'
                 
-                asin_indexes = [rows.index(x) for x in rows if re.search('[A-Z0-9]{10}',x)]
+            #     asin_indexes = [rows.index(x) for x in rows if re.search('[A-Z0-9]{10}',x)]
                 
                 
-                data = []
-                for i, item in enumerate(asin_indexes):
-                    if i < len(asin_indexes)-1:
-                        data.append(rows[asin_indexes[i]:asin_indexes[i+1]])
-                    else:
-                        data.append(rows[asin_indexes[i]:])
-                if 'Parent' in data[0][0]:
-                    data = data[1:]    
+            #     data = []
+            #     for i, item in enumerate(asin_indexes):
+            #         if i < len(asin_indexes)-1:
+            #             data.append(rows[asin_indexes[i]:asin_indexes[i+1]])
+            #         else:
+            #             data.append(rows[asin_indexes[i]:])
+            #     if 'Parent' in data[0][0]:
+            #         data = data[1:]    
                     
                 
-                pattern = re.compile(r'\$|[0-9]+')
+            #     pattern = re.compile(r'\$|[0-9]+')
 
-                for i, d in enumerate(data):
-                    data[i] = [x for x in d if all([re.search(pattern,x),all(['inventory' not in x, 'Mellanni' not in x])])]
+            #     for i, d in enumerate(data):
+            #         data[i] = [x for x in d if all([re.search(pattern,x),all(['inventory' not in x, 'Mellanni' not in x])])]
                     
-                result = pd.DataFrame(data)
-                asins = result[0].str.split(',', expand = True)
-                for col in asins.columns:
-                    asins[col] = asins[col].str.strip()
-                del result[0]
-                result = pd.concat([asins, result],axis = 1)
+            #     result = pd.DataFrame(data)
+            #     asins = result[0].str.split(',', expand = True)
+            #     for col in asins.columns:
+            #         asins[col] = asins[col].str.strip()
+            #     del result[0]
+            #     result = pd.concat([asins, result],axis = 1)
                 
                 
-                if ld == 'upcoming':
-                    if len(result.columns) == 10:
-                        cols = ['ASIN','SKU','Your price','Deal price','Max Deal price',
-                                'Deal price/Max Deal price','Discount, %','Target',
-                                'Min Target','Stock']
-                        num_cols = ['Your price','Deal price','Max Deal price',
-                                    'Deal price/Max Deal price','Discount, %','Target',
-                                    'Min Target','Stock']
+            #     if ld == 'upcoming':
+            #         if len(result.columns) == 10:
+            #             cols = ['ASIN','SKU','Your price','Deal price','Max Deal price',
+            #                     'Deal price/Max Deal price','Discount, %','Target',
+            #                     'Min Target','Stock']
+            #             num_cols = ['Your price','Deal price','Max Deal price',
+            #                         'Deal price/Max Deal price','Discount, %','Target',
+            #                         'Min Target','Stock']
                         
                         
-                    else:
-                        cols = ['ASIN','SKU','Your price','Deal price','Max Deal price',
-                                'Target',
-                                'Min Target','Stock']
+            #         else:
+            #             cols = ['ASIN','SKU','Your price','Deal price','Max Deal price',
+            #                     'Target',
+            #                     'Min Target','Stock']
 
-                        num_cols = ['Your price','Deal price','Max Deal price',
-                                    'Target',
-                                    'Min Target','Stock']
+            #             num_cols = ['Your price','Deal price','Max Deal price',
+            #                         'Target',
+            #                         'Min Target','Stock']
                         
-                    result.columns = cols
-                    if 'Discount, %' in result.columns.tolist():
-                        result['Discount, %'] = result['Discount, %'].str.replace('Min: ','')
+            #         result.columns = cols
+            #         if 'Discount, %' in result.columns.tolist():
+            #             result['Discount, %'] = result['Discount, %'].str.replace('Min: ','')
                         
-                    for col in cols:
-                        result[col] = result[col].str.replace('$','')
-                    result['Max Deal price'] = result['Max Deal price'].str.replace('Max: ','')
-                    result['Min Target'] = result['Min Target'].str.replace('Min: ','')
+            #         for col in cols:
+            #             result[col] = result[col].str.replace('$','')
+            #         result['Max Deal price'] = result['Max Deal price'].str.replace('Max: ','')
+            #         result['Min Target'] = result['Min Target'].str.replace('Min: ','')
                     
-                    for nc in num_cols:
-                        result[nc] = result[nc].astype(float)
+            #         for nc in num_cols:
+            #             result[nc] = result[nc].astype(float)
                         
-                    result['Discount, %'] = round(((result['Deal price'] / result['Your price']) - 1)*100,1)
+            #         result['Discount, %'] = round(((result['Deal price'] / result['Your price']) - 1)*100,1)
                 
-                    result['Deal price/Max Deal price'] = result['Max Deal price'] - result['Deal price']
+            #         result['Deal price/Max Deal price'] = result['Max Deal price'] - result['Deal price']
                 
                 
-                elif ld == 'ended':
-                    cols = ['ASIN','SKU','Deal price','Sales','Units Sold','Committed units',
-                            'Sell-through rate','Glance views','Conversion rate']
-                    result = result.iloc[:,0:9]
-                    result.columns = cols
-                    num_cols = ['Deal price','Sales','Units Sold','Committed units','Glance views']
-                    for nc in num_cols:
-                        result[nc] = result[nc].str.replace('$','')
-                        result[nc] = result[nc].str.replace(',','')
+            #     elif ld == 'ended':
+            #         cols = ['ASIN','SKU','Deal price','Sales','Units Sold','Committed units',
+            #                 'Sell-through rate','Glance views','Conversion rate']
+            #         result = result.iloc[:,0:9]
+            #         result.columns = cols
+            #         num_cols = ['Deal price','Sales','Units Sold','Committed units','Glance views']
+            #         for nc in num_cols:
+            #             result[nc] = result[nc].str.replace('$','')
+            #             result[nc] = result[nc].str.replace(',','')
                         
-                        result[nc] = result[nc].astype(float)
-                    result['Sell-through rate'] = round(result['Units Sold'] / result['Committed units'] *100,2)
-                    result['Conversion rate'] = round(result['Units Sold'] / result['Glance views'] *100,2)
+            #             result[nc] = result[nc].astype(float)
+            #         result['Sell-through rate'] = round(result['Units Sold'] / result['Committed units'] *100,2)
+            #         result['Conversion rate'] = round(result['Units Sold'] / result['Glance views'] *100,2)
 
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    result.to_excel(writer, sheet_name = 'LD_stats', index = False)
-                    ff.format_header(result,writer,'LD_stats')
-                return output.getvalue()
+            #     output = BytesIO()
+            #     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            #         result.to_excel(writer, sheet_name = 'LD_stats', index = False)
+            #         ff.format_header(result,writer,'LD_stats')
+            #     return output.getvalue()
 
 
-            if st.button('Process LD'):
-                try:
-                    data = process_ld(text)
-                    st.download_button('Download excel file',data, file_name = 'LD_stats.xlsx')
-                except Exception as e:
-                    output_area.text_area('results',e, label_visibility='hidden')
+            # if st.button('Process LD'):
+            #     try:
+            #         data = process_ld(text)
+            #         st.download_button('Download excel file',data, file_name = 'LD_stats.xlsx')
+            #     except Exception as e:
+            #         output_area.text_area('results',e, label_visibility='hidden')
 
         with st.expander('Business report link generator', icon=':material/monitoring:'):
             business_markets = st.radio('Select marketplace',['US','CA'], horizontal=True)
