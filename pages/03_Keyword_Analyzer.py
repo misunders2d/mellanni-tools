@@ -533,9 +533,9 @@ if st.session_state['login'][0]:
                 key='bq_search',
                 column_config=df_columns_config)
         
-            fig1 = create_figure(bq_dates, title="Search performance over time", left1='Search Query Volume', right1='KW ctr', right2='ASIN ctr')
-            fig2 = create_figure(bq_dates, title="Add-to-cart performance over time", left1='Cart Adds: Total Count', right1='KW ATC %', right2='ASINs ATC %')
-            fig3 = create_figure(bq_dates, title="Purchases", left1='Purchases: Total Count', right1='KW conversion', right2='ASINs conversion')
+            fig1 = create_figure(bq_dates, title="Search performance over time", left1='Search Query Volume', left2 = 'Clicks: Brand Count', right1='KW ctr', right2='ASIN ctr')
+            fig2 = create_figure(bq_dates, title="Add-to-cart performance over time", left1='Cart Adds: Total Count', left2='Cart Adds: Brand Count', right1='KW ATC %', right2='ASINs ATC %')
+            fig3 = create_figure(bq_dates, title="Purchases", left1='Purchases: Total Count', left2='Purchases: Brand Count',right1='KW conversion', right2='ASINs conversion')
             fig4 = create_figure(bq_dates, title="Pricing", left1='Clicks: Price (Median)', left2='Cart Adds: Price (Median)', left3='Purchases: Price (Median)', left4='Purchases: Brand Price (Median)')
 
 
