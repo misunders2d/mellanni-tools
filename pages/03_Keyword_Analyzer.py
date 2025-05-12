@@ -563,6 +563,7 @@ if st.session_state['login'][0]:
                 accept_multiple_files=True,
                 key='sqp_files'
             )
+            st.cache_resource.clear()
         if 'sqp_files' in st.session_state and len(st.session_state['sqp_files'])>0:
             file_list = st.session_state['sqp_files']
             with st.spinner('Processing files...', show_time=True):
