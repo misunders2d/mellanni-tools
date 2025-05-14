@@ -17,20 +17,24 @@ if st.session_state['login'][0]:
     tokens_left=get_tokens()
     st.subheader('_Get ASIN sales_')
 
-    input_area=st.container()
+    indivudual, bulk = st.tabs(['Sales Estimator', 'Bulk ASIN processing'])
+
+    ##### INDIVIDUAL SECTION #####
+
+    input_area=indivudual.container()
     text_col, market_col = input_area.columns([4,1])
-    plot_container=st.container()
+    plot_container=indivudual.container()
     plot_area, selector_area = plot_container.columns([5,1])
     plot_selection = selector_area.radio('Select plot type',['Monthly','Daily','Keepa'], disabled=False, index=2)
     plot_last_days = selector_area.number_input('Enter # of days to show the plot for', min_value=1, max_value=3600, value=30, step=1)
     include_variations = selector_area.checkbox('Include variations', value=False, help='Check to calculate sales and price for all variations')
 
 
-    product_area=st.container()
+    product_area=indivudual.container()
     product_title_area, product_image_area=product_area.columns([10,1])
-    variations_area = st.container()
+    variations_area = indivudual.container()
     variations_info, variations_image = variations_area.columns([10,1])
-    df_area=st.container()
+    df_area=indivudual.container()
     df_history, df_variations = df_area.columns([5,5])
 
     def calculate_variation_sales(product:KeepaProduct, days=plot_last_days, market="US"):
@@ -135,13 +139,13 @@ if st.session_state['login'][0]:
         try:
             asin_clean=re.search('[A-Z0-9]{10}', asin.upper()).group() if len(asin)>10 else asin.upper()
         except Exception:
-            st.warning('Wrong ASIN combination')
+            indivudual.warning('Wrong ASIN combination')
         product=KeepaProduct(asin_clean.upper(), domain=market)
         product.initial_days = plot_last_days
         try:
             product.generate_monthly_summary()
         except Exception as e:
-            st.write(e)
+            indivudual.write(e)
         if product:
             product_title_area.markdown('### ASIN result:')
             for chunk in product.__str__(days=plot_last_days).split('\n'):
@@ -188,12 +192,70 @@ if st.session_state['login'][0]:
                             df_variations.write('Variations performance')
                             df_variations.dataframe(variations_df)
                         elif product.variations and len(product.variations) > (tokens_left*0.8):
-                            st.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
+                            indivudual.warning(f'Too many variations to calculate, not enough tokens. Please uncheck "Include variations"')
                         elif not product.variations:
-                            st.warning('No variations found')
+                            indivudual.warning('No variations found')
                             df_variations.write('Variations performance')
                             product_df = pd.DataFrame({'ASIN':product.asin, 'Brand':product.brand, 'Sales min':product.min_sales, 'Sales max':product.max_sales, 'Avg price':round(product.avg_price,2)}, index=[0])
                             product_df.set_index('ASIN', inplace=True)
                             df_variations.dataframe(product_df)
                     except Exception as e:
-                        st.warning(f'Sorry, error occurred.\n{e}')
+                        indivudual.warning(f'Sorry, error occurred.\n{e}')
+
+    #### BULK SECTION #####
+    bulk_input_area = bulk.container()
+    bulk_button_area = bulk.container()
+
+    def bulk_update_asins():
+       st.session_state['bulk_asins'] = st.session_state['bulk_asin_input']
+    #    st.write(st.session_state['bulk_asins']) 
+
+    bulk_asin_input = bulk_input_area.text_area(
+        'Enter ASINs (one per line)',
+        height=200,
+        key='bulk_asin_input',
+        on_change=bulk_update_asins,
+        placeholder=f'You have {tokens_left} tokens remaining')
+    include_bulk_variations = bulk_input_area.checkbox('Include all variations?')
+    if bulk_button_area.button('Submit', key='bulk_button', help='Submit ASINs for processing'):
+        if bulk_asin_input:
+            try:
+                bulk_df = pd.DataFrame()
+                asins_bulk = re.split(r'[\n\r,]', bulk_asin_input)
+                asins_bulk = [re.search('B[A-Z0-9]{9}', asin.upper()).group() for asin in asins_bulk]
+                products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
+                products_data = get_products(asins_bulk)
+                if include_bulk_variations:
+                    bulk_variations = set()
+                    for p in products:
+                        p.get_variations()
+                        bulk_variations.update(p.variations)
+                    variations_data = get_products(list(bulk_variations))
+                    products_data.extend(variations_data)
+                    asins_bulk.extend(list(bulk_variations))
+                    products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
+                for ap in products:
+                    ap.extract_from_products(products_data)
+                    ap.get_last_days(days=90)
+                    ap.get_variations()
+                    images = ap.data[0].get('imagesCSV','').split(',')
+                    main_image = '=HYPERLINK("https://m.media-amazon.com/images/I/' + images[0] + '")'
+                    df_data = {
+                        'asin':[ap.asin],
+                        'parent':[ap.data[0].get('parentAsin')],
+                        'brand':[ap.brand],
+                        'sales_min':[ap.min_sales],
+                        'sales_max':[ap.max_sales],
+                        'average_price':[ap.avg_price],
+                        'full_price':[ap.full_price],
+                        'image':[main_image]
+                        }
+                    if 'variation_theme' in ap.__dict__:
+                        variation_theme = {theme:[value] for theme, value in ap.variation_theme.items()}
+                        df_data.update(variation_theme)
+                    temp=pd.DataFrame(df_data)
+                    bulk_df = pd.concat([bulk_df, temp])
+
+                bulk.dataframe(bulk_df, use_container_width=True, hide_index=True)
+            except Exception as e:
+                bulk.warning(f'Sorry, error occurred.\n{e}')

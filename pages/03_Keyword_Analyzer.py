@@ -13,12 +13,10 @@ st.set_page_config(page_title = 'SQP analyzer', page_icon = 'media/logo.ico',lay
 
 import login_google
 st.session_state['login']=login_google.login()
+# st.session_state['login']=(True, 'sergey@mellanni.com')
 
 if st.session_state['login'][0]:
     user_email = st.session_state["auth"]
-
-# if True:
-#     user_email = 'sergey@mellanni.com'
 
     numeric_cols=['Search Query Volume','Impressions: Total Count','Clicks: Total Count','Cart Adds: Total Count','Purchases: Total Count',
                             'Impressions: Brand Count','Clicks: Brand Count','Cart Adds: Brand Count','Purchases: Brand Count','ASINs shown'],
