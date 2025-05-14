@@ -216,7 +216,7 @@ if st.session_state['login'][0]:
         key='bulk_asin_input',
         on_change=bulk_update_asins,
         placeholder=f'You have {tokens_left} tokens remaining')
-    bulk_btn_col, bulk_vars_col, bulk_days_col = bulk_button_area.columns([1,1,1])
+    bulk_btn_col, bulk_vars_col, bulk_days_col = bulk_button_area.columns([4,3,1], vertical_alignment='center')
     include_bulk_variations = bulk_vars_col.checkbox('Include all variations?')
     bulk_days = bulk_days_col.number_input('# of days to cover', min_value=1, max_value=360, value=90, step=1)
     if bulk_btn_col.button('Submit', key='bulk_button', help='Submit ASINs for processing'):
