@@ -216,7 +216,8 @@ if st.session_state['login'][0]:
         key='bulk_asin_input',
         on_change=bulk_update_asins,
         placeholder=f'You have {tokens_left} tokens remaining')
-    include_bulk_variations = bulk_input_area.checkbox('Include all variations?')
+    include_bulk_variations = bulk_button_area.checkbox('Include all variations?')
+    bulk_days = bulk_button_area.number_input('# of days to cover', min_value=1, max_value=360, value=90, step=1)
     if bulk_button_area.button('Submit', key='bulk_button', help='Submit ASINs for processing'):
         if bulk_asin_input:
             try:
@@ -236,7 +237,7 @@ if st.session_state['login'][0]:
                     products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
                 for ap in products:
                     ap.extract_from_products(products_data)
-                    ap.get_last_days(days=90)
+                    ap.get_last_days(days=bulk_days)
                     ap.get_variations()
                     images = ap.data[0].get('imagesCSV','').split(',')
                     main_image = '=HYPERLINK("https://m.media-amazon.com/images/I/' + images[0] + '")'
