@@ -4,7 +4,6 @@ import re
 import json
 from io import BytesIO
 from modules import formatting as ff
-# import login
 from modules import gcloud_modules as gc
 from openai import OpenAI
 import time
@@ -21,18 +20,10 @@ st.set_page_config(page_title = 'Mellanni Tools', page_icon = 'media/logo.ico',l
 name_area = st.empty()
 col1, col2 = st.columns([10,3])
 
-# st.session_state['login'], st.session_state['username'] = login.login()
-
-import login_google
-st.session_state['login'] = login_google.login()
-
-if st.session_state['login'][0]:
-    user_email = st.session_state["auth"]
+from login import login_st
+if login_st():
+    user_email = st.user.email
     st.write(user_email)
-
-# if True:
-#     user_email = 'gor@mellanni.com'
-
 
     with col2:
         # @st.cache_data(show_spinner=False)

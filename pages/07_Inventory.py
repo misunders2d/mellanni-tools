@@ -15,11 +15,8 @@ import os
 from barcode import Code128, Code39
 from barcode.writer import ImageWriter
 
-import login_google
-st.session_state['login'] = login_google.login()
-# st.session_state['login'] = (True,'sergey@mellanni.com')
-
-if st.session_state['login'][0]:
+from login import login_st
+if login_st():
     width = 2.2
     height = 0.4
     options_fnsku = {'module_width':height, 'module_height':width+7, 'font_size':10, 'text_distance':4}

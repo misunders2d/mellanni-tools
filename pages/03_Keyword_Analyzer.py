@@ -11,12 +11,9 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title = 'SQP analyzer', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-import login_google
-st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
-
-if st.session_state['login'][0]:
-    user_email = st.session_state["auth"]
+from login import login_st
+if login_st():
+    user_email = st.user.email
 
     numeric_cols=['Search Query Volume','Impressions: Total Count','Clicks: Total Count','Cart Adds: Total Count','Purchases: Total Count',
                             'Impressions: Brand Count','Clicks: Brand Count','Cart Adds: Brand Count','Purchases: Brand Count','ASINs shown'],

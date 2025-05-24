@@ -5,15 +5,10 @@ import datetime
 from numpy import nan
 import re, time
 from modules import formatting as ff
-# from modules import gcloud_modules as gc
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
 st.set_page_config(page_title = 'SKU changelog', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
-
-import login_google
-st.session_state['login'] = login_google.login()
-user_email = st.session_state['login'][1]
 
 markets_access: dict = {
     'ruslan@mellanni.com':['CA','US'],
@@ -29,11 +24,8 @@ markets_access: dict = {
     'andreia@mellanni.com':['WM', 'Target','Shopify'],
 }
 
-
-if st.session_state['login'][0] and user_email in markets_access:
-
-# user_email = 'sergey@mellanni.com'
-# if True:
+from login import login_st
+if login_st() and st.user.email in markets_access:
 
     GC_CREDENTIALS = service_account.Credentials.from_service_account_info(st.secrets['gcp_service_account'])
     client = bigquery.Client(credentials=GC_CREDENTIALS)

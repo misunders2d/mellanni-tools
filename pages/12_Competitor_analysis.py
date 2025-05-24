@@ -15,12 +15,8 @@ API_KEY = os.getenv('GPT_VISION_KEY')
 KEEPA_KEY = os.getenv('KEEPA_KEY')
 HEIGHT = 250
 
-import login_google
-st.session_state['login'] = login_google.login()
-
-
-if st.session_state['login'][0]:
-# if True:
+from login import login_st
+if login_st():
 
     # def get_product_details(asins):
     #     api = keepa.Keepa(KEEPA_KEY)

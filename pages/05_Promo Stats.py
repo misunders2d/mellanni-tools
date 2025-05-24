@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import re
-# import login
-# from io import BytesIO
 from google.cloud import bigquery #pip install google-cloud-bigquery
 from google.oauth2 import service_account
 from modules import gcloud_modules as gc
@@ -12,13 +10,8 @@ pacific = pytz.timezone('US/Pacific')
 
 st.set_page_config(page_title = 'M Tools App', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state = 'collapsed')
 
-# st.session_state['login'], st.session_state['username']= login.login()
-
-import login_google
-st.session_state['login'] = login_google.login()
-
-if st.session_state['login'][0]:
-# if True:
+from login import login_st
+if login_st():
 
     bad_chars = [
         '%off any%',

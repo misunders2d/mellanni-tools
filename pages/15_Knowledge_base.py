@@ -98,11 +98,8 @@ st.set_page_config(page_title = 'Mellanni knowledge base', page_icon = 'media/lo
 st.subheader('Mellanni Amazon knowledge database')
 st.write("Tips and tricks on resolving non-ordinary Amazon-related issues.\nAsk a question in any language and see if there's any useful solution.\nIf not - please contact sergey@mellanni.com")
 
-import login_google
-st.session_state['login'] = login_google.login()
-
-if st.session_state['login'][0]:
-# if True:
+from login import login_st
+if login_st():
 
     st.session_state.query = st.text_input('What is your question?')
     prefix_container = st.empty()

@@ -12,11 +12,8 @@ COUNTRIES = ['DE','GB','ES','IT','FR','US']
 
 st.subheader('Negative comments classifier')
 
-import login_google
-st.session_state['login'] = login_google.login()
-
-if st.session_state['login'][0]:
-# if True:
+from login import login_st
+if login_st():
     # initialize dictionary and selectors
     date_to = pd.to_datetime('today').date()
     date_from = date_to - pd.Timedelta(days = 10)

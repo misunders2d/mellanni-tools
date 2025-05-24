@@ -8,12 +8,8 @@ from modules.keepa_modules import KeepaProduct, get_tokens, get_products
 
 st.set_page_config(page_title = 'Sales estimator', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
 
-import login_google
-st.session_state['login']=login_google.login()
-# st.session_state['login']=(True, 'sergey@mellanni.com')
-
-
-if st.session_state['login'][0]:
+from login import login_st
+if login_st():
     tokens_left=get_tokens()
     st.subheader('_Get ASIN sales_')
 
