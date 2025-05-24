@@ -262,7 +262,7 @@ if login_st():
     bottom_area.markdown('\nAdditional tool to optimize package dimensions\n\nhttps://package-optimizer.streamlit.app/')
 
     ###### inventory report section
-    if st.session_state['login'][1] in (
+    if st.user.email in (
         'sergey@mellanni.com','natalie@mellanni.com', 'ruslan@mellanni.com', 'andreia@mellanni.com','dariyka@mellanni.com',
         'karl@mellanni.com','ahmad@mellanni.com', 'gor@mellanni.com'
         ):
@@ -313,7 +313,7 @@ if login_st():
             )
         inv_report_area.button('Download inventory',key='inv_button',icon=':material/inventory_2:', on_click=lambda:download_inv_report(inv_date,market_radio))
     else:
-        inv_report_area.write(f'{st.session_state['login'][1]} is not allowed to access this section.\nIf you believe you need access to inventory reports, please contact Sergey')
+        inv_report_area.write(f'{st.user.email} is not allowed to access this section.\nIf you believe you need access to inventory reports, please contact Sergey')
     
     title_check_area.write('Check titles for variability')
     parent = title_check_area.text_input('Input baseline (or parent) title', value = '', max_chars=200)
