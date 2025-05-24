@@ -71,8 +71,8 @@ if login_st() and st.user.email in markets_access:
             'Shopify':'`auxillary_development.dictionary_shp`',
         }
     }
-    button_access = user_email in markets_access
-    allowed_markets = [x for x in markets_match['dictionaries'].keys() if x in markets_access.get(user_email,[])]
+    button_access = st.user.email in markets_access
+    allowed_markets = [x for x in markets_match['dictionaries'].keys() if x in markets_access.get(st.user.email,[])]
 
     @st.cache_resource
     def pull_dictionary(
