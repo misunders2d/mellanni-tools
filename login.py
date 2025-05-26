@@ -16,9 +16,13 @@ def login_st():
         login_screen()
     elif st.user.email in PREAUTHORIZED_EMAILS:
         with st.sidebar:
+            st.image(st.user.picture)
             st.header(st.user.name)
             st.button("Log out", on_click=st.logout)
         return True
     else:
         st.write('You are not authorized to use this app')
+        with st.sidebar:
+            st.header(st.user.email)
+            st.button("Log out", on_click=st.logout)            
         return False
