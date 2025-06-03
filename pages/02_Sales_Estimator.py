@@ -218,26 +218,36 @@ if login_st():
     bulk_days = bulk_days_col.number_input('# of days to cover', min_value=1, max_value=360, value=90, step=1)
     if bulk_btn_col.button('Submit', key='bulk_button', help='Submit ASINs for processing'):
         if bulk_asin_input:
+            bulk_df = pd.DataFrame()
+            products = []
             try:
-                bulk_df = pd.DataFrame()
                 asins_bulk = re.split(r'[\n\r,]', bulk_asin_input)
                 asins_bulk = [re.search('B[A-Z0-9]{9}', asin.upper()).group() for asin in asins_bulk if asin.strip() and re.search('B[A-Z0-9]{9}', asin.upper())]
-                products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
                 products_data = get_products(asins_bulk)
+                products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
+                _ = [p.extract_from_products(products_data) for p in products]
                 if include_bulk_variations:
                     bulk_variations = set()
                     for p in products:
                         p.get_variations()
                         bulk_variations.update(p.variations)
-                    variations_data = get_products(list(bulk_variations))
-                    products_data.extend(variations_data)
-                    asins_bulk.extend(list(bulk_variations))
-                    products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
-                for ap in products:
+                    if len(bulk_variations) > 0:
+                        variations_data = get_products(list(bulk_variations))
+                        products_data.extend(variations_data)
+                        asins_bulk.extend(list(bulk_variations))
+                        products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
+            except Exception as e:
+                bulk.warning(f'Sorry, error occurred.\n{e}')
+            
+            for ap in products:
+                try:
                     ap.extract_from_products(products_data)
                     ap.get_last_days(days=bulk_days)
                     ap.get_variations()
-                    images = ap.data[0].get('imagesCSV','').split(',')
+                    if ap.data:
+                        images = ap.data[0].get('imagesCSV','').split(',')
+                    else:
+                        images = ['']
                     main_image = '=HYPERLINK("https://m.media-amazon.com/images/I/' + images[0] + '")'
                     df_data = {
                         'asin':[ap.asin],
@@ -258,7 +268,7 @@ if login_st():
                         df_data.update(variation_theme)
                     temp=pd.DataFrame(df_data)
                     bulk_df = pd.concat([bulk_df, temp])
-
-                bulk.dataframe(bulk_df, use_container_width=True, hide_index=True)
-            except Exception as e:
-                bulk.warning(f'Sorry, error occurred.\n{e}')
+                except Exception as e:
+                    bulk.warning(f'Sorry, error occurred.\n{e}\nProduct:\n{str(ap)}\nSKIPPING')
+            bulk.dataframe(bulk_df, use_container_width=True, hide_index=True)
+                

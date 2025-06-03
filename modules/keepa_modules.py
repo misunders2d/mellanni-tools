@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 import time
 
-KEEPA_KEY = os.getenv('KEEPA_KEY')
+KEEPA_KEY = os.getenv('KEEPA_KEY','')
 
 class KeepaProduct:
     api = keepa.Keepa(KEEPA_KEY)
@@ -267,6 +267,11 @@ class KeepaProduct:
             )
         if 'full price' not in self.pivot.columns:
             self.pivot['full price'] = nan
+        if 'sales min' not in self.pivot.columns:
+            self.pivot['sales min'] = nan
+        if 'sales max' not in self.pivot.columns:
+            self.pivot['sales max'] = nan
+
         self.short_history['LD'] = self.short_history['LD'].replace(0,nan)
         self.short_history['full price'] = self.short_history['full price'].replace(-1, nan)
         self.short_history['coupon'] = (minutely_history['full price'] - minutely_history['$ off'] - minutely_history['SNS $']) * (1+minutely_history['% off']/100) * (1+minutely_history['SNS %']/100)
