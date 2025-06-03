@@ -214,6 +214,7 @@ if login_st():
         placeholder=f'You have {tokens_left} tokens remaining')
     bulk_btn_col, bulk_vars_col, bulk_days_col = bulk_button_area.columns([4,3,1], vertical_alignment='center')
     include_bulk_variations = bulk_vars_col.checkbox('Include all variations?')
+    include_all_images = bulk_vars_col.checkbox('Include all images?')
     bulk_days = bulk_days_col.number_input('# of days to cover', min_value=1, max_value=360, value=90, step=1)
     if bulk_btn_col.button('Submit', key='bulk_button', help='Submit ASINs for processing'):
         if bulk_asin_input:
@@ -248,6 +249,10 @@ if login_st():
                         'full_price':[ap.full_price],
                         'image':[main_image]
                         }
+                    if include_all_images and len(images) > 1:
+                        secondary_images = [f'=HYPERLINK("https://m.media-amazon.com/images/I/{img}")' for img in images[1:]]
+                        df_data_extended = {f'image_{i+1}': [img] for i, img in enumerate(secondary_images)}
+                        df_data.update(df_data_extended)
                     if 'variation_theme' in ap.__dict__:
                         variation_theme = {theme:[value] for theme, value in ap.variation_theme.items()}
                         df_data.update(variation_theme)
