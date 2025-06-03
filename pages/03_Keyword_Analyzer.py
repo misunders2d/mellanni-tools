@@ -15,6 +15,11 @@ from login import login_st
 if login_st():
     user_email = st.user.email
 
+    kw_filter_area, slider_area, button_area = st.columns([3,7,2], vertical_alignment='center', gap='medium')
+    sqp_tab, kw_tab = st.tabs(['SQP results', 'Keywords stats'])
+
+    ### SQP tab -------------------------------------------------------------------
+
     numeric_cols=['Search Query Volume','Impressions: Total Count','Clicks: Total Count','Cart Adds: Total Count','Purchases: Total Count',
                             'Impressions: Brand Count','Clicks: Brand Count','Cart Adds: Brand Count','Purchases: Brand Count','ASINs shown'],
     currency_cols=['Clicks: Price (Median)','Cart Adds: Price (Median)','Purchases: Price (Median)','Clicks: Brand Price (Median)',
@@ -477,14 +482,13 @@ if login_st():
         return fig
 
 
-    controls_area = st.container()
-    kw_filter_area, slider_area, button_area = st.columns([3,7,2], vertical_alignment='center', gap='medium')
-    plots_area_top = st.empty()
-    plots_area_bottom = st.empty()
+    controls_area = sqp_tab.container()
+    plots_area_top = sqp_tab.empty()
+    plots_area_bottom = sqp_tab.empty()
     plot1, plot2 = plots_area_top.columns([1,1], gap='small')
     plot3, plot4 = plots_area_bottom.columns([1,1], gap='small')
 
-    df_area = st.empty()
+    df_area = sqp_tab.empty()
     with st.spinner('Retrieving dates...', show_time=True):
         dates = pull_dates()
         dates['reporting_date'] = pd.to_datetime(dates['reporting_date']).dt.date
@@ -539,7 +543,7 @@ if login_st():
             plot3.plotly_chart(fig3, use_container_width=True)
             plot4.plotly_chart(fig4, use_container_width=True)
 
-            if st.checkbox('Export SQP data to Excel', value=False, key='export_sqp_data'):
+            if sqp_tab.checkbox('Export SQP data to Excel', value=False, key='export_sqp_data'):
                 with st.spinner('Preparing data for download...', show_time=True):
                     st.download_button(
                         label="Download SQP data",
@@ -551,7 +555,7 @@ if login_st():
                         )
 
     if user_email=='sergey@mellanni.com':
-        if st.button('Push SQP data to BigQuery'):
+        if sqp_tab.button('Push SQP data to BigQuery'):
             file_upload = st.file_uploader(
                 label='Upload SQP files',
                 type=['csv'],
@@ -564,3 +568,31 @@ if login_st():
             with st.spinner('Processing files...', show_time=True):
                 push_to_bq(file_list)
                 st.success('Files processed and pushed to BigQuery successfully!')
+
+
+    ########## Keywords tab ------------------------------------------------------------
+    kw_tab.write('This tab is under development, please check back later.')
+    # @st.cache_resource(show_spinner=True)
+    # def pull_keywords_from_bq(list_of_dates) -> pd.DataFrame:
+    #     """Pull keywords data from BigQuery."""
+    #     dates_str = '","'.join([d.strftime("%Y-%-m-%d") for d in list_of_dates])
+    #     with gc.gcloud_connect() as client:
+    #         query = f'''
+    #         SELECT * FROM `mellanni-project-da.auxillary_development.keywords_us`
+    #         WHERE DATE(date) IN ("{dates_str}")
+    #         '''
+    #         result = client.query(query).to_dataframe()
+    #         result = result.groupby(['date', 'ASIN', 'search_term']).agg('min').reset_index()
+    #         return result
+    
+    # if selected_dates:
+
+    #     kw_records = pull_keywords_from_bq(
+    #         dates_list[dates_list.index(selected_dates[0]):dates_list.index(selected_dates[1])]
+    #         )
+    #     if 'bq_data' in st.session_state:
+    #         sqp_data = st.session_state['bq_data'][['Search Query','Purchases: Total Count','Reporting Date']].copy()
+    #         sqp_data = sqp_data.rename(columns={'Search Query': 'search_term', 'Purchases: Total Count': 'purchases_total_count', 'Reporting Date': 'date'})
+    #         kw_records = pd.merge(kw_records, sqp_data, how='left', on=['search_term', 'date'])
+    #         kw_tab.dataframe(kw_records)
+    #         kw_tab.write(kw_records.columns.tolist())
