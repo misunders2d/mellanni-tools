@@ -221,7 +221,7 @@ if login_st():
             try:
                 bulk_df = pd.DataFrame()
                 asins_bulk = re.split(r'[\n\r,]', bulk_asin_input)
-                asins_bulk = [re.search('B[A-Z0-9]{9}', asin.upper()).group() for asin in asins_bulk]
+                asins_bulk = [re.search('B[A-Z0-9]{9}', asin.upper()).group() for asin in asins_bulk if asin.strip() and re.search('B[A-Z0-9]{9}', asin.upper())]
                 products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
                 products_data = get_products(asins_bulk)
                 if include_bulk_variations:
