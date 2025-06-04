@@ -3,7 +3,7 @@ import pandas as pd
 import pandas_gbq
 from fuzzywuzzy import fuzz
 import os, re, time
-from typing import Literal
+from typing import Literal, Dict
 from modules import gcloud_modules as gc
 from modules import formatting as ff
 from plotly.subplots import make_subplots
@@ -17,6 +17,8 @@ if login_st():
 
     kw_filter_area, slider_area, button_area = st.columns([3,7,2], vertical_alignment='center', gap='medium')
     sqp_tab, kw_tab = st.tabs(['SQP results', 'Keywords stats'])
+    kw_plot_area = kw_tab.empty()
+    kw_df1, kw_df2 = kw_tab.columns([1,1], gap='small')
 
     ### SQP tab -------------------------------------------------------------------
 
@@ -169,18 +171,18 @@ if login_st():
                     )
             }
 
-    combined_result_asin = {
+    combined_result_asin: dict = {
         "Weekly":{str(year): {} for year in range(2020, 2030)},
         "Monthly":{str(year): {} for year in range(2020, 2030)},
         "Quarterly":{str(year): {} for year in range(2020, 2030)}}
-    combined_result_brand = {
+    combined_result_brand: dict = {
         "Weekly":{str(year): {} for year in range(2020, 2030)},
         "Monthly":{str(year): {} for year in range(2020, 2030)},
         "Quarterly":{str(year): {} for year in range(2020, 2030)}}
 
-    user_folder = None
+    user_folder = ''
 
-    def session_state_decorator(func):
+    def session_state_decorator(func): #obsolete, use st.session_state decorator instead
         """Decorator save function's output to session state."""
         def wrapper(*args, **kwargs):
             name = kwargs.pop('name') if 'name' in kwargs else 'result'
@@ -208,12 +210,13 @@ if login_st():
 
     @session_state_decorator
     @st.cache_resource(show_spinner=False)
-    def read_bq(start_week:str="2025-01-01", end_week:str="2025-12-31", *args, **kwargs)-> pd.DataFrame:
+    def read_bq(start_week:str="2025-01-01", end_week:str="2025-12-31", *args, **kwargs)-> None:
         """Read data from BigQuery and return a DataFrame."""
         with gc.gcloud_connect() as client:
             query = f'''SELECT * FROM `auxillary_development.sqp_brand_weekly` WHERE reporting_date BETWEEN "{start_week}" AND "{end_week}"'''
             result = client.query(query).to_dataframe()
             result = result.rename(columns=renaming)
+        # st.session_state['bq_data'] = result.copy()
         return result
         
     def push_to_bq(file_list):
@@ -265,7 +268,7 @@ if login_st():
             st.error(BaseException(f"Wrong / non-SQP file provided:\n{filename}"))
             raise BaseException(f"Wrong / non-SQP file provided:\n{filename}")
 
-    def process_header_columns(columns: list) -> dict:
+    def process_header_columns(columns: list):# -> Dict[str, list[str] | int | str]:
         """Process the header columns to extract relevant information."""
         asin = re.findall('"(.*?)"', columns[0])[0]
         timeframe = re.findall('"(.*?)"', columns[1])[0]
@@ -282,6 +285,8 @@ if login_st():
             year = re.findall('"(.*?)"', columns[2])[0]
             quarter = re.findall('"(.*?)"', columns[3])[0]
             return { scope: [asin], "timeframe": timeframe, "year": year, "quarter": quarter }
+        else:
+            return {scope: "not found", "timeframe": "unknown", "year": 0, "quarter": 0}
 
     def sort_files(file_list: list) -> None:
         """"Sort the files into the combined result dictionaries."""
@@ -297,11 +302,14 @@ if login_st():
                 raise BaseException(f"Duplicate file found:\n{file}\n{sqp}")
             
             if 'asin' in sqp:
-                target_dict = combined_result_asin
+                target_dict: dict = combined_result_asin
                 scope = 'asin'
             elif 'brand' in sqp:
-                target_dict = combined_result_brand
+                target_dict: dict = combined_result_brand
                 scope = 'brand'
+            else:
+                target_dict = {}
+                scope = 'unknown'
                 
             sqp['filepath'] = [file]
             if sqp['timeframe'] == "Weekly":
@@ -406,7 +414,7 @@ if login_st():
         
         return summary
 
-    def export_sqps(sqp_dict, scope='asin'):
+    def export_sqps(sqp_dict, scope:Literal['asin','brand']='asin'):
         """Export the SQP data to Excel files."""
         for timeframe in sqp_dict:
             with pd.ExcelWriter(os.path.join(user_folder, f'SQP_{scope}_{timeframe}.xlsx'), engine = 'xlsxwriter') as writer:
@@ -445,14 +453,18 @@ if login_st():
     @st.fragment
     def filter_df(search_term, threshold=70):
         bq = st.session_state['bq_data'].copy()
+        kw = st.session_state['kw_records'].copy() if 'kw_records' in st.session_state else pd.DataFrame()
         if search_term:
             bq = bq[bq['Search Query'].apply(lambda x: is_similar(x, search_term, threshold))]
+            kw = kw[kw['search_term'].apply(lambda x: is_similar(x, search_term, threshold))]
         st.session_state['filtered_bq'] = bq.copy()
+        st.session_state['kw_filtered'] = kw.copy()
 
     @st.fragment
     def create_figure(
             df,
             title='Search Query Volume and KW Conversion Over Time',
+            right_axis='percentage',
             **kwargs):
         left_lines = [kwargs[x] for x in kwargs if 'left' in x]
         right_lines = [kwargs[x] for x in kwargs if 'right' in x]
@@ -477,7 +489,7 @@ if login_st():
         fig.update_xaxes(title_text="Reporting Date")
 
         fig.update_yaxes(title_text=left_lines[0], secondary_y=False)
-        if len(right_lines)>0:
+        if len(right_lines)>0 and right_axis=='percentage':
             fig.update_yaxes(title_text=right_lines[0], secondary_y=True, tickformat=".1%")
         return fig
 
@@ -571,28 +583,74 @@ if login_st():
 
 
     ########## Keywords tab ------------------------------------------------------------
-    kw_tab.write('This tab is under development, please check back later.')
-    # @st.cache_resource(show_spinner=True)
-    # def pull_keywords_from_bq(list_of_dates) -> pd.DataFrame:
-    #     """Pull keywords data from BigQuery."""
-    #     dates_str = '","'.join([d.strftime("%Y-%-m-%d") for d in list_of_dates])
-    #     with gc.gcloud_connect() as client:
-    #         query = f'''
-    #         SELECT * FROM `mellanni-project-da.auxillary_development.keywords_us`
-    #         WHERE DATE(date) IN ("{dates_str}")
-    #         '''
-    #         result = client.query(query).to_dataframe()
-    #         result = result.groupby(['date', 'ASIN', 'search_term']).agg('min').reset_index()
-    #         return result
+    # kw_tab.write('This tab is under development, please check back later.')
+    @st.cache_resource(show_spinner=True)
+    def pull_keywords_from_bq(list_of_dates) -> pd.DataFrame:
+        """Pull keywords data from BigQuery."""
+        dates_str = '","'.join([d.strftime("%Y-%-m-%d") for d in list_of_dates])
+        with gc.gcloud_connect() as client:
+            query = f'''
+            SELECT k.search_term, k.ASIN, k.Position, k.date, d.collection,
+            FROM `auxillary_development.keywords_us` as k
+            LEFT JOIN (
+                SELECT DISTINCT ASIN, collection
+                FROM `auxillary_development.dictionary`
+                ) AS d ON k.ASIN = d.ASIN
+            WHERE DATE(k.date) IN ("{dates_str}")
+            '''
+            result = client.query(query).to_dataframe()
+            # print(len(result))
+            result = result.groupby(['date', 'ASIN', 'search_term']).agg('min').reset_index()
+            # print(len(result))
+            return result
     
-    # if selected_dates:
+    if selected_dates and 'bq_data' in st.session_state:
 
-    #     kw_records = pull_keywords_from_bq(
-    #         dates_list[dates_list.index(selected_dates[0]):dates_list.index(selected_dates[1])]
-    #         )
-    #     if 'bq_data' in st.session_state:
-    #         sqp_data = st.session_state['bq_data'][['Search Query','Purchases: Total Count','Reporting Date']].copy()
-    #         sqp_data = sqp_data.rename(columns={'Search Query': 'search_term', 'Purchases: Total Count': 'purchases_total_count', 'Reporting Date': 'date'})
-    #         kw_records = pd.merge(kw_records, sqp_data, how='left', on=['search_term', 'date'])
-    #         kw_tab.dataframe(kw_records)
-    #         kw_tab.write(kw_records.columns.tolist())
+        kw_records = pull_keywords_from_bq(
+            dates_list[dates_list.index(selected_dates[0]):dates_list.index(selected_dates[1])+1]
+            )
+        sqp_data = st.session_state['bq_data'][['Search Query','Purchases: Total Count','Purchases: Brand Count','Reporting Date']].copy()
+        sqp_data = sqp_data.rename(
+            columns={
+                'Search Query': 'search_term',
+                'Purchases: Total Count': 'purchases_total_count',
+                'Purchases: Brand Count': 'purchases_brand_count'})
+        kw_records = kw_records.rename(columns={'date': 'Reporting Date'})
+        kw_records = pd.merge(kw_records, sqp_data, how='left', on=['search_term', 'Reporting Date']).fillna(0)
+        kw_records['prod'] = kw_records['Position'] * kw_records['purchases_total_count']
+        st.session_state['kw_records'] = kw_records.copy()
+        
+        if "kw_filtered" in st.session_state:
+            kw_filtered = st.session_state['kw_filtered'].copy()
+            kw_daily = st.session_state['kw_filtered'].copy()
+        else:
+            kw_filtered = kw_records.copy()
+            kw_daily = kw_records.copy()
+        kw_filtered = kw_filtered.groupby(['Reporting Date']).agg(
+            {'prod': 'sum', 'purchases_total_count': 'sum','purchases_brand_count': 'sum'}).reset_index()
+        kw_filtered['Position'] = kw_filtered['prod'] / kw_filtered['purchases_total_count']
+        del kw_filtered['prod']
+        kw_filtered = kw_filtered.sort_values('Reporting Date', ascending=True)
+
+        kw_daily = kw_daily.groupby(['Reporting Date', 'search_term']).agg(
+            {'prod': 'sum', 'purchases_total_count': 'sum','purchases_brand_count': 'sum'}).reset_index()
+        kw_daily['Position'] = kw_daily['prod'] / kw_daily['purchases_total_count']
+        del kw_daily['prod']
+        kw_daily = kw_daily.sort_values(['Reporting Date', 'purchases_total_count'], ascending=[True,False])
+
+        kw_df1.markdown('***By date***')
+        kw_df1.dataframe(kw_filtered, hide_index=True, use_container_width=True)
+        kw_df2.markdown('***By keyword***')
+        kw_df2.dataframe(kw_daily, hide_index=True, use_container_width=True)
+
+
+        kw_fig1 = create_figure(
+            kw_filtered,
+            title='Average weighted position and purchases over time',
+            right_axis='absolute',
+            right1='Position',
+            left1='purchases_total_count',
+        )
+
+        kw_plot_area.plotly_chart(kw_fig1, use_container_width=True)
+        
