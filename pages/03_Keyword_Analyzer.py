@@ -216,7 +216,8 @@ if login_st():
             query = f'''SELECT * FROM `auxillary_development.sqp_brand_weekly` WHERE reporting_date BETWEEN "{start_week}" AND "{end_week}"'''
             result = client.query(query).to_dataframe()
             result = result.rename(columns=renaming)
-        # st.session_state['bq_data'] = result.copy()
+        if 'kw_filtered' in st.session_state:
+            del st.session_state['kw_filtered']            
         return result
         
     def push_to_bq(file_list):
@@ -641,30 +642,36 @@ if login_st():
                 'Purchases: Brand Count': 'purchases_brand_count'})
         kw_records = kw_records.rename(columns={'date': 'Reporting Date'})
         kw_records = pd.merge(kw_records, sqp_data, how='left', on=['search_term', 'Reporting Date']).fillna(0)
-        kw_records['prod'] = kw_records['Position'] * kw_records['purchases_total_count']
         st.session_state['kw_records'] = kw_records.copy()
-        
+
+
         if "kw_filtered" in st.session_state:
-            kw_filtered = st.session_state['kw_filtered'].copy()
-            kw_daily = st.session_state['kw_filtered'].copy()
+            kw_baseline = st.session_state['kw_filtered'].copy()
         else:
-            kw_filtered = kw_records.copy()
-            kw_daily = kw_records.copy()
-        kw_filtered = kw_filtered.groupby(['Reporting Date']).agg(
+            kw_baseline = kw_records.copy()
+        
+        kw_baseline = kw_baseline.groupby(['Reporting Date', 'search_term']).agg(
+            {'purchases_total_count': 'min','purchases_brand_count': 'min', 'Position': 'min'}).reset_index()
+        kw_baseline['prod'] = kw_baseline['Position'] * kw_baseline['purchases_total_count']
+
+
+        kw_daily = kw_baseline.copy()
+        kw_daily['Position'] = kw_daily['prod'] / kw_daily['purchases_total_count']
+        del kw_daily['prod']
+        kw_daily = kw_daily.sort_values(['Reporting Date', 'purchases_total_count'], ascending=False)
+
+
+
+        kw_filtered = kw_baseline.groupby(['Reporting Date']).agg(
             {'prod': 'sum', 'purchases_total_count': 'sum','purchases_brand_count': 'sum'}).reset_index()
         kw_filtered['Position'] = kw_filtered['prod'] / kw_filtered['purchases_total_count']
         del kw_filtered['prod']
         kw_filtered = kw_filtered.sort_values('Reporting Date', ascending=False)
 
-        kw_daily = kw_daily.groupby(['Reporting Date', 'search_term']).agg(
-            {'prod': 'sum', 'purchases_total_count': 'sum','purchases_brand_count': 'sum'}).reset_index()
-        kw_daily['Position'] = kw_daily['prod'] / kw_daily['purchases_total_count']
-        del kw_daily['prod']
-        kw_daily = kw_daily.sort_values(['Reporting Date', 'purchases_total_count'], ascending=False)
 
-        kw_df1.markdown('***By date***')
+        kw_df1.markdown('***Average position by date***')
         kw_df1.dataframe(kw_filtered, hide_index=True, use_container_width=True, column_config=kw_columns_config)
-        kw_df2.markdown('***By keyword***')
+        kw_df2.markdown('***Best search position by keyword***')
         kw_df2.dataframe(kw_daily, hide_index=True, use_container_width=True, column_config=kw_columns_config)
 
 
