@@ -584,6 +584,30 @@ if login_st():
 
     ########## Keywords tab ------------------------------------------------------------
     # kw_tab.write('This tab is under development, please check back later.')
+
+    kw_columns_config = {
+            'Reporting Date': st.column_config.DateColumn(
+                format='YYYY-MM-DD',
+                help='Date of the keyword data'
+            ),
+            'Position': st.column_config.NumberColumn(
+                help='Average weighted position of the keyword',
+                format='%.1f'
+            ),
+            'purchases_total_count': st.column_config.NumberColumn(
+                help='Total number of purchases for the keyword',
+                format='localized'
+            ),
+            'purchases_brand_count': st.column_config.NumberColumn(
+                help='Total number of brand purchases for the keyword',
+                format='localized'
+            ),
+            'search_term': st.column_config.TextColumn(
+                help='Search term for the keyword',
+                pinned=True
+            )
+        }
+
     @st.cache_resource(show_spinner=True)
     def pull_keywords_from_bq(list_of_dates) -> pd.DataFrame:
         """Pull keywords data from BigQuery."""
@@ -639,9 +663,9 @@ if login_st():
         kw_daily = kw_daily.sort_values(['Reporting Date', 'purchases_total_count'], ascending=[True,False])
 
         kw_df1.markdown('***By date***')
-        kw_df1.dataframe(kw_filtered, hide_index=True, use_container_width=True)
+        kw_df1.dataframe(kw_filtered, hide_index=True, use_container_width=True, column_config=kw_columns_config)
         kw_df2.markdown('***By keyword***')
-        kw_df2.dataframe(kw_daily, hide_index=True, use_container_width=True)
+        kw_df2.dataframe(kw_daily, hide_index=True, use_container_width=True, column_config=kw_columns_config)
 
 
         kw_fig1 = create_figure(
