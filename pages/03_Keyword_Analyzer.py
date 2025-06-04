@@ -654,13 +654,13 @@ if login_st():
             {'prod': 'sum', 'purchases_total_count': 'sum','purchases_brand_count': 'sum'}).reset_index()
         kw_filtered['Position'] = kw_filtered['prod'] / kw_filtered['purchases_total_count']
         del kw_filtered['prod']
-        kw_filtered = kw_filtered.sort_values('Reporting Date', ascending=True)
+        kw_filtered = kw_filtered.sort_values('Reporting Date', ascending=False)
 
         kw_daily = kw_daily.groupby(['Reporting Date', 'search_term']).agg(
             {'prod': 'sum', 'purchases_total_count': 'sum','purchases_brand_count': 'sum'}).reset_index()
         kw_daily['Position'] = kw_daily['prod'] / kw_daily['purchases_total_count']
         del kw_daily['prod']
-        kw_daily = kw_daily.sort_values(['Reporting Date', 'purchases_total_count'], ascending=[True,False])
+        kw_daily = kw_daily.sort_values(['Reporting Date', 'purchases_total_count'], ascending=False)
 
         kw_df1.markdown('***By date***')
         kw_df1.dataframe(kw_filtered, hide_index=True, use_container_width=True, column_config=kw_columns_config)
