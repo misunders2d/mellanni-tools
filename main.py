@@ -103,7 +103,7 @@ if login_st():
                     st.write(f"Unsupported file type: {file.type}. Please upload a CSV file.")
                     continue
         st.chat_message("user", avatar=user_picture).markdown(prompt.text)
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.messages.append({"role": "user", "content": prompt.text})
 
         with st.chat_message("Jeff", avatar='media/jeff_avatar.jpeg'):
             try:
