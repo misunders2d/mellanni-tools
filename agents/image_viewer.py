@@ -59,7 +59,7 @@ def image_viewer_tool(question: str, links: list) -> dict:
     return result
 
 image_viewer_agent = Agent(
-    model=MODEL,
+    model='gemini-2.0-flash',
     name='image_viewer',
     description='An agent that can view and analyze images, answer questions about them, and provide insights based on their content.',
     instruction="""
