@@ -4,7 +4,6 @@ st.set_page_config(page_title = 'Mellanni Tools App', page_icon = 'media/logo.ic
 
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
-from google.adk.models.lite_llm import LiteLlm
 from google.genai import types
 
 from agents.agent import root_agent

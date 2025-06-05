@@ -16,8 +16,16 @@ def login_st():
         login_screen()
     elif st.user.email in PREAUTHORIZED_EMAILS:
         with st.sidebar:
-            st.image(st.user.get('picture','media/user_avatar.jpg'), width=50)
-            st.subheader(st.user.name)
+            if 'picture' in st.user and isinstance(st.user.picture, str):
+                user_picture = st.user.picture
+            else:
+                user_picture = 'media/user_avatar.jpg'
+            st.image(user_picture, width=50)
+            if 'name' in st.user and isinstance(st.user.name, str):
+                user_name = st.user.name
+            else:
+                user_name = "Unknown User"
+            st.subheader(user_name)
             st.button("Log out", on_click=st.logout)
         return True
     else:
