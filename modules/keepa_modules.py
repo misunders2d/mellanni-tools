@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 import time
 
-KEEPA_KEY = os.getenv('KEEPA_KEY','')
+KEEPA_KEY = os.getenv('KEEPA_API_KEY','')
 
 class KeepaProduct:
     api = keepa.Keepa(KEEPA_KEY)
@@ -47,11 +47,11 @@ class KeepaProduct:
         self.exists: bool = False
         self.asin: str = input('ASIN?\n\n') if not asin else asin
         self.domain: str = domain
-        self.title: str = None
-        self.image: str = None
+        self.title: str|None  = None
+        self.image: str|None = None
         self.data: dict|None = None
-        self.brand: str = None
-        self.parent: str = None
+        self.brand: str|None = None
+        self.parent: str|None  = None
         self.pivot: pd.DataFrame|None = None
         self.initial_days: int = 360
         self.variations = set()

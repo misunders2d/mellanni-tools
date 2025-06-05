@@ -30,7 +30,7 @@ def pull_dictionary(combine:bool = False, market: str = 'US', full: bool = False
         columns = 'sku,asin,fnsku,upc,collection,sub_collection,size,color,short_title'
     elif not cols:
         columns = '*'
-    elif cols:
+    else:
         columns = cols
     dicts_dict = {
         'US':'`auxillary_development.dictionary`',
@@ -45,19 +45,22 @@ def pull_dictionary(combine:bool = False, market: str = 'US', full: bool = False
     sql_uk = f'''SELECT {columns} FROM `auxillary_development.dictionary_uk`'''
 
     with gcloud_connect() as client:
-        if combine:
-            dictionary_us_job = client.query(sql_us)
-            dictionary_ca_job = client.query(sql_ca)
-            dictionary_eu_job = client.query(sql_eu)
-            dictionary_uk_job = client.query(sql_uk)
-        else:
+        if not combine:
             dictionary = client.query(query).to_dataframe()
-    if combine:
-        dictionary_us = dictionary_us_job.to_dataframe()
-        dictionary_ca = dictionary_ca_job.to_dataframe()
-        dictionary_eu = dictionary_eu_job.to_dataframe()
-        dictionary_uk = dictionary_uk_job.to_dataframe()
-        dictionary = pd.concat([dictionary_us, dictionary_eu, dictionary_uk, dictionary_ca])
+        else:
+            dictionary_us_job = client.query(sql_us)
+            dictionary_us = dictionary_us_job.to_dataframe()
+            
+            dictionary_ca_job = client.query(sql_ca)
+            dictionary_ca = dictionary_ca_job.to_dataframe()
+
+            dictionary_eu_job = client.query(sql_eu)
+            dictionary_eu = dictionary_eu_job.to_dataframe()
+
+            dictionary_uk_job = client.query(sql_uk)
+            dictionary_uk = dictionary_uk_job.to_dataframe()
+            dictionary = pd.concat([dictionary_us, dictionary_eu, dictionary_uk, dictionary_ca])
+    
     dictionary = dictionary[~dictionary['fnsku'].isin(['bundle','none','FBM'])]
     dictionary['collection'] = dictionary['collection'].str.replace('1800','Iconic')
     dictionary['sub_collection'] = dictionary['sub_collection'].str.replace('1800','Iconic')

@@ -159,6 +159,9 @@ if login_st():
                     fig = show_plot(product.short_history, type=plot_selection)
                 elif plot_selection=='Daily':
                     fig = show_plot(product.last_days, type=plot_selection)
+                else:
+                    fig = None
+                    raise ValueError('Unknown plot type selected')
                 plot_area.plotly_chart(fig, use_container_width=True)
                 product_title_area.divider()
 
@@ -238,6 +241,7 @@ if login_st():
                         products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
             except Exception as e:
                 bulk.warning(f'Sorry, error occurred.\n{e}')
+                products_data = []
             
             for ap in products:
                 try:
