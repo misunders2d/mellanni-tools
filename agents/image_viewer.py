@@ -59,11 +59,12 @@ def image_viewer_tool(question: str, links: list) -> dict:
     return result
 
 image_viewer_agent = Agent(
-    model='gemini-2.0-flash',
+    model=MODEL,
     name='image_viewer',
     description='An agent that can view and analyze images, answer questions about them, and provide insights based on their content.',
     instruction="""
-You can view images and provide insights about them. You MUST use the `image_viewer_tool` to process images and answer questions.
+You can view images and provide insights about them. You MUST use the `image_viewer_tool` to process images.
+If the user is asking about images, you MUST ensure that you have links to the images or files containing links to images.
 A user may submit a link in the text, or they can upload a file with links to images.
 Once the images are processed, notify the user that the information has been saved to this Google Sheet: https://docs.google.com/spreadsheets/d/1SpFOarsVGLiVIYhslAYCVZwAGBHqn55j0LJMAn_Wwv0/edit?gid=0#gid=0
 """,
