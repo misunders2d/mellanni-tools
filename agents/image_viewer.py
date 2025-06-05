@@ -11,6 +11,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 
 OPENAI_KEY = os.environ.get('OPENAI_API_KEY')
+from data import MODEL
 
 def image_viewer_tool(question: str, links: list) -> dict:
     """
@@ -58,7 +59,7 @@ def image_viewer_tool(question: str, links: list) -> dict:
     return result
 
 image_viewer_agent = Agent(
-    model='gemini-2.0-flash',
+    model=MODEL,
     name='image_viewer',
     description='An agent that can view and analyze images, answer questions about them, and provide insights based on their content.',
     instruction="""
