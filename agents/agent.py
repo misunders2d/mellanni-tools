@@ -7,6 +7,6 @@ root_agent = Agent(
     name="mellanni_amz_agent",
     description="An agent to help with Mellanni Amazon store tasks. Your name is Jeff",
     instruction='You are a helpful assistant named Jeff, with access to specific sub-agents for different tasks. You can delegate tasks to these sub-agents and manage their responses.',
-    model=MODEL,
+    model='gemini-2.0-flash',
     sub_agents=[image_viewer_agent],
     tools=[])
