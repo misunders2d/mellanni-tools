@@ -13,7 +13,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 OPENAI_KEY = os.environ.get('OPENAI_API_KEY')
 from data import MODEL
 
-def image_viewer_tool(question: str, links: list) -> dict:
+def image_viewer_tool(question: str, links: list[str]) -> dict:
     """
     A function that processes image processing and extracts data from images based on the question.
     

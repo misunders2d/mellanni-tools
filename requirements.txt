@@ -16,7 +16,7 @@ keepa
 litellm
 matplotlib
 oauth2client
-openai
+openai>=1.84.0
 openpyxl
 pandas_gbq
 pinecone
