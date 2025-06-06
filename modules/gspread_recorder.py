@@ -5,6 +5,8 @@ import gspread, time
 
 import streamlit as st
 
+from data import USER_EMAIL
+
 CREDS_FILE=st.secrets['gsheets-access']
 SPREADSHEET_ID='1SpFOarsVGLiVIYhslAYCVZwAGBHqn55j0LJMAn_Wwv0'
 
@@ -22,7 +24,7 @@ def read_write_google_sheet(records: list) -> None:#Optional[types.Content]:
     """
 
     date = time.strftime("%Y-%m-%d %H:%M:%S")
-    full_records = [date] + records
+    full_records = [USER_EMAIL, date] + records
 
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets']
