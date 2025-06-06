@@ -88,7 +88,7 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
     result = {'status':'success'}
 
-    vertexai.init(api_key=os.environ['GOOGLE_API_KEY'])
+    vertexai.init(api_key=os.environ['GOOGLE_API_KEY'], project='creatives-agent', location='us-east1')
     
     
     generation_model = ImageGenerationModel.from_pretrained("imagen-4.0-generate-preview-05-20")
