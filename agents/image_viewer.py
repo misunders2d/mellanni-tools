@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 
-OPENAI_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_KEY = os.environ.get('OPENAI_AGENTS_API_KEY')
 from data import MODEL
 
 def image_viewer_tool(question: str, links: list[str]) -> dict:

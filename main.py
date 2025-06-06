@@ -98,7 +98,6 @@ if login_st():
                 if file.type == 'text/csv':
                     df = read_file(file)
                     prompt_text += f"\n\nHere is the file data:\n{df}"
-                    print(prompt_text)
                 else:
                     st.write(f"Unsupported file type: {file.type}. Please upload a CSV file.")
                     continue
@@ -107,11 +106,11 @@ if login_st():
 
         with st.chat_message("Jeff", avatar='media/jeff_avatar.jpeg'):
             try:
-                st.write_stream(run_agent(prompt_text, session_id='session123', user_id=user_id))
+                st.write_stream(run_agent(user_input=prompt_text, session_id='session123', user_id=user_id))
             except Exception as e:
                 send_telegram_message(f'Sorry, an error occurred, please try later:\n{e}')
                 send_telegram_message("\n\nHere's the traceback:\n")
-                send_telegram_message(traceback.format_exc())
+                send_telegram_message(str(traceback.format_exc()))
         st.session_state.messages.append({"role": "assistant", "content": new_msg})
 
 else:

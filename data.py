@@ -3,7 +3,7 @@ from google.adk.models.lite_llm import LiteLlm
 import streamlit as st
 
 
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_API_KEY = os.environ.get('OPENAI_AGENTS_API_KEY')
 
 
 MODEL = LiteLlm('openai/gpt-4o-mini', api_key=OPENAI_API_KEY)

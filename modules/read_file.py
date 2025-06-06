@@ -18,7 +18,6 @@ def read_file(file_path):
         # return columns, values
         df_str = df.to_json(orient='records')
         df_str = df_str.replace('\\/', '/')  # Fix escaped slashes
-        print(f"Data from {file_path}:\n{df_str}")
         return df_str
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")

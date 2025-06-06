@@ -17,7 +17,7 @@ from google.oauth2 import service_account
 st.set_page_config(page_title = 'Bedroom designer', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state = 'collapsed')
 
 
-API_KEY = os.getenv('GPT_VISION_KEY')
+API_KEY = os.getenv('OPENAI_SUMMARIZER_KEY')
 KEEPA_KEY = os.getenv('KEEPA_KEY')
 SD_TOKEN = os.getenv('SD_KEY')
 HEIGHT = 250

@@ -11,7 +11,7 @@ from modules.keepa_modules import get_product_details
 st.set_page_config(page_title = 'Competitor analysis', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state = 'collapsed')
 
 
-API_KEY = os.getenv('GPT_VISION_KEY')
+API_KEY = os.getenv('OPENAI_SUMMARIZER_KEY')
 KEEPA_KEY = os.getenv('KEEPA_KEY')
 HEIGHT = 250
 

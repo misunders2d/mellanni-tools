@@ -1,7 +1,4 @@
 import streamlit as st
-# import os
-from dotenv import load_dotenv
-# load_dotenv()
 
 PREAUTHORIZED_EMAILS = st.secrets['preauthorized_emails']
 

@@ -14,7 +14,7 @@ import pandas as pd
 
 from modules import gcloud_modules as gd
 
-OPENAI_KEY: Final = secrets['AI_KEY_EMBEDDING']
+OPENAI_KEY: Final = secrets['OPENAI_RETURNS_CLASSIFIER_KEY']
 if not OPENAI_KEY:
     raise BaseException('No openai key found')
 EMB_MODEL: str = "text-embedding-3-small"

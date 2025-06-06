@@ -9,7 +9,7 @@ from openai import OpenAI
 import time
 import pyotp
 
-key = st.secrets['AI_KEY']
+key = st.secrets['OPENAI_SUMMARIZER_KEY']
 # openai.api_key = key
 GPT_MODEL = ['gpt-4','gpb-4o','gpt-4o-mini','gpt-3.5-turbo','gpt-3.5-turbo-0125']
 model = GPT_MODEL[2]

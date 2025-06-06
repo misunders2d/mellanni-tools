@@ -8,8 +8,8 @@ from modules.keepa_modules import get_product_details
 st.set_page_config(page_title = 'Mellanni Tools App', page_icon = 'media/logo.ico',layout="wide")
 
 KEEPA_KEY = os.getenv('KEEPA_KEY')
-ASSISTANT_KEY = st.secrets['ASSISTANT_KEY']
-assistant_id = 'asst_mvg3s2IB6NBVDUMVQAyhLAmb'
+ASSISTANT_KEY = st.secrets['OPENAI_ASSISTANT_KEY']
+assistant_id = 'asst_2sRkyCxwUzNh1vvZIsdCTP3h'
 # thread_id = 'thread_RBShV8Ay9B9n1nmJnAXdbBfy'
 
 header_area = st.empty()

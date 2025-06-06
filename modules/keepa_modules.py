@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 import time
 
-KEEPA_KEY = os.getenv('KEEPA_API_KEY','')
+KEEPA_KEY = os.getenv('KEEPA_KEY','')
 
 class KeepaProduct:
     api = keepa.Keepa(KEEPA_KEY)
