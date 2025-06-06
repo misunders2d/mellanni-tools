@@ -82,7 +82,7 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     Returns:
         dict: A dictionary with 'status' (str) and 'image_url' (str) or 'error_message' (str).
     """
-    client = storage.Client()
+    client = storage.Client(project=os.environ['GC_PROJECT'])
     bucket_name = STORAGE_BUCKET  # Replace with your bucket name
     bucket = client.bucket(bucket_name)
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
