@@ -82,13 +82,14 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     Returns:
         dict: A dictionary with 'status' (str) and 'image_url' (str) or 'error_message' (str).
     """
-    client = storage.Client(project=os.environ['GC_PROJECT'])
+    client = storage.Client()#project=os.environ['GC_PROJECT'])
+    print(client)
     bucket_name = STORAGE_BUCKET  # Replace with your bucket name
     bucket = client.bucket(bucket_name)
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
     result = {'status':'success'}
 
-    vertexai.init(api_key=os.environ['GOOGLE_API_KEY'], project='creatives-agent', location='us-east1')
+    vertexai.init(project='creatives-agent', location='us-east1')
     
     
     generation_model = ImageGenerationModel.from_pretrained("imagen-4.0-generate-preview-05-20")
