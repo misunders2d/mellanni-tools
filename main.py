@@ -75,7 +75,8 @@ if login_st():
                 new_msg += event.content.parts[0].text
                 yield event.content.parts[0].text
             elif event.content and event.content.parts and event.content.parts[0].function_call:
-                yield f'Running {event.content.parts[0].function_call.name} function\n'
+                # yield f'Running {event.content.parts[0].function_call.name} function\n'
+                st.toast(f'Running {event.content.parts[0].function_call.name} function\n')
             elif (
                 event.content and event.content.parts
                 and event.content.parts[0].function_response
@@ -109,8 +110,10 @@ if login_st():
                 st.write_stream(run_agent(user_input=prompt_text, session_id='session123', user_id=user_id))
             except Exception as e:
                 send_telegram_message(f'Sorry, an error occurred, please try later:\n{e}')
-                send_telegram_message("\n\nHere's the traceback:\n")
-                send_telegram_message(str(traceback.format_exc()))
+                # send_telegram_message(str(traceback.format_exc()))
+                print("#"*50)
+                print('\n'*5)
+                print(traceback.format_exc())
         st.session_state.messages.append({"role": "assistant", "content": new_msg})
 
 else:
