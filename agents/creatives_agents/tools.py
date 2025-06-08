@@ -13,13 +13,15 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import gspread
 
-import time, os
+import time, os, json
 from google.cloud import storage
 
 SPREADSHEET_ID='1UhZplWd4sg8Mhd0Xd4Gb-6jMy2z_DYcUicEBrmJZL9M'
 FOLDER_ID='1vClPSrDJi16PnvvGoSYeghcCU0WU0Sxw'
 CREDS_FILE=st.secrets["gsheets-access"]
 STORAGE_BUCKET='image-generations-from-agents'
+
+VERTEX_CREDS = st.secrets['vertex_cloud_creds']
 
 def read_session_state(callback_context: CallbackContext) -> Optional[types.Content]:
     """
@@ -82,14 +84,17 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     Returns:
         dict: A dictionary with 'status' (str) and 'image_url' (str) or 'error_message' (str).
     """
-    client = storage.Client()#project=os.environ['GC_PROJECT'])
-    print(client)
+
+    vertex_creds = Credentials.from_service_account_info(VERTEX_CREDS)
+    # vertex_creds = Credentials.from_service_account_file('/home/misunderstood/Downloads/creatives-agent-1a95ffd78c5d.json')
+
+    client = storage.Client(credentials=vertex_creds)#project=os.environ['GC_PROJECT'])
     bucket_name = STORAGE_BUCKET  # Replace with your bucket name
     bucket = client.bucket(bucket_name)
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
     result = {'status':'success'}
 
-    vertexai.init(project='creatives-agent', location='us-east1')
+    vertexai.init()#project='creatives-agent', location='us-east1')
     
     
     generation_model = ImageGenerationModel.from_pretrained("imagen-4.0-generate-preview-05-20")
