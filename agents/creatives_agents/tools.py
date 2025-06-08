@@ -95,6 +95,8 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
     result = {'status':'success'}
 
+
+    print('Connecting vertexAI')
     vertexai.init(project='creatives-agent')#, location='us-east1')
     
     
