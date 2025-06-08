@@ -89,6 +89,7 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     vertex_creds = Credentials.from_service_account_info(VERTEX_CREDS)
     # vertex_creds = Credentials.from_service_account_file('/home/misunderstood/Downloads/creatives-agent-1a95ffd78c5d.json')
 
+    print('Connecting bucket storage')
     client = storage.Client(credentials=vertex_creds)#project=os.environ['GC_PROJECT'])
     bucket_name = STORAGE_BUCKET  # Replace with your bucket name
     bucket = client.bucket(bucket_name)
