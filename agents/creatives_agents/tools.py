@@ -22,6 +22,7 @@ CREDS_FILE=st.secrets["gsheets-access"]
 STORAGE_BUCKET='image-generations-from-agents'
 
 VERTEX_CREDS = st.secrets['vertex_cloud_creds']
+print('vertex_cloud_creds successfully retrieved')
 
 def read_session_state(callback_context: CallbackContext) -> Optional[types.Content]:
     """
@@ -99,6 +100,7 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     
     generation_model = ImageGenerationModel.from_pretrained("imagen-4.0-generate-preview-05-20")
     for pn, prompt in enumerate(prompt_list, start=1):
+        print(f'Generating prompt {pn}\n\n\n\n\n')
         try:
             images = generation_model.generate_images(
                 prompt=prompt,
