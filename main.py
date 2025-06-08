@@ -3,6 +3,7 @@ import json
 import os
 
 if "VERTEXAI_CREDS" in st.secrets:
+    st.write('creds found')
     try:
         creds_json = st.secrets["VERTEXAI_CREDS"]
         key_dict = json.loads(creds_json)
