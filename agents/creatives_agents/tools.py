@@ -89,16 +89,19 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     vertex_creds = Credentials.from_service_account_info(VERTEX_CREDS)
     # vertex_creds = Credentials.from_service_account_file('/home/misunderstood/Downloads/creatives-agent-1a95ffd78c5d.json')
 
+    for i in range(10):
+        print('$' * 40)
     print('Connecting bucket storage')
     client = storage.Client(credentials=vertex_creds)#project=os.environ['GC_PROJECT'])
     bucket_name = STORAGE_BUCKET  # Replace with your bucket name
     bucket = client.bucket(bucket_name)
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
     result = {'status':'success'}
-
+    print('bucket storage connected')
 
     print('Connecting vertexAI')
     vertexai.init(project='creatives-agent')#, location='us-east1')
+    print('vertexAI connected')
     
     
     generation_model = ImageGenerationModel.from_pretrained("imagen-4.0-generate-preview-05-20")
