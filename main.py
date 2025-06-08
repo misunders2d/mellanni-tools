@@ -3,7 +3,6 @@ import json
 import os
 
 if "VERTEXAI_CREDS" in st.secrets:
-    st.write('creds found')
     try:
         creds_json = st.secrets["VERTEXAI_CREDS"]
         key_dict = json.loads(creds_json)
@@ -19,6 +18,7 @@ if "VERTEXAI_CREDS" in st.secrets:
     except Exception as e:
         st.stop()
 else:
+    st.write('creds NOT found')
     pass
 
 PROJECT_ID = "creatives-agent"
