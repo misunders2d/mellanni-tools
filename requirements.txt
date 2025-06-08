@@ -5,7 +5,7 @@ fpdf
 fuzzywuzzy
 gdown
 google-api-python-client
-google-cloud-aiplatform
+google-cloud-aiplatform>=1.96.0
 google-cloud-bigquery
 google-cloud-bigquery-storage
 google-cloud-storage
