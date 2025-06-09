@@ -13,9 +13,9 @@ creatives_agent = Agent(
     # model='gemini-2.0-flash-live-preview-04-09', # for live preview - audio etc.
     name='smm_content_creator',
     description='''
-    An orchestrator agent running a group of sub-agents with the ultimate goal of creating an engaging,
+    An orchestrator agent running a group of sub-agents who can create an engaging,
     fun and smm-focused content for various platforms (like TikTok, Instagram, etc.).
-    Can also create images and improve image prompts
+    Can also create images and improve image prompts, generate prompts for videos.
     ''',
     instruction=prompts.COORDINATOR_AGENT_INSTRUCTIONS,
     sub_agents=[storyline_loop_agent, full_content_loop_agent, image_prompt_loop_agent, video_generator_loop_agent],
