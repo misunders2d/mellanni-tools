@@ -21,11 +21,10 @@ FOLDER_ID='1vClPSrDJi16PnvvGoSYeghcCU0WU0Sxw'
 CREDS_FILE=st.secrets["gsheets-access"]
 STORAGE_BUCKET='image-generations-from-agents'
 
-# VERTEX_CREDS = st.secrets['vertex_cloud_creds']
+VERTEX_CREDS = st.secrets['vertex_cloud_creds']
 
-vertex_storage_creds = st.secrets["vertex_cloud_creds"]
 with open("vertex_storage_credentials.json", "w") as f:
-    json.dump(dict(vertex_storage_creds), f)
+    json.dump(dict(VERTEX_CREDS), f)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "vertex_storage_credentials.json"
 
 def read_session_state(callback_context: CallbackContext) -> Optional[types.Content]:
@@ -91,26 +90,19 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
     """
 
     # vertex_creds = Credentials.from_service_account_info(VERTEX_CREDS)
-    # vertex_creds = Credentials.from_service_account_file('/home/misunderstood/Downloads/creatives-agent-1a95ffd78c5d.json')
+    vertex_creds = Credentials.from_service_account_file("vertex_storage_credentials.json")
 
-    for i in range(10):
-        print('$' * 40)
-    print('Connecting bucket storage')
+
     client = storage.Client()#credentials=vertex_creds)#project=os.environ['GC_PROJECT'])
     bucket_name = STORAGE_BUCKET  # Replace with your bucket name
     bucket = client.bucket(bucket_name)
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
     result = {'status':'success'}
-    print('bucket storage connected')
 
-    print('Connecting vertexAI')
-    vertexai.init(project='creatives-agent')#, location='us-east1')
-    print('vertexAI connected')
-    
+    vertexai.init(project='creatives-agent', credentials=vertex_creds)#, location='us-east1')
     
     generation_model = ImageGenerationModel.from_pretrained("imagen-4.0-generate-preview-05-20")
     for pn, prompt in enumerate(prompt_list, start=1):
-        print(f'Generating prompt {pn}\n\n\n\n\n')
         try:
             images = generation_model.generate_images(
                 prompt=prompt,
