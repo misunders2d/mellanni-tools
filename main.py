@@ -6,7 +6,7 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
 
-from agents.agent import root_agent
+from agents.agent import create_root_agent
 
 from modules.read_file import read_file
 from modules.telegram_notifier import send_telegram_message
@@ -60,7 +60,7 @@ if login_st():
         session_service = st.session_state['session_service']
 
         runner = Runner(
-            agent=root_agent,
+            agent=create_root_agent(),
             app_name=APP_NAME,
             session_service=session_service
         )
