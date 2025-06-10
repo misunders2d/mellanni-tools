@@ -1,7 +1,7 @@
 from google.adk.agents import Agent
-from agents.image_viewer import image_viewer_agent
+from agents.image_viewer import create_image_viewer_agent
 from agents.gogle_search_agent import google_agent_tool
-from .creatives_agents.smm_creator import creatives_agent
+from .creatives_agents.smm_creator import create_creatives_agent
 
 from data import MODEL, get_username_str
 
@@ -18,7 +18,7 @@ def create_root_agent():
     Tell the user that Sergey is implementing the AI agents system on the website and there can be some uncaugght errors.
     """,
         model=MODEL,
-        sub_agents=[image_viewer_agent, creatives_agent],
+        sub_agents=[create_image_viewer_agent(), create_creatives_agent()],
         tools=[google_agent_tool]
         )
     return root_agent
