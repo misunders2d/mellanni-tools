@@ -1,11 +1,11 @@
 import streamlit as st
-from typing import Final
-from openai import OpenAI, NotFoundError
-from openai.types.beta.thread import Thread
+# from typing import Final
+# from openai import OpenAI, NotFoundError
+# from openai.types.beta.thread import Thread
 
-from pinecone import Pinecone, ServerlessSpec
-import uuid
-from datetime import date
+# from pinecone import Pinecone, ServerlessSpec
+# import uuid
+# from datetime import date
 
 ### setup Pinecone and OpenAI clients - obsolete, using NotebookLM instead
 # OPENAI_KEY: Final = st.secrets['KNOWLEDGE_BASE_AI_KEY']
