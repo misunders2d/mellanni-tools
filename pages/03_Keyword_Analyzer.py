@@ -490,8 +490,11 @@ if login_st():
         fig.update_xaxes(title_text="Reporting Date")
 
         fig.update_yaxes(title_text=left_lines[0], secondary_y=False)
-        if len(right_lines)>0 and right_axis=='percentage':
-            fig.update_yaxes(title_text=right_lines[0], secondary_y=True, tickformat=".1%")
+        if len(right_lines)>0:
+            if right_axis=='percentage':
+                fig.update_yaxes(title_text=right_lines[0], secondary_y=True, tickformat=".1%")
+            else:
+                fig.update_yaxes(title_text=right_lines[0], secondary_y=True)
         return fig
 
 
