@@ -4,7 +4,7 @@ from data import CREATIVES_AGENT_MODEL
 
 from . import prompts
 from .sub_agents import (
-    storyline_loop_agent, full_content_loop_agent, image_prompt_loop_agent, video_generator_loop_agent
+    create_storyline_loop_agent, create_full_content_loop_agent, create_image_prompt_loop_agent, create_video_generator_loop_agent
 )
 from .tools import create_vertexai_image, read_write_google_sheet
 
@@ -18,7 +18,7 @@ creatives_agent = Agent(
     Can also create images and improve image prompts, generate prompts for videos.
     ''',
     instruction=prompts.COORDINATOR_AGENT_INSTRUCTIONS,
-    sub_agents=[storyline_loop_agent, full_content_loop_agent, image_prompt_loop_agent, video_generator_loop_agent],
+    sub_agents=[create_storyline_loop_agent(), create_full_content_loop_agent(), create_image_prompt_loop_agent(), create_video_generator_loop_agent()],
     tools=[create_vertexai_image]
     # after_agent_callback=read_write_google_sheet
 )
