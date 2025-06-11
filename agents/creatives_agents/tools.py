@@ -74,6 +74,34 @@ def read_session_state(callback_context: CallbackContext) -> Optional[types.Cont
     return None
 
 
+def sanitize_json_string(input_string: str) -> str:
+    """
+    Sanitizes a string for safe JSON conversion by handling special characters,
+    null bytes, and non-UTF-8 encodings.
+    
+    Args:
+        input_string: The input string to sanitize (can be str or bytes).
+        
+    Returns:
+        str: A sanitized string safe for JSON encoding, or None if input is None.
+    """
+    if input_string is None:
+        return None
+        
+    # Ensure input is a string
+    if not isinstance(input_string, str):
+        input_string = str(input_string)
+        
+    # Remove null bytes
+    input_string = input_string.replace('\x00', '')
+    
+    # Replace control characters with their escaped versions
+    control_chars = {chr(i): f'\\u{format(i, "04x")}' for i in range(32)}
+    for char, escaped in control_chars.items():
+        input_string = input_string.replace(char, escaped)
+        
+    return input_string
+
 def check_json_string(json_string: str) -> bool:
     """
         Checks if a given string is a valid JSON string.
