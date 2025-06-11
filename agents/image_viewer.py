@@ -38,7 +38,7 @@ def image_viewer_tool(question: str, links: list[str]) -> dict:
         ]
         try:
             response = client.chat.completions.create(
-                model='gpt-4o',
+                model="gpt-4.1-mini",
                 messages=msgs,
                 response_format = {"type": "json_object"}
             )
