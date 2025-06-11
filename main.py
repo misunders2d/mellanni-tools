@@ -65,7 +65,6 @@ if login_st():
             session_service=session_service
         )
 
-            
         async for event in runner.run_async(
             user_id=user_id,
             session_id=session_id,
@@ -86,6 +85,17 @@ if login_st():
                 ):
                 new_msg += event.content.parts[0].function_response.response['result']
                 yield event.content.parts[0].function_response.response['result']
+            #handle errors
+            elif event.error_code:
+                st.error(f"Sorry, the following error happened:\n{event.error_code}")
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=types.Content(role='user', parts=[types.Part(text=f'This error happened, please check: {event}')])):
+                    if event.content and event.content.parts and event.content.parts[0].text:
+                        new_msg += event.content.parts[0].text
+                        yield event.content.parts[0].text
+                
             # else:
             #     yield event
 
@@ -110,10 +120,6 @@ if login_st():
                 st.write_stream(run_agent(user_input=prompt_text, session_id='session123', user_id=user_id))
             except Exception as e:
                 send_telegram_message(f'Sorry, an error occurred, please try later:\n{e}')
-                # send_telegram_message(str(traceback.format_exc()))
-                print("#"*50)
-                print('\n'*5)
-                print(traceback.format_exc())
         st.session_state.messages.append({"role": "assistant", "content": new_msg})
 
 else:

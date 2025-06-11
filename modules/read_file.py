@@ -13,9 +13,7 @@ def read_file(file_path):
     """
     try:
         df = pd.read_csv(file_path)
-        # columns = df.columns.tolist()
-        # values = df.values.tolist()
-        # return columns, values
+        df = df.dropna(how='all')
         df_str = df.to_json(orient='records')
         df_str = df_str.replace('\\/', '/')  # Fix escaped slashes
         return df_str

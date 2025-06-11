@@ -1,5 +1,7 @@
 from google.adk import Agent
 from google.adk.tools.load_web_page import load_web_page
+from google.genai import types
+
 from .creatives_agents.tools import export_json_to_dataframe
 
 
@@ -160,17 +162,20 @@ def create_review_violation_checker():
     review_violation_checker_agent = Agent(
         name='amazon_review_violation_checker',
         model='gemini-2.0-flash',
+        generate_content_config=types.GenerateContentConfig(max_output_tokens=20000),
         description='An agent who is an expert in assessing customer reviews and checking if the reviews comply with Amazon review community guidelines',
         instruction=f"""You have access to `load_web_page` tool.
         You MUST use it to understand Amazon's review guidelines and policies described here:
         https://www.amazon.com/gp/help/customer/display.html?nodeId=GLHXEX85MENUE4XF
         Use this link to understand the review requirements. If the tool fails, fallback to these review guidelines:
         ----------------------------------------
+        REVIEW GUIDELINES.
+
         {REVIEW_GUIDELINES}
         ----------------------------------------
         """
         """
-        After the user has submitted a review or reviews for your analysis, check them thoroughly against the guidelines and return a concise but accurate answer.
+        Your job is to analyze the submitted reviews thoroughly against the guidelines and return a concise but accurate answer.
         Make sure to indicate which part of the review is a violation, and which specific article it violates. Use the following SUBMISSION FORM:
 
         ----------------------------------------
@@ -191,13 +196,17 @@ def create_review_violation_checker():
         ----------------------------------------
         If the review does not violate any guidelines, just confirm it.
 
-        IMPORTANT!
-        IF the user supplied only the text/texts of the review, not the JSON string, you do not use the `export_json_to_dataframe`
-          
-        ELSE IF the user supplied you with multiple texts using a file or a JSON string, you MUST use `export_json_to_dataframe` tool
-        to create an excel spreadsheet and allow the user to download it.
-            In this case create a new column in the JSON string called "VIOLATION", add the full SUBMISSION FORM as data to this column,
-            and run the `export_json_to_dataframe` tool.
+        WORKFLOW:
+
+        1. IF the user supplied only texts of the review (not the JSON string from the file):
+            1.1 Analyze the review and give the user your output with SUBMISSION FORM
+            1.2 Do NOT use the `export_json_to_dataframe`
+
+        2. ELSE IF the user supplied you with multiple texts using a JSON string from a file:
+            2.1 Analyze the submitted reviews, but do not output your analysis to the user.
+            2.2 For each of the reviews add your analysis results in a "Violation" column of the JSON string.
+            2.3 You MUST call `export_json_to_dataframe` tool with the updated JSON string. Make sure it's in JSON format.
+            2.4 Do NOT output your analysis to the user, instead just inform them that you are using the `export_json_to_dataframe` to generate and download an Excel file.
 
         """,
         tools=[load_web_page, export_json_to_dataframe]
