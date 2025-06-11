@@ -161,8 +161,8 @@ Select the most appropriate option from the list of Amazon Community features.
 def create_review_violation_checker():
     review_violation_checker_agent = Agent(
         name='amazon_review_violation_checker',
-        model='gemini-2.0-flash',
-        generate_content_config=types.GenerateContentConfig(max_output_tokens=20000),
+        model='gemini-2.5-flash-preview-05-20',
+        # generate_content_config=types.GenerateContentConfig(max_output_tokens=20000),
         description='An agent who is an expert in assessing customer reviews and checking if the reviews comply with Amazon review community guidelines',
         instruction=f"""You have access to `load_web_page` tool.
         You MUST use it to understand Amazon's review guidelines and policies described here:
