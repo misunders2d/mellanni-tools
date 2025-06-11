@@ -177,6 +177,7 @@ def create_review_violation_checker():
         """
         Your job is to analyze the submitted reviews thoroughly against the guidelines and return a concise but accurate answer.
         IMPORTANT! Do not flag a review as a violation if it says in some form that the company contacted the buyer and offered a refund.
+                    Also do not flag as a violation if the review is in Spanish, that's acceptable.
         Make sure to indicate which part of the review is a violation, and which specific article it violates. Use the following SUBMISSION FORM:
 
         ----------------------------------------
