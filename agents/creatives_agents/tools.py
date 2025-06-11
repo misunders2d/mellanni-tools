@@ -1,5 +1,6 @@
 import streamlit as st
 from google.adk.tools.tool_context import ToolContext
+from google.adk.tools.exit_loop_tool import exit_loop
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from typing import Optional, List, Dict
@@ -14,6 +15,8 @@ from googleapiclient.http import MediaFileUpload
 import gspread
 
 import time, os, json
+from io import BytesIO
+import pandas as pd
 from google.cloud import storage
 
 SPREADSHEET_ID='1UhZplWd4sg8Mhd0Xd4Gb-6jMy2z_DYcUicEBrmJZL9M'
@@ -71,12 +74,35 @@ def read_session_state(callback_context: CallbackContext) -> Optional[types.Cont
     return None
 
 
-def exit_loop(tool_context: ToolContext) -> dict:
-    """Call this function ONLY when the checker indicates no further changes are needed, signaling the iterative process should end."""
-    print(f"  [Tool Call] exit_loop triggered by {tool_context.agent_name}")
-    tool_context.actions.escalate = True
-    # Return empty dict as tools should typically return JSON-serializable output
-    return {}
+def export_json_to_dataframe(json_string: str) -> None:
+    """
+        Converts a JSON string to a Pandas DataFrame and provides a download button to export it as an Excel file.
+        Args:
+            json_string (str): A string containing JSON data.
+        Returns:
+            None: The function displays a download button in the Streamlit app.
+                  If an error occurs during JSON parsing or DataFrame conversion, it displays an error message in the Streamlit app.
+        """
+
+    try:
+        json_data = json.loads(json_string)
+        df = pd.DataFrame(json_data)
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name = 'Result', index = False)
+        st.download_button('Download file',output.getvalue(), file_name = 'result.xlsx')
+
+    except Exception as e:
+        st.error(f"Could not parse the data into JSON:\n{e}")
+
+
+# def exit_loop(tool_context: ToolContext) -> dict:
+#     """Call this function ONLY when the checker indicates no further changes are needed, signaling the iterative process should end."""
+#     print(f"  [Tool Call] exit_loop triggered by {tool_context.agent_name}")
+#     tool_context.actions.escalate = True
+#     # Return empty dict as tools should typically return JSON-serializable output
+#     return {}
 
 
 def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerationResponse|None]:

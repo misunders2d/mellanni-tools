@@ -1,6 +1,6 @@
 from google.adk.agents import Agent, LoopAgent
 from google.adk.tools import google_search, load_web_page
-from .tools import exit_loop
+from google.adk.tools.exit_loop_tool import exit_loop
 from . import prompts
 
 from data import CREATIVES_AGENT_MODEL
