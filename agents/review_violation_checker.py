@@ -208,7 +208,7 @@ def create_review_violation_checker():
         2. ELSE IF the user supplied you with multiple texts using a JSON string from a file:
             2.1 Analyze the submitted reviews, but do not output your analysis to the user.
             2.2 For each of the reviews add your analysis results in a "Violation" column of the JSON string.
-                Make sure to adhere to the SUBMISSION FORM structure.
+                Make sure to STRICTLY FOLLOW the SUBMISSION FORM structure for each violating review.
             2.3 You MUST call the following tools to make sure the JSON string is valid:
                 2.3.1 Call `sanitize_json_string` to remove invalid characters
                 2.3.2 Call  `check_json_string` tool to check if the JSON string you created is a valid JSON string, or needs improvements.
