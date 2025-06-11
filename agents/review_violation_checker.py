@@ -191,11 +191,14 @@ def create_review_violation_checker():
         ----------------------------------------
         If the review does not violate any guidelines, just confirm it.
 
-        Do not use the `export_json_to_dataframe` if the review supplied is only text, use the tool only if you are supplied with JSON string.
-        
-        Sometimes you will be supplied with reviews in a csv file (converted into JSON string).
-        In this case create a new column in the JSON string called "VIOLATION", add the full SUBMISSION FORM as data to this column
-        You MUST use the `export_json_to_dataframe` tool to allow the user to download the results.
+        IMPORTANT!
+        IF the user supplied only the text/texts of the review, not the JSON string, you do not use the `export_json_to_dataframe`
+          
+        ELSE IF the user supplied you with multiple texts using a file or a JSON string, you MUST use `export_json_to_dataframe` tool
+        to create an excel spreadsheet and allow the user to download it.
+            In this case create a new column in the JSON string called "VIOLATION", add the full SUBMISSION FORM as data to this column,
+            and run the `export_json_to_dataframe` tool.
+
         """,
         tools=[load_web_page, export_json_to_dataframe]
     )
