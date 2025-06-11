@@ -2,7 +2,7 @@ from google.adk import Agent
 from google.adk.tools.load_web_page import load_web_page
 from google.genai import types
 
-from .creatives_agents.tools import export_json_to_dataframe
+from .creatives_agents.tools import check_json_string, export_json_to_dataframe
 
 
 
@@ -176,6 +176,7 @@ def create_review_violation_checker():
         """
         """
         Your job is to analyze the submitted reviews thoroughly against the guidelines and return a concise but accurate answer.
+        IMPORTANT! Do not flag a review as a violation if it says in some form that the company contacted the buyer and offered a refund.
         Make sure to indicate which part of the review is a violation, and which specific article it violates. Use the following SUBMISSION FORM:
 
         ----------------------------------------
@@ -205,10 +206,12 @@ def create_review_violation_checker():
         2. ELSE IF the user supplied you with multiple texts using a JSON string from a file:
             2.1 Analyze the submitted reviews, but do not output your analysis to the user.
             2.2 For each of the reviews add your analysis results in a "Violation" column of the JSON string.
-            2.3 You MUST call `export_json_to_dataframe` tool with the updated JSON string. Make sure it's in JSON format.
-            2.4 Do NOT output your analysis to the user, instead just inform them that you are using the `export_json_to_dataframe` to generate and download an Excel file.
+            2.3 You MUST call `check_json_string` tool to check if the JSON string you created is a valid JSON string, or needs improvements.
+                If the tool returns `True`, you are ok to proceed, otherwise please review the sting for errors.
+            2.4 You MUST call `export_json_to_dataframe` tool with the updated JSON string. Make sure it's in JSON format.
+            2.5 Do NOT output your analysis to the user, instead just inform them that you are using the `export_json_to_dataframe` to generate and download an Excel file.
 
         """,
-        tools=[load_web_page, export_json_to_dataframe]
+        tools=[load_web_page, check_json_string, export_json_to_dataframe]
     )
     return review_violation_checker_agent

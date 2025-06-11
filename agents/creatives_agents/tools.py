@@ -74,6 +74,23 @@ def read_session_state(callback_context: CallbackContext) -> Optional[types.Cont
     return None
 
 
+def check_json_string(json_string: str) -> bool:
+    """
+        Checks if a given string is a valid JSON string.
+
+        Args:
+            json_string (str): The string to check.
+
+        Returns:
+            bool: True if the string is a valid JSON string, False otherwise.
+        """
+
+    try:
+        _ = json.loads(json_string)
+        return True
+    except Exception:
+        return False
+
 def export_json_to_dataframe(json_string: str) -> None:
     """
         Converts a JSON string to a Pandas DataFrame and provides a download button to export it as an Excel file.
