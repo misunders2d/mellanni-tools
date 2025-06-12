@@ -108,7 +108,9 @@ def export_json_to_dataframe(json_string: str) -> None:
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, sheet_name = 'Result', index = False)
-        st.download_button('Download file',output.getvalue(), file_name = 'result.xlsx')
+        st.session_state['output'] = output
+        if 'output' in st.session_state:
+            st.download_button('Download file',st.session_state['output'].getvalue(), file_name = 'result.xlsx')
 
     except Exception as e:
         st.error(f"Could not parse the data into JSON:\n{e}")
