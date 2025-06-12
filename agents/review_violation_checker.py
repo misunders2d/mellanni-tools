@@ -212,7 +212,7 @@ def create_review_violation_checker():
                 Make sure to STRICTLY FOLLOW the SUBMISSION FORM structure for each violating review.
             2.3 Check your JSON string for errors, calling `check_json_string:
                     If the tool returns {"status":"success"}, you are ok to proceed, otherwise review the tool return, fix errors and run the tool again.
-            2.4 You MUST call `export_json_to_dataframe` tool with the updated JSON string. It will create an downloadable Excel file.
+            2.4 Finally, You MUST call `export_json_to_dataframe` tool with the updated JSON string. It will create an downloadable Excel file.
 
         """,
         tools=[load_web_page,  check_json_string, export_json_to_dataframe]
