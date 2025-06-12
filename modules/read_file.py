@@ -1,7 +1,9 @@
+from google.adk.tools.tool_context import ToolContext
+from google.genai import types
 import pandas as pd
 import json
 
-def read_file(file_path):
+def read_file(file_path):#, tool_context: ToolContext):
     """
     Reads a file and returns its content as a pandas DataFrame.
     

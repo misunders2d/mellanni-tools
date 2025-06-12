@@ -3,6 +3,7 @@ from agents.image_viewer import create_image_viewer_agent
 from agents.gogle_search_agent import google_agent_tool
 from .creatives_agents.smm_creator import create_creatives_agent
 from .review_violation_checker import create_review_violation_checker
+from .code_executor_agent import create_code_executor_agent
 from .error_checker_agent import event_error_analyzer_agent
 
 from data import MODEL, get_username_str
@@ -27,6 +28,6 @@ def create_root_agent():
             create_creatives_agent(),
             create_review_violation_checker(),
             event_error_analyzer_agent()],
-        tools=[google_agent_tool]
+        tools=[google_agent_tool,create_code_executor_agent()]
         )
     return root_agent

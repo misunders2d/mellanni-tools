@@ -3,6 +3,7 @@ from login import login_st
 st.set_page_config(page_title = 'Mellanni Tools App', page_icon = 'media/logo.ico',layout="wide")
 
 from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import InMemoryArtifactService
 from google.adk.runners import Runner
 from google.genai import types
 
@@ -58,11 +59,13 @@ if login_st():
                 user_id=user_id,
                 session_id=session_id)
         session_service = st.session_state['session_service']
+        artifact_service = InMemoryArtifactService()
 
         runner = Runner(
             agent=create_root_agent(),
             app_name=APP_NAME,
-            session_service=session_service
+            session_service=session_service,
+            artifact_service=artifact_service
         )
 
         async for event in runner.run_async(

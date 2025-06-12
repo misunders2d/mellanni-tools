@@ -2,7 +2,7 @@ from google.adk import Agent
 from google.adk.tools.load_web_page import load_web_page
 from google.genai import types
 
-from .creatives_agents.tools import sanitize_json_string, check_json_string, export_json_to_dataframe
+from .creatives_agents.tools import check_json_string, export_json_to_dataframe
 
 
 
@@ -211,7 +211,7 @@ def create_review_violation_checker():
                 Make sure to STRICTLY FOLLOW the SUBMISSION FORM structure for each violating review.
             2.3 You MUST call the following tools to make sure the JSON string is valid:
                 2.3.1 Call  `check_json_string` tool to check if the JSON string you created is a valid JSON string, or needs improvements.
-                    If the tool returns `True`, you are ok to proceed, otherwise please review the sting for errors.
+                    If the tool returns {"status":"success"}, you are ok to proceed, otherwise please review the tool return and fix errors.
                 2.3.2 You MUST call `export_json_to_dataframe` tool with the updated JSON string. Make sure it's in JSON format.
             2.5 Do NOT output your analysis to the user, instead just inform them that you are using the `export_json_to_dataframe` to generate and download an Excel file.
 
