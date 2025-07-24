@@ -14,7 +14,7 @@ def gdownload(file_id):
 
 def gcloud_connect():
     key_path = service_account.Credentials.from_service_account_info(st.secrets['gcp_service_account'])
-    client = bigquery.Client(credentials = key_path)
+    client = bigquery.Client(project='mellanni-project-da', credentials = key_path)
     return client
 
 def list_projects():
@@ -25,6 +25,7 @@ def list_projects():
     client.close()
     return table_list
 
+@st.cache_data(ttl=3600)
 def pull_dictionary(combine:bool = False, market: str = 'US', full: bool = False, cols = None):
     if not full:
         columns = 'sku,asin,fnsku,upc,collection,sub_collection,size,color,short_title'
