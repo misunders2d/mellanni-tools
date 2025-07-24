@@ -16,7 +16,10 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
     img1_area, img2_area, img3_area, img4_area, img5_area, img6_area, img7_area, img8_area, img9_area, img_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
 
     def sanitize_products(product: str):
-        return product.replace(' ','_').replace('/','_').replace('\\','_').lower()
+        result = product.replace(' ','_').replace('/','_').replace('\\','_').lower()
+        while '__' in result:
+            result = result.replace('__','_')
+        return result
 
     dictionary = gc.pull_dictionary()
     products = sorted(dictionary['collection'].unique().tolist())
@@ -50,7 +53,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         colors = sorted(dictionary[dictionary['collection']==st.session_state.selected_product]['color'].unique().tolist())
 
         # "Select All" checkbox for colors
-        select_all_colors = selector_area.checkbox("Select All Colors")
+        select_all_colors = selector_area.checkbox("Select all")
 
         if select_all_colors:
             st.session_state.selected_colors = color_area.multiselect(
