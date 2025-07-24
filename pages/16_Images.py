@@ -128,3 +128,6 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                     st.error('Some images failed to upload. Please see details below:')
                     for failure in failed_uploads:
                         st.write(f"Image: **{failure['image']}** failed for sizes: `{', '.join(failure['sizes'])}`")
+
+else:
+    st.warning('Only Amazon team has access to this tool.', icon="🔥")

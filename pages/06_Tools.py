@@ -378,62 +378,8 @@ if login_st():
             if st.button('Convert'):
                 new_links = clean_links(links)
                 links_area.text_area('Clean links','\n\n'.join(new_links))
-        try:
-            with st.expander('Upload images to web and get direct links', expanded = True, icon=':material/imagesmode:'):
-                from imagekitio import ImageKit
-                from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
-                from imagekitio.models.CreateFolderRequestOptions import CreateFolderRequestOptions
-                import base64
-
-                # imagekitio credentials
-                ik_credentials = (st.secrets['IK_PRIVATE_KEY'],st.secrets['IK_PUBLIC_KEY'])
-                private_key=ik_credentials[0]
-                public_key=ik_credentials[1]
-                url_endpoint='https://ik.imagekit.io/jgp5dmcfb'
-
-
-                imagekit = ImageKit(
-                    private_key=private_key,
-                    public_key=public_key,
-                    url_endpoint=url_endpoint
-                    )
-
-                skus = st.text_area('Input SKUs').split('\n')
-                folder = st.text_input('Input folder name, if necessary').replace('.','_').replace(' ','_')
-                options = UploadFileRequestOptions(
-                    use_unique_file_name=False,
-                    folder=f'/{folder}/')
-
-
-                files = st.file_uploader('Upload images',accept_multiple_files= True)
-
-                #read file into base_64
-                if files and st.button('Upload'):
-                    skus = [x for x in skus if x != '']
-                    urls = []
-                    for f in files:
-                        image_file = f.read()
-                        img = base64.b64encode(image_file)
-                        
-                        result = imagekit.upload_file(file = img, file_name = f.name, options = options)
-                        url = url_endpoint+result.file_path
-                        urls.append(url)
-                    urls = sorted(urls, reverse = False)
-
-                    df = pd.DataFrame(skus,columns = ['SKU'])
-                    if len(skus) > 1 and skus != "":
-                        urls = [urls for _ in range(len(skus))]
-                        df['SKU'] = skus
-                    url_df = pd.DataFrame(urls)
-                    df = pd.concat([df, url_df], axis = 1)
-
-                    st.write(df)
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        df.to_excel(writer, sheet_name = 'image_links', index = False)
-                    st.download_button('Download results',output.getvalue(), file_name = 'image_links.xlsx')
-        except Exception as e:
-            st.write(f'Sorry, this block is currently unavailable:\n{e}')
+        with st.expander('Upload images to web and get direct links', expanded = False, icon=':material/imagesmode:'):
+            st.warning(body='This tool has moved to [a separate page](https://mellanni-tools.streamlit.app/Images)', icon=":material/moved_location:")
 
         with st.expander('Text rewriter', icon=':material/edit_note:'):
             text_file_obj = st.file_uploader('Upload the excel file with text to work on')
