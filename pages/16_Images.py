@@ -15,14 +15,29 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
     img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input = st.columns([1,1,1,1,1,1,1,1,1,1])
     img1_area, img2_area, img3_area, img4_area, img5_area, img6_area, img7_area, img8_area, img9_area, img_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
 
+    links_area = st.container()
+
+    dictionary = gc.pull_dictionary()
+    products = sorted(dictionary['collection'].unique().tolist())
+
     def sanitize_products(product: str):
         result = product.replace(' ','_').replace('/','_').replace('\\','_').lower()
         while '__' in result:
             result = result.replace('__','_')
         return result
 
-    dictionary = gc.pull_dictionary()
-    products = sorted(dictionary['collection'].unique().tolist())
+
+    def create_links():
+        if not 'selected_product' in st.session_state or not st.session_state.selected_product:
+            links_area.warning('No products selected')
+        else:
+            links_dictionary = dictionary[dictionary['collection'] == st.session_state.selected_product]
+            links_colors = links_dictionary['color'].unique()
+            links_sizes = links_dictionary['color'].unique()
+            
+            st.write(links_dictionary.shape)
+
+    links_area.button('Get links', on_click=create_links, disabled=True)
 
     def push_images(img_bytes, name, product, color, sizes):
         """

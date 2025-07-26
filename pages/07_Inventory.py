@@ -264,7 +264,7 @@ if login_st():
     ###### inventory report section
     if st.user.email in (
         'sergey@mellanni.com','natalie@mellanni.com', 'ruslan@mellanni.com', 'andreia@mellanni.com','dariyka@mellanni.com',
-        'karl@mellanni.com','ahmad@mellanni.com', 'gor@mellanni.com'
+        'karl@mellanni.com','ahmad@mellanni.com', 'gor@mellanni.com', 'nomier@mellanni.com', 'juan@mellanni.com'
         ):
         # @st.cache_data
         def download_inv_report(inv_date, market):
