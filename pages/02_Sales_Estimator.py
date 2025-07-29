@@ -132,8 +132,11 @@ if login_st():
     submit_button=input_area.button('Submit', icon=':material/local_fire_department:')
 
     if submit_button and len(asin)>=10:
+        asin_clean = ''
         try:
-            asin_clean=re.search('[A-Z0-9]{10}', asin.upper()).group() if len(asin)>10 else asin.upper()
+            asin_search_group = re.search('[A-Z0-9]{10}', asin.upper())
+            if asin_search_group:
+                asin_clean=asin_search_group.group() if len(asin)>10 else asin.upper()
         except Exception:
             indivudual.warning('Wrong ASIN combination')
         product=KeepaProduct(asin_clean.upper(), domain=market)
@@ -170,7 +173,7 @@ if login_st():
                     try:
                         if product.variations and (len(product.variations) < (tokens_left*0.8)):
                             min_sales, max_sales, avg_price, bestseller, worstseller, revenue, variations_df, real_prices, std_prices = calculate_variation_sales(product, market=market)
-                            variations_str = f"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} (**{(min_sales + max_sales)/2:,.0f}** average) last {plot_last_days} days\
+                            variations_str = fr"Total sales for all variations: {min_sales:,.0f} - {max_sales:,.0f} (**{(min_sales + max_sales)/2:,.0f}** average) last {plot_last_days} days\
                                 \nAverage price: **\${avg_price}** (**\${revenue:,.0f}** total revenue)\
                                 \nReal price range: \${real_prices[0]:.2f} - \${real_prices[1]:.2f}\
                                 \nStandard prices: \${std_prices[0]:.2f} - \${std_prices[1]:.2f}"
