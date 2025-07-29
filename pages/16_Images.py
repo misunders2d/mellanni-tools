@@ -1,6 +1,6 @@
 import streamlit as st
 import base64
-from modules.image_modules import upload_image
+from modules.image_modules import upload_image, list_files
 from modules import gcloud_modules as gc
 import concurrent.futures
 
@@ -34,8 +34,9 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
             links_dictionary = dictionary[dictionary['collection'] == st.session_state.selected_product]
             links_colors = links_dictionary['color'].unique()
             links_sizes = links_dictionary['color'].unique()
+            files = list_files('test_folder')
             
-            st.write(links_dictionary.shape)
+            links_area.write(files)
 
     links_area.button('Get links', on_click=create_links, disabled=True)
 

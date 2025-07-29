@@ -45,10 +45,11 @@ def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|N
 # url = upload_image('/home/misunderstood/Downloads/main1.jpg', 'main_image.jpg', tags=['test'], folder='/trying3/folder/another folder/')
 
 def list_files(folder:str|None=None):
-    list_options = ListAndSearchFileRequestOptions(path=folder if folder else '')
-    files = imagekit.list_files(options=list_options)
+    all_files = []
+    list_options = ListAndSearchFileRequestOptions(path=folder if folder else '', type='file')
+    files = imagekit.list_files()#options=list_options)
     if files and files.list and len(files.list) > 0:
-        print([(x.name, x.url) for x in files.list])
+        print([x.file_path for x in files.list])
         return files.list[0]
 
 # img = list_files(folder='test')
