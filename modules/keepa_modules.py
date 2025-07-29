@@ -310,16 +310,16 @@ class KeepaProduct:
             self.avg_price = self.last_days['final price'].mean()
         
 def get_products(asins:list, domain = 'US', update=None):
-    api = keepa.Keepa(KEEPA_KEY)
+    api = keepa.Keepa(KEEPA_KEY, timeout=60)
     products = api.query(asins, domain=domain, update=update)
     return products
 
 def get_tokens(api_key = KEEPA_KEY):
-    api = keepa.Keepa(api_key)
+    api = keepa.Keepa(api_key, timeout=60)
     return api.tokens_left
 
 def get_product_details(asins: list[str]):
-    api = keepa.Keepa(KEEPA_KEY)
+    api = keepa.Keepa(KEEPA_KEY, timeout=60)
     tokens = api.tokens_left
     if tokens < len(asins):
         st.write('Please wait, not enough tokens to pull data from Amazon')
