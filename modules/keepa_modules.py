@@ -8,7 +8,7 @@ import time
 KEEPA_KEY = os.getenv('KEEPA_KEY','')
 
 class KeepaProduct:
-    api = keepa.Keepa(KEEPA_KEY)
+    api = keepa.Keepa(KEEPA_KEY, timeout=60)
     #create sales ranges (min - max)
     sales_tiers:dict = {
         -1:0,
@@ -49,7 +49,7 @@ class KeepaProduct:
         self.domain: str = domain
         self.title: str|None  = None
         self.image: str|None = None
-        self.data: dict|None = None
+        self.data: list|None = None
         self.brand: str|None = None
         self.parent: str|None  = None
         self.pivot: pd.DataFrame|None = None
@@ -97,7 +97,7 @@ class KeepaProduct:
     def extract_from_products(self, products:list):
         self.data = [x for x in products if x['asin']==self.asin]
 
-    def convert_time(self, keepa_time:int) -> pd.Timestamp:
+    def convert_time(self, keepa_time:int) -> pd.Timestamp | str:
         '''function that converts time from keepa format to datetime format'''
         if keepa_time == 0:
             return 'unknown'
@@ -114,7 +114,7 @@ class KeepaProduct:
     def get_variations(self):
         if not self.data:
             self.query()
-        if 'variations' in self.data[0].keys() and self.data[0]['variations']:
+        if self.data and 'variations' in self.data[0].keys() and self.data[0]['variations']:
             self.variations.update([x['asin'] for x in self.data[0]['variations']])
             self.variation_theme_dict = [
                 theme['attributes'] for theme in self.data[0]['variations'] if theme['asin'] == self.asin
@@ -298,6 +298,8 @@ class KeepaProduct:
         self.generate_daily_sales(days=days)
         if not self.exists:
             return
+        if self.pivot is None:
+            raise BaseException("self.pivot is not initialized")
         self.last_days = self.pivot[self.pivot.index >= (pd.to_datetime('today')-pd.Timedelta(days=days)).date()]
         self.last_days['asin'] = self.asin
         self.min_sales = int(self.last_days['sales min'].sum())
@@ -329,9 +331,9 @@ def get_product_details(asins: list[str]):
         brand = p.get('brand')
         items[asin] = {}
         title = p.get('title')
-        bulletpoints = p.get('features')
+        bulletpoints = p.get('features',[])
         description = p.get('description')
-        price = p.get('data').get('df_NEW').dropna().iloc[-1].values[0]
+        price = p.get('data',{}).get('df_NEW').dropna().iloc[-1].values[0]
         coupon = p.get('coupon')
         if not coupon:
             coupon = 0
@@ -345,7 +347,7 @@ def get_product_details(asins: list[str]):
         if not sales:
             sales = 0
             
-        img_link = 'https://m.media-amazon.com/images/I/' + p.get('imagesCSV').split(',')[0]
+        img_link = 'https://m.media-amazon.com/images/I/' + p.get('imagesCSV','').split(',')[0]
             
         items[asin]['brand'] = brand
         items[asin]['title'] = title
