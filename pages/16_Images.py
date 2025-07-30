@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import base64
+import time
+import random
 from numpy import nan
 from modules.image_modules import upload_image, list_files
 from modules import gcloud_modules as gc
@@ -61,7 +63,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
     links_area.button('Get links', on_click=create_links, disabled=False, icon=':material/link:')
 
 
-    def push_images(img_bytes, name, product, color, sizes,):
+    def push_images(img_bytes, name, product, color, sizes, original_name):
         """
         Pushes a single image to multiple folders based on size.
         This function is designed to be run in a separate thread and is pure.
@@ -71,10 +73,11 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         folders = [f'{product}/{color}/{size}' for size in sizes]
         failed_folders = []
         for folder in folders:
+            time.sleep(random.randint(0,20)/10)
             result = upload_image(image_path=img_bytes, file_name=name, tags=tags, folder=folder)
             if result is None:
                 # Extract the size from the folder path for the error message
-                failed_folders.append(folder.split('/')[-1])
+                failed_folders.append(f'size: {folder.split('/')[-1]}, image: {original_name}')
         return (name, failed_folders)
 
 
@@ -149,7 +152,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                             img_bytes = base64.b64encode(img_obj)
                             # Schedule the pure function to run with all data passed as arguments
                             for color in colors:
-                                futures.append(executor.submit(push_images, img_bytes, f'{name}.jpg', product, color, selected_sizes))
+                                futures.append(executor.submit(push_images, img_bytes, f'{name}.jpg', product, color, selected_sizes, file.name))
                     
                     # Process results as they complete
                     for future in concurrent.futures.as_completed(futures):
@@ -234,7 +237,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                 upload_positions = list(clone_links[clone_link]['positions'])
                 for upload_color in upload_colors:
                     for upload_position in upload_positions:
-                        clone_futures.append(executor.submit(push_images, clone_link, f'{upload_position}.jpg', upload_product, upload_color, upload_sizes))
+                        clone_futures.append(executor.submit(push_images, clone_link, f'{upload_position}.jpg', upload_product, upload_color, upload_sizes, clone_link))
 
             for clone_future in concurrent.futures.as_completed(clone_futures):
                 image_name, failed_folders = clone_future.result()
