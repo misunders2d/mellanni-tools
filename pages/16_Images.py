@@ -23,7 +23,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
     with st.expander('Get links', icon=':material/link:'):
         links_area = st.container()
 
-    with st.expander('Copy images from and old flat file', expanded=False, icon=":material/perm_media:"):
+    with st.expander('Copy images from an old flat file', expanded=False, icon=":material/perm_media:"):
         clone_area = st.container()
 
     progress_bar, progress = st.progress(0.0), 0.0
