@@ -75,7 +75,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
             if result and result.startswith('ERROR:'):
                 # Extract the size from the folder path for the error message
                 failed_reasons.append(f'Path: {folder}, image: {original_name}, {result}')
-        return (name, failed_reasons)
+        return (name, failed_reasons, folders)
 
 
     # Select product and store to session state
@@ -153,7 +153,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                     
                     # Process results as they complete
                     for future in concurrent.futures.as_completed(futures):
-                        image_name, failed_reasond = future.result()
+                        image_name, failed_reasond, folders = future.result()
                         progress += 1/(len(futures))
                         progress_bar.progress(progress, text="Please wait, uploading images")
                         if failed_reasond:
@@ -204,9 +204,10 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         return result
 
 
-    
     clone_file_button = clone_area.file_uploader(label='Upload flat file', type=['xls', 'xlsx', 'xlsm', 'xlsb'])
-    if clone_file_button:
+
+    if clone_file_button and not clone_file_button.file_id in st.session_state:
+        st.session_state[clone_file_button.file_id] = True
         extracted_links = extract_links_for_cloning(clone_file_button)
         clone_links = {}
         for extracted_link in extracted_links:
@@ -237,8 +238,8 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                         clone_futures.append(executor.submit(push_images, clone_link, f'{upload_position}.jpg', upload_product, upload_color, upload_sizes, clone_link))
 
             for clone_future in concurrent.futures.as_completed(clone_futures):
-                image_name, failed_reasons = clone_future.result()
-                st.toast(f'Successfully cloned {image_name}')
+                image_name, failed_reasons, folders = clone_future.result()
+                st.toast(f'Successfully cloned `{", ".join(folders)}`')
                 progress += 1/len(clone_futures)
                 progress_bar.progress(progress, text='Please wait, cloning images...')
 
@@ -252,7 +253,6 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                 st.error('Some images failed to clone. Please see details below:', icon=":material/error:")
                 for failure in failed_clones:
                     st.write(f"Image: **{failure['image']}** failed: `{', '.join(failure['reason'])}`")
-
 
         st.balloons()
 
