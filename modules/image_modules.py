@@ -3,7 +3,6 @@ from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
 from imagekitio.models.ListAndSearchFileRequestOptions import ListAndSearchFileRequestOptions
 import os
 import time
-import requests
 import streamlit as st
 from dotenv import load_dotenv
 load_dotenv()
@@ -20,30 +19,39 @@ imagekit = ImageKit(
 
 
 def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|None=None) -> str | None:
-    # metadata = json.dumps([{"Field label":"1800", "Field name":"new", "Field type":"Text"}])
     options=UploadFileRequestOptions(
         use_unique_file_name=False,
         tags=tags if tags else [''],
         folder=f"/{folder}/" if folder else '',
-        # overwrite_custom_metadata=True,
-        # custom_metadata=json.loads(metadata)
         )
-    try:
-        if isinstance(image_path, str):
-            try:
-                with open(image_path, "rb") as image_file:
-                    upload = imagekit.upload_file(file=image_file, file_name=file_name, options=options)
-            except:
-                upload = imagekit.upload_file(file=image_path, file_name=file_name, options=options)
-        else:
-            upload = imagekit.upload_file(file=image_path, file_name=file_name, options=options)
-        if upload.is_error:
-            print("Error uploading image:", upload.message)
-            return f'ERROR: {upload.message}'
-        else:
-            return upload.url
-    except Exception as e:
-        return f'ERROR: {e}'
+    if isinstance(image_path, str) and os.path.exists(image_path):
+        with open(image_path, "rb") as image_file:
+            image_target = image_file
+    else:
+        image_target = image_path
+    attempts = 0
+    upload = None
+    error = None
+    while attempts < 5:
+        try:
+            upload = imagekit.upload_file(file=image_target, file_name=file_name, options=options)
+            if upload and not upload.is_error:
+                return upload.url
+            elif upload and upload.is_error:
+                time.sleep(2)
+                attempts += 1
+        except Exception as e:
+            error = e
+            time.sleep(2)
+            attempts += 1
+
+    if upload and upload.is_error:
+        return f'ERROR: {upload.message}'
+    elif error:
+        return f'ERROR: {error}'
+    else:
+        return
+
 
 
 def list_files(folder:str|None=None):

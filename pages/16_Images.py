@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import base64
-import time
-import random
 from numpy import nan
 from modules.image_modules import upload_image, list_files
 from modules import gcloud_modules as gc
@@ -73,7 +71,6 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         folders = [f'{product}/{color}/{size}' for size in sizes]
         failed_folders = []
         for folder in folders:
-            time.sleep(random.randint(0,20)/10)
             result = upload_image(image_path=img_bytes, file_name=name, tags=tags, folder=folder)
             if result and result.startswith('ERROR:'):
                 # Extract the size from the folder path for the error message
