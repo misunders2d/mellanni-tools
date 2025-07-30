@@ -6,10 +6,9 @@ import streamlit as st
 from dotenv import load_dotenv
 load_dotenv()
 
-
-endpoint=os.environ.get('IK_ENDPOINT')
-public_key=os.environ.get('IK_PUBLIC_KEY')
-private_key=os.environ.get('IK_PRIVATE_KEY')
+endpoint=os.environ.get('IK_ENDPOINT', st.secrets['IK_ENDPOINT'])
+public_key=os.environ.get('IK_PUBLIC_KEY', st.secrets['IK_PUBLIC_KEY'])
+private_key=os.environ.get('IK_PRIVATE_KEY', st.secrets['IK_PRIVATE_KEY'])
 
 imagekit = ImageKit(
     private_key=private_key,
@@ -42,15 +41,15 @@ def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|N
     except Exception as e:
         print(f"Error while uploading file: {e}")
 
-# url = upload_image('/home/misunderstood/Downloads/main1.jpg', 'main_image.jpg', tags=['test'], folder='/trying3/folder/another folder/')
 
 def list_files(folder:str|None=None):
-    all_files = []
+    result = [['collection','color','size','link', 'position']]
     list_options = ListAndSearchFileRequestOptions(path=folder if folder else '', type='file')
     files = imagekit.list_files()#options=list_options)
     if files and files.list and len(files.list) > 0:
-        print([x.file_path for x in files.list])
-        return files.list[0]
+        images = [x.file_path for x in files.list]
+        for image in images:
+            _, product, color, size, position = image.split('/')
+            result.append([product, color, size, f'{endpoint}{image}', position.split('.')[0]])
+        return result
 
-# img = list_files(folder='test')
-# print(img.custom_metadata)

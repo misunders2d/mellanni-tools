@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import base64
 from modules.image_modules import upload_image, list_files
 from modules import gcloud_modules as gc
@@ -11,11 +12,13 @@ accepted_file_types = '.jpg'
 from login import login_st
 if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com','bohdan@mellanni.com','vitalii@mellanni.com'):
 
-    product_area, color_area, selector_area, size_area = st.columns([6, 6, 2, 6])
-    img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input = st.columns([1,1,1,1,1,1,1,1,1,1])
-    img1_area, img2_area, img3_area, img4_area, img5_area, img6_area, img7_area, img8_area, img9_area, img_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
-
-    links_area = st.container()
+    with st.expander('Upload images', expanded=True, icon=":material/image_arrow_up:"):
+        product_area, color_area, selector_area, size_area = st.columns([6, 6, 2, 6])
+        img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input = st.columns([1,1,1,1,1,1,1,1,1,1])
+        img1_area, img2_area, img3_area, img4_area, img5_area, img6_area, img7_area, img8_area, img9_area, img_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
+    image_names = ['main_image', 'other_image_1', 'other_image_2', 'other_image_3', 'other_image_4', 'other_image_5', 'other_image_6', 'other_image_7', 'other_image_8', 'swatch_image']
+    with st.expander('Get links', icon=':material/link:'):
+        links_area = st.container()
 
     dictionary = gc.pull_dictionary()
     products = sorted(dictionary['collection'].unique().tolist())
@@ -28,17 +31,25 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
 
 
     def create_links():
-        if not 'selected_product' in st.session_state or not st.session_state.selected_product:
-            links_area.warning('No products selected')
-        else:
-            links_dictionary = dictionary[dictionary['collection'] == st.session_state.selected_product]
-            links_colors = links_dictionary['color'].unique()
-            links_sizes = links_dictionary['color'].unique()
-            files = list_files('test_folder')
-            
-            links_area.write(files)
+        files = list_files('test_folder')
+        if files:
+            links = pd.DataFrame(files[1:], columns=files[0])
+            dictionary_links = dictionary[['sku','collection','size','color']].drop_duplicates().copy()
+            dictionary_links[['collection','size','color']] = dictionary_links[['collection','size','color']].map(sanitize_products)
+            sku_links = pd.merge(links, dictionary_links, how = 'left', on = ['collection','size','color'])
+            sku_links = sku_links[['sku','link', 'position']]
+            skus = sku_links['sku'].unique()
+            ordered_links = [pd.DataFrame(columns=image_names)]
+            for sku in skus:
+                link_data = sku_links[sku_links['sku'] == sku]
+                link_data = link_data.pivot(index='sku',columns='position', values='link')
+                ordered_links.append(link_data)
+            ordered_links = pd.concat(ordered_links).reset_index().rename(columns={'index':'sku'})
+            result_links = pd.merge(ordered_links, dictionary[['sku','collection','size','color']], how='left', on='sku')
 
-    links_area.button('Get links', on_click=create_links, disabled=True)
+            links_area.dataframe(result_links, hide_index=True)
+
+    links_area.button('Get links', on_click=create_links, disabled=False, icon=':material/link:')
 
     def push_images(img_bytes, name, product, color, sizes):
         """
@@ -102,7 +113,6 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
             )
         
     image_positions = [img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input]
-    image_names = ['main_image', 'other_image_1', 'other_image_2', 'other_image_3', 'other_image_4', 'other_image_5', 'other_image_6', 'other_image_7', 'other_image_8', 'swatch_image']
     image_areas = [img1_area,img2_area,img3_area,img4_area,img5_area,img6_area,img7_area,img8_area,img9_area,img_swtch_area]
 
     if st.session_state.selected_product and st.session_state.selected_colors and st.session_state.selected_sizes:
