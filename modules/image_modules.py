@@ -2,6 +2,8 @@ from imagekitio import ImageKit
 from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
 from imagekitio.models.ListAndSearchFileRequestOptions import ListAndSearchFileRequestOptions
 import os
+import time
+import requests
 import streamlit as st
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,8 +30,11 @@ def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|N
         )
     try:
         if isinstance(image_path, str):
-            with open(image_path, "rb") as image_file:
-                upload = imagekit.upload_file(file=image_file, file_name=file_name, options=options)
+            try:
+                with open(image_path, "rb") as image_file:
+                    upload = imagekit.upload_file(file=image_file, file_name=file_name, options=options)
+            except:
+                upload = imagekit.upload_file(file=image_path, file_name=file_name, options=options)
         else:
             upload = imagekit.upload_file(file=image_path, file_name=file_name, options=options)
         if upload.is_error:
@@ -52,4 +57,3 @@ def list_files(folder:str|None=None):
             _, product, color, size, position = image.split('/')
             result.append([product, color, size, f'{endpoint}{image}', position.split('.')[0]])
         return result
-
