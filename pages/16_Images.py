@@ -8,7 +8,8 @@ import concurrent.futures
 
 st.set_page_config(layout='wide', initial_sidebar_state='collapsed')
 
-accepted_file_types = '.jpg'
+ACCEPTED_FILE_TYPES = '.jpg'
+MAX_WORKERS=5
 
 from login import login_st
 if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com','bohdan@mellanni.com','vitalii@mellanni.com'):
@@ -126,7 +127,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
 
     # Upload new images
     if st.session_state.selected_product and st.session_state.selected_colors and st.session_state.selected_sizes:
-        files = [position.file_uploader(label=fr"{str(i)}\. {name}") for i, (position, name) in enumerate(list(zip(image_positions, image_names)), start=1)]
+        files = [position.file_uploader(label=fr"{str(i)}\. {name}", type=ACCEPTED_FILE_TYPES) for i, (position, name) in enumerate(list(zip(image_positions, image_names)), start=1)]
         for file, image_zone in list(zip(files,image_areas)):
             if file:
                 image_zone.image(file)
@@ -139,7 +140,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                 selected_sizes = [sanitize_products(x) for x in st.session_state.selected_sizes]
                 
                 failed_uploads = []
-                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                     futures = []
                     for file, name in zip(files, image_names):
                         if file:
@@ -224,7 +225,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         failed_clones = []
         progress_bar.progress(0.0)
         progress = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             clone_futures = []
             for clone_link in clone_links:
                 upload_product = list(clone_links[clone_link]['product'])[0]
