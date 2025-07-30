@@ -75,9 +75,9 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         for folder in folders:
             time.sleep(random.randint(0,20)/10)
             result = upload_image(image_path=img_bytes, file_name=name, tags=tags, folder=folder)
-            if result is None:
+            if result and result.startswith('ERROR:'):
                 # Extract the size from the folder path for the error message
-                failed_folders.append(f'size: {folder.split('/')[-1]}, image: {original_name}')
+                failed_folders.append(f'Path: {folder}, image: {original_name}, {result}')
         return (name, failed_folders)
 
 
