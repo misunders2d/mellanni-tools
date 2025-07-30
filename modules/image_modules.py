@@ -32,14 +32,14 @@ def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|N
     attempts = 0
     upload = None
     error = None
-    while attempts < 5:
+    while attempts < 10:
         try:
             upload = imagekit.upload_file(file=image_target, file_name=file_name, options=options)
             if upload and not upload.is_error:
                 return upload.url
             elif upload and upload.is_error:
-                time.sleep(2)
                 attempts += 1
+                time.sleep(attempts)
         except Exception as e:
             error = e
             time.sleep(2)

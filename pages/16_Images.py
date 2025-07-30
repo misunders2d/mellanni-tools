@@ -69,13 +69,13 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         """
         tags = [product, color] + sizes
         folders = [f'{product}/{color}/{size}' for size in sizes]
-        failed_folders = []
+        failed_reasons = []
         for folder in folders:
             result = upload_image(image_path=img_bytes, file_name=name, tags=tags, folder=folder)
             if result and result.startswith('ERROR:'):
                 # Extract the size from the folder path for the error message
-                failed_folders.append(f'Path: {folder}, image: {original_name}, {result}')
-        return (name, failed_folders)
+                failed_reasons.append(f'Path: {folder}, image: {original_name}, {result}')
+        return (name, failed_reasons)
 
 
     # Select product and store to session state
@@ -153,11 +153,11 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                     
                     # Process results as they complete
                     for future in concurrent.futures.as_completed(futures):
-                        image_name, failed_folders = future.result()
+                        image_name, failed_reasond = future.result()
                         progress += 1/(len(futures))
                         progress_bar.progress(progress, text="Please wait, uploading images")
-                        if failed_folders:
-                            failed_uploads.append({'image': image_name, 'sizes': failed_folders})
+                        if failed_reasond:
+                            failed_uploads.append({'image': image_name, 'reason': failed_reasond})
                         
                     progress_bar.progress(1.0, text="All done")
 
@@ -166,7 +166,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                 else:
                     st.error('Some images failed to upload. Please see details below:')
                     for failure in failed_uploads:
-                        st.write(f"Image: **{failure['image']}** failed for sizes: `{', '.join(failure['sizes'])}`")
+                        st.write(f"Image: **{failure['image']}** failed: `{', '.join(failure['reason'])}`")
 
     # link extraction section
     def extract_links_for_cloning(flat_file_obj):
@@ -237,13 +237,13 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                         clone_futures.append(executor.submit(push_images, clone_link, f'{upload_position}.jpg', upload_product, upload_color, upload_sizes, clone_link))
 
             for clone_future in concurrent.futures.as_completed(clone_futures):
-                image_name, failed_folders = clone_future.result()
+                image_name, failed_reasons = clone_future.result()
                 st.toast(f'Successfully cloned {image_name}')
                 progress += 1/len(clone_futures)
                 progress_bar.progress(progress, text='Please wait, cloning images...')
 
-                if failed_folders:
-                    failed_clones.append({'image': image_name, 'sizes': failed_folders})
+                if failed_reasons:
+                    failed_clones.append({'image': image_name, 'reason': failed_reasons})
             progress_bar.progress(1.0, text='All done')
 
             if not failed_clones:
@@ -251,7 +251,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
             else:
                 st.error('Some images failed to clone. Please see details below:', icon=":material/error:")
                 for failure in failed_clones:
-                    st.write(f"Image: **{failure['image']}** failed for sizes: `{', '.join(failure['sizes'])}`")
+                    st.write(f"Image: **{failure['image']}** failed: `{', '.join(failure['reason'])}`")
 
 
         st.balloons()
