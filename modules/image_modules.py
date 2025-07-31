@@ -4,7 +4,11 @@ from imagekitio.models.ListAndSearchFileRequestOptions import ListAndSearchFileR
 import os
 import time
 import streamlit as st
+import base64
 from dotenv import load_dotenv
+from google.cloud import storage
+from google.oauth2 import service_account
+
 load_dotenv()
 
 endpoint=os.environ.get('IK_ENDPOINT', st.secrets['IK_ENDPOINT'])
@@ -53,6 +57,44 @@ def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|N
         return
 
 
+def upload_image_to_gcs(image_path: str | bytes, file_name: str, tags: dict | None = None, folder: str | None = None) -> str | None:
+    """Uploads an image to Google Cloud Storage and sets its metadata."""
+    bucket_name = "mellanni_images"
+    
+    if folder:
+        blob_name = f"{folder}/{file_name}"
+    else:
+        blob_name = file_name
+
+    attempts = 0
+    error = None
+    while attempts < 10:
+        try:
+            credentials = service_account.Credentials.from_service_account_info(st.secrets['gcp_service_account'])
+            storage_client = storage.Client(credentials=credentials)
+            bucket = storage_client.bucket(bucket_name)
+            blob = bucket.blob(blob_name)
+
+            if isinstance(image_path, str) and os.path.exists(image_path):
+                blob.upload_from_filename(image_path)
+            else:
+                img_bytes = base64.b64decode(image_path)
+                blob.upload_from_string(img_bytes, content_type='image/jpeg')
+
+            if tags:
+                blob.metadata = tags
+                blob.patch()
+
+            return blob.public_url
+        except Exception as e:
+            error = e
+            time.sleep(2)
+            attempts += 1
+    
+    if error:
+        return f'ERROR: {error}'
+    return None
+
 
 def list_files(folder:str|None=None):
     result = [['collection','color','size','link', 'position']]
@@ -64,3 +106,21 @@ def list_files(folder:str|None=None):
             _, product, color, size, position = image.split('/')
             result.append([product, color, size, f'{endpoint}{image}', position.split('.')[0]])
         return result
+
+
+def list_files_gcs(folder: str | None = None):
+    """Lists files in a GCS bucket and returns their metadata."""
+    bucket_name = "mellanni_images"
+    result = [['collection','color','size','link', 'position']]
+    try:
+        credentials = service_account.Credentials.from_service_account_info(st.secrets['gcp_service_account'])
+        storage_client = storage.Client(credentials=credentials)
+        blobs = storage_client.list_blobs(bucket_name, prefix=folder)
+
+        for blob in blobs:
+            product, color, size, position = blob.name.split('/')
+            image = f'{endpoint}/{blob.name}'
+            result.append([product, color, size, image, position.split('.')[0]])
+        return result
+    except Exception as e:
+        return [[f'ERROR: {e}']]

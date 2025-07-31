@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import base64
 from numpy import nan
-from modules.image_modules import upload_image, list_files
+from modules.image_modules import upload_image, list_files, upload_image_to_gcs, list_files_gcs
 from modules import gcloud_modules as gc
 import concurrent.futures
 
@@ -13,11 +13,12 @@ MAX_WORKERS=5
 
 from login import login_st
 if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com','bohdan@mellanni.com','vitalii@mellanni.com'):
-
+    main_area, selector_area = st.columns([10, 2])
+    target: str = selector_area.radio('Select storage', options=['imagekit', 'gcs'], index=1, horizontal=False)
     with st.expander('Upload images', expanded=True, icon=":material/image_arrow_up:"):
-        product_area, color_area, selector_area, size_area = st.columns([6, 6, 2, 6])
-        img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input = st.columns([1,1,1,1,1,1,1,1,1,1])
-        img1_area, img2_area, img3_area, img4_area, img5_area, img6_area, img7_area, img8_area, img9_area, img_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
+        product_area, color_area, selector_area, size_area = main_area.columns([6, 6, 2, 6])
+        img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input = main_area.columns([1,1,1,1,1,1,1,1,1,1])
+        img1_area, img2_area, img3_area, img4_area, img5_area, img6_area, img7_area, img8_area, img9_area, img_swtch_area = main_area.columns([1,1,1,1,1,1,1,1,1,1])
     image_names = ['main_image', 'other_image_1', 'other_image_2', 'other_image_3', 'other_image_4', 'other_image_5', 'other_image_6', 'other_image_7', 'other_image_8', 'swatch_image']
     
     with st.expander('Get links', icon=':material/link:'):
@@ -38,8 +39,11 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         return result
 
 
-    def create_links():
-        files = list_files('test_folder')
+    def create_links(source = target):
+        if source == 'imagekit':
+            files = list_files()
+        else:
+            files = list_files_gcs()
         if files:
             links = pd.DataFrame(files[1:], columns=files[0])
             dictionary_links = dictionary[['sku','collection','size','color']].drop_duplicates().copy()
@@ -61,17 +65,22 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
     links_area.button('Get links', on_click=create_links, disabled=False, icon=':material/link:')
 
 
-    def push_images(img_bytes, name, product, color, sizes, original_name):
+    def push_images(img_bytes, name, product, color, sizes, original_name, destination = target):
         """
         Pushes a single image to multiple folders based on size.
         This function is designed to be run in a separate thread and is pure.
         Returns a tuple containing the image name and a list of folders that failed to upload.
         """
-        tags = [product, color] + sizes
+
         folders = [f'{product}/{color}/{size}' for size in sizes]
         failed_reasons = []
         for folder in folders:
-            result = upload_image(image_path=img_bytes, file_name=name, tags=tags, folder=folder)
+            if destination == 'imagekit':
+                tags = [product, color] + sizes
+                result = upload_image(image_path=img_bytes, file_name=name, tags=tags, folder=folder)
+            else:
+                tags = {'product': product, 'color': color, 'sizes': sizes}
+                result = upload_image_to_gcs(image_path=img_bytes, file_name=name, tags=tags, folder=folder)
             if result and result.startswith('ERROR:'):
                 # Extract the size from the folder path for the error message
                 failed_reasons.append(f'Path: {folder}, image: {original_name}, {result}')
