@@ -14,7 +14,10 @@ MAX_WORKERS=5
 from login import login_st
 if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com','bohdan@mellanni.com','vitalii@mellanni.com'):
     main_area, selector_area = st.columns([10, 2])
-    target: str = selector_area.radio('Select storage', options=['imagekit', 'gcs'], index=1, horizontal=False)
+    target: str = selector_area.radio(
+        'Select storage', options=['imagekit', 'gcs'], index=1, horizontal=False,
+        help='We have two options for image storage, but regardless of the option the links are the same.'
+        )
     with st.expander('Upload images', expanded=True, icon=":material/image_arrow_up:"):
         product_area, color_area, selector_area, size_area = main_area.columns([6, 6, 2, 6])
         img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input = main_area.columns([1,1,1,1,1,1,1,1,1,1])
