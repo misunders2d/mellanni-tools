@@ -8,6 +8,7 @@ import base64
 from dotenv import load_dotenv
 from google.cloud import storage
 from google.oauth2 import service_account
+import requests
 
 load_dotenv()
 
@@ -77,6 +78,14 @@ def upload_image_to_gcs(image_path: str | bytes, file_name: str, tags: dict | No
 
             if isinstance(image_path, str) and os.path.exists(image_path):
                 blob.upload_from_filename(image_path)
+            elif isinstance(image_path, str):
+                # Download image from URL and upload to GCS
+                response = requests.get(image_path)
+                if response.status_code == 200:
+                    blob.upload_from_string(response.content, content_type='image/jpeg')
+                else:
+                    attempts += 1
+                    time.sleep(attempts)
             else:
                 img_bytes = base64.b64decode(image_path)
                 blob.upload_from_string(img_bytes, content_type='image/jpeg')
