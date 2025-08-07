@@ -62,13 +62,15 @@ def get_listing_details(
         'summaries', 'attributes', 'issues', 'offers', 'fulfillmentAvailability', 'procurement', 'relationships', 'productTypes']
         ]
     ):
-    
     listings_client = ListingsItems(credentials=get_amazon_credentials())
-    response = listings_client.get_listings_item(
-        sellerId=SELLER_ID,
-        sku=sku,
-        includedData=include
-    )
+    try:
+        response = listings_client.get_listings_item(
+            sellerId=SELLER_ID,
+            sku=sku,
+            includedData=include
+        )
+    except Exception as e:
+        return
     return response
 
 
@@ -129,7 +131,11 @@ def push_images_to_amazon(skus: list, images_to_push: dict, action: Literal['rep
     
     image_paths = {positions_mapping[position]: link for position, link in images_to_push.items() if position in positions_mapping}
     new_links = ImageAttributes(**image_paths)
-    product_type = get_listing_details(skus[0], include=['summaries']).payload['summaries'][0]['productType']
+    response = get_listing_details(skus[0], include=['summaries'])
+    if response:
+        product_type = response.payload['summaries'][0]['productType']
+    else:
+        return [f"ERROR: Could not retrieve product type for SKU {skus[0]}"]
     results = []
     for sku in skus:
         results.append(update_sc_image(sku=sku, product_type=product_type, op=action, images=new_links))

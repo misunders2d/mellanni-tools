@@ -143,18 +143,17 @@ def list_files_gcs(folder: str | None = None, versions: bool | None = None, incl
 
         for blob in blobs:
             product, color, size, position = blob.name.split('/')
-            # image = blob.download_as_bytes() if versions else f'{endpoint}/{blob.name}'
             image = f'{endpoint}/{blob.name}'
             result.append(
                 {'name': blob.name, 'image': image, 'image_bytes': blob.download_as_bytes() if include_bytes else None,
                  'product': product, 'color': color, 'size': size, 
                  'position': position.split('.')[0], 'generation': blob.generation,
                  'updated': blob.updated
-                 }
-                )
+                 })
         return result
     except Exception as e:
         return [{'ERROR': e}]
+
     
 def update_version_gcs(blob_name: str, blob_generation: str, action: Literal['delete','restore']) -> str:
     """Deletes a specific version of a blob in GCS."""

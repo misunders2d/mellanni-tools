@@ -193,9 +193,9 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                     progress_bar.progress(1.0, text="All done")
 
                 if not failed_uploads:
-                    st.success('All files pushed successfully!')
+                    button_area.success('All files pushed successfully!')
                 else:
-                    st.error('Some images failed to upload. Please see details below:')
+                    button_area.error('Some images failed to upload. Please see details below:')
                     for failure in failed_uploads:
                         st.write(f"Image: **{failure['image']}** failed: `{', '.join(failure['reason'])}`")
 
@@ -292,9 +292,9 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
             progress_bar.progress(1.0, text='All done')
 
             if not failed_clones:
-                st.success('All images cloned successfully!', icon=":material/celebration:")
+                button_area.success('All images cloned successfully!', icon=":material/celebration:")
             else:
-                st.error('Some images failed to clone. Please see details below:', icon=":material/error:")
+                button_area.error('Some images failed to clone. Please see details below:', icon=":material/error:")
                 for failure in failed_clones:
                     st.write(f"Image: **{failure['image']}** failed: `{', '.join(failure['reason'])}`")
 
@@ -309,9 +309,9 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         """Deletes a specific version of a blob in GCS."""
         result = update_version_gcs(blob_name, blob_generation, action)
         if result.startswith('ERROR:'):
-            st.error(result)
+            button_area.error(result)
         else:
-            st.success(result)
+            button_area.success(result)
             # st.cache_data.clear()
 
     def start_push_images_to_amazon(action: Literal['replace','delete'], position = None, image = None):
@@ -335,7 +335,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                 images_to_push = {position: image}
                 
             results = push_images_to_amazon(skus, images_to_push, action=action)
-            st.warning('\n'.join(results), icon=":material/arrow_upward:")
+            button_area.warning('\n'.join(results), icon=":material/arrow_upward:")
 
     img1_view, img2_view, img3_view, img4_view, img5_view, img6_view, img7_view, img8_view, img9_view, img_swtch_view = view_area.columns([1,1,1,1,1,1,1,1,1,1])
     img_view_positions = dict(zip(image_names, [img1_view, img2_view, img3_view, img4_view, img5_view, img6_view, img7_view, img8_view, img9_view, img_swtch_view]))
@@ -365,7 +365,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                         elif image_name in blob['position'] and image_name in image_list:
                             image_list[image_name].append({'name':name, 'image':img, 'image_bytes': img_bytes, 'updated':updated, 'generation':generation, 'position': position})
                 for img in image_list:
-                    image_list[img] = sorted(image_list[img], key=lambda x: x['updated'], reverse=True)
+                    image_list[img] = sorted(image_list[img], key=lambda x: int(x['generation']), reverse=True)
                 # st.write(image_list)
                 for image_name in image_names:
                     if image_name in image_list:
