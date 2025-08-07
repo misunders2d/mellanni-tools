@@ -378,7 +378,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                                 # delete image from GCS and Amazon
                                 img_view_positions[image_name].button(
                                     'Delete Storage / Amazon',
-                                    key=object['generation'],
+                                    key=f'{object['generation']}_delete_completely',
                                     type='tertiary',
                                     icon=':material/delete_forever:',
                                     on_click=start_update_image,
@@ -388,7 +388,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                                     # delete image from GCS only
                                     img_view_positions[image_name].button(
                                         'Delete version',
-                                        key=object['generation'],
+                                        key=f'{object['generation']}_remove',
                                         type='tertiary',
                                         icon=':material/delete_forever:',
                                         on_click=update_image,
@@ -409,7 +409,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                             except Exception as e:
                                 img_view_positions[image_name].error(f'Error loading image: {e}')
                                 img_view_positions[image_name].button(
-                                    'Delete version', key=object['generation'], type='tertiary',
+                                    'Delete version', key=f'{object['generation']}_delete_error', type='tertiary',
                                     on_click=start_update_image,args=(object['name'], object['generation'], 'delete', object['position'], object['image']))
             if not versions_toggle:
                 push_button.button('Push to Amazon', icon=':material/arrow_upward:', help='Push main image to Amazon seller central.',
