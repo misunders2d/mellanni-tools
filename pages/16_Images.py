@@ -375,16 +375,18 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                                     object['image_bytes'],
                                     caption=f'{image_name}, updated: {object['updated'].strftime("%Y-%m-%d %H:%M:%S")}, version: {object['generation']}'
                                     )
-                                # delete image from GCS and Amazon
-                                img_view_positions[image_name].button(
-                                    'Delete Storage / Amazon',
-                                    key=f'{object['generation']}_delete_completely',
-                                    type='tertiary',
-                                    icon=':material/delete_forever:',
-                                    on_click=start_update_image,
-                                    args=(object['name'], object['generation'], 'delete', object['position'], object['image'])
-                                    )
-                                if ver > 0:
+                                if ver == 0:
+                                    # delete image from GCS and Amazon
+                                    img_view_positions[image_name].button(
+                                        'Delete Storage / Amazon',
+                                        key=f'{object['generation']}_delete_completely',
+                                        type='tertiary',
+                                        icon=':material/delete_forever:',
+                                        on_click=start_update_image,
+                                        args=(object['name'], object['generation'], 'delete', object['position'], object['image'])
+                                        )
+                                    img_view_positions[image_name].link_button('Open image', object['image'], icon=':material/open_in_new:', type='tertiary')
+                                elif ver > 0:
                                     # delete image from GCS only
                                     img_view_positions[image_name].button(
                                         'Delete version',
@@ -404,8 +406,6 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                                         on_click=update_image,
                                         args=(object['name'], object['generation'], 'restore')
                                     )
-                                elif ver == 0:
-                                    img_view_positions[image_name].link_button('Open image', object['image'], icon=':material/open_in_new:', type='tertiary')
                             except Exception as e:
                                 img_view_positions[image_name].error(f'Error loading image: {e}')
                                 img_view_positions[image_name].button(
