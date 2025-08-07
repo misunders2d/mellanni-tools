@@ -1,8 +1,9 @@
-import os, requests
+import os, requests, time
 from sp_api.api import ListingsItems
 from typing import List, Literal
 import streamlit as st
 from dotenv import load_dotenv
+from typing import TypedDict, Literal, Dict, List
 load_dotenv()
 
 REFRESH_TOKEN_US=os.environ.get('AMZ_REFRESH_TOKEN_US', st.secrets['AMZ_REFRESH_TOKEN_US'])
@@ -71,37 +72,37 @@ def get_listing_details(
     return response
 
 
-def update_image(
-        sku,
-        product_type,
-        image_path,
-        op: Literal['replace','delete']='replace',
-        attribute_paths: List[Literal[
-            'main_product_image_locator','other_product_image_locator_1',
-            'other_product_image_locator_2','other_product_image_locator_3',
-            'other_product_image_locator_4','other_product_image_locator_5',
-            'other_product_image_locator_6','other_product_image_locator_7',
-            'other_product_image_locator_8','swatch_product_image_locator',
-            ]]=[]
-        ):
+class ImageAttributes(TypedDict, total=False):
+    main_product_image_locator: str
+    other_product_image_locator_1: str
+    other_product_image_locator_2: str
+    other_product_image_locator_3: str
+    other_product_image_locator_4: str
+    other_product_image_locator_5: str
+    other_product_image_locator_6: str
+    other_product_image_locator_7: str
+    other_product_image_locator_8: str
+    swatch_product_image_locator: str
 
+def update_sc_image(
+        sku: str,
+        product_type: str,
+        op: Literal['replace','delete']='replace',
+        images: ImageAttributes = {}
+        ):
+    time.sleep(0.2) # To avoid hitting API rate limits
     listings_client = ListingsItems(credentials=get_amazon_credentials())
     patch_body = {
         "productType": product_type,
         "patches": [
             {
                 "op": op,
-                "path": f"/attributes/{attribute_path}",
-                "value": [
-                    {
-                        "media_location": image_path
-                    }
-                ]
+                "path": f"/attributes/{position}",
+                "value": [{"media_location": link}]
             }
-            for attribute_path in attribute_paths
+            for position, link in images.items()
         ]
     }
-    
     
     try:
         response = listings_client.patch_listings_item(
@@ -110,14 +111,29 @@ def update_image(
             marketplaceIds=MARKETPLACE_IDS,
             body=patch_body
         )
-        print(f"Image updated for {sku} with status {response.payload['status']}\nImage: {image_path}\n\n")
+        return(f"{op.upper()} SUCCESS for {sku} with status {response.payload['status']}:\n {'\n'.join(images)}\n\n")
     except Exception as e:
-        print(f"FAILED to update image for {sku}:\n{e}")
-        return e
+        return(f"ERROR: failed to {op} image for {sku}:\n{e}")
 
-def push_images_to_amazon(product: str, color: str, size: str, position: str, image_url: str) -> None:
-    """
-    Placeholder function for pushing images to Amazon seller central.
-    This function should be implemented with the actual logic for uploading images to Amazon S3.
-    """
-    raise NotImplementedError("This function needs to be implemented.")
+def push_images_to_amazon(skus: list, images_to_push: dict, action: Literal['replace','delete']='replace') -> list:
+    positions_mapping = {'main_image': 'main_product_image_locator',
+                            'other_image_1': 'other_product_image_locator_1',
+                            'other_image_2': 'other_product_image_locator_2',
+                            'other_image_3': 'other_product_image_locator_3',
+                            'other_image_4': 'other_product_image_locator_4',
+                            'other_image_5': 'other_product_image_locator_5',
+                            'other_image_6': 'other_product_image_locator_6',
+                            'other_image_7': 'other_product_image_locator_7',
+                            'other_image_8': 'other_product_image_locator_8',
+                            'swatch_image': 'swatch_product_image_locator'}
+    
+    image_paths = {positions_mapping[position]: link for position, link in images_to_push.items() if position in positions_mapping}
+    new_links = ImageAttributes(**image_paths)
+    product_type = get_listing_details(skus[0], include=['summaries']).payload['summaries'][0]['productType']
+    results = []
+    for sku in skus:
+        results.append(update_sc_image(sku=sku, product_type=product_type, op=action, images=new_links))
+    return results
+
+
+

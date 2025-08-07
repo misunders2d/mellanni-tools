@@ -113,7 +113,7 @@ def upload_image_to_gcs(image_path: str | bytes, file_name: str, tags: dict | No
     return None
 
 
-# @st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
 def list_files(folder:str|None=None, versions: bool | None = None) -> list[dict]:
     result = []
     # list_options = ListAndSearchFileRequestOptions(path=folder if folder else '', type='file')
@@ -131,7 +131,7 @@ def list_files(folder:str|None=None, versions: bool | None = None) -> list[dict]
     else:
         return [{'ERROR': 'No files found'}]
 
-# @st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
 def list_files_gcs(folder: str | None = None, versions: bool | None = None, include_bytes: bool = False) -> list[dict]:
     """Lists files in a GCS bucket and returns their metadata."""
     bucket_name = "mellanni_images"

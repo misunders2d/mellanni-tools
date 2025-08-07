@@ -26,7 +26,7 @@ def list_projects():
     return table_list
 
 @st.cache_data(ttl=3600)
-def pull_dictionary(combine:bool = False, market: str = 'US', full: bool = False, cols = None):
+def pull_dictionary(combine:bool = False, market: str = 'US', full: bool = False, cols = None) -> pd.DataFrame:
     if not full:
         columns = 'sku,asin,fnsku,upc,collection,sub_collection,size,color,short_title'
     elif not cols:

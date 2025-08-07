@@ -2,6 +2,7 @@ import re
 import streamlit as st
 import pandas as pd
 import base64
+from typing import Literal
 from numpy import nan
 from modules.image_modules import (
     upload_image, list_files, upload_image_to_gcs,
@@ -9,6 +10,7 @@ from modules.image_modules import (
     headers
     )
 from modules import gcloud_modules as gc
+from modules.sc_modules import push_images_to_amazon
 import concurrent.futures
 
 st.set_page_config(layout='wide', initial_sidebar_state='collapsed')
@@ -35,6 +37,8 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
 
     with st.expander('Current images', icon=':material/image:', expanded=True):
         view_area = st.container()
+        button_area = st.container()
+        cache_button, push_button, _, _, _ = button_area.columns([1, 1, 1, 1, 1])
         versions_toggle = view_area.checkbox('Show versions', value=False, help='If you want to see the versions of the image, check this box.')
 
     with st.expander('Copy images from an old flat file', expanded=False, icon=":material/perm_media:"):
@@ -296,6 +300,11 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
 
         st.balloons()
 
+    def start_update_image(blob_name: str, blob_generation: str, action, position: str, image: str):
+        start_push_images_to_amazon(action=action, position=position, image=image)
+        update_image(blob_name, blob_generation, action)
+
+
     def update_image(blob_name: str, blob_generation: str, action) -> None:
         """Deletes a specific version of a blob in GCS."""
         result = update_version_gcs(blob_name, blob_generation, action)
@@ -304,6 +313,29 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         else:
             st.success(result)
             # st.cache_data.clear()
+
+    def start_push_images_to_amazon(action: Literal['replace','delete'], position = None, image = None):
+        if all(['selected_product' in st.session_state, 'selected_colors' in st.session_state, 'selected_sizes' in st.session_state]) and all(
+            [len(st.session_state.selected_colors) == 1, len(st.session_state.selected_sizes) == 1]):
+
+            selected_product = st.session_state.selected_product or ""
+            selected_color = st.session_state.selected_colors[0] if st.session_state.selected_colors and st.session_state.selected_colors[0] is not None else ""
+            selected_size = st.session_state.selected_sizes[0] if st.session_state.selected_sizes and st.session_state.selected_sizes[0] is not None else ""
+            skus = dictionary[
+                (dictionary['collection']==selected_product)
+                &
+                (dictionary['color']==selected_color)
+                &
+                (dictionary['size']==selected_size)
+                ]['sku'].unique().tolist()
+            
+            if action == 'replace':
+                images_to_push = {x['position']: x['image'] for x in blobs}
+            else:
+                images_to_push = {position: image}
+                
+            results = push_images_to_amazon(skus, images_to_push, action=action)
+            st.warning('\n'.join(results), icon=":material/arrow_upward:")
 
     img1_view, img2_view, img3_view, img4_view, img5_view, img6_view, img7_view, img8_view, img9_view, img_swtch_view = view_area.columns([1,1,1,1,1,1,1,1,1,1])
     img_view_positions = dict(zip(image_names, [img1_view, img2_view, img3_view, img4_view, img5_view, img6_view, img7_view, img8_view, img9_view, img_swtch_view]))
@@ -327,11 +359,11 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                 image_list = {}
                 for image_name in image_names:
                     for blob in blobs:
-                        name, img, img_bytes, updated, generation = blob['name'], blob['image'], blob['image_bytes'], blob['updated'], blob['generation']
+                        name, img, img_bytes, updated, generation, position = blob['name'], blob['image'], blob['image_bytes'], blob['updated'], blob['generation'], blob['position']
                         if image_name in blob['position'] and image_name not in image_list:
-                            image_list[image_name] = [{'name':name, 'image':img, 'image_bytes': img_bytes, 'updated':updated, 'generation':generation}]
+                            image_list[image_name] = [{'name':name, 'image':img, 'image_bytes': img_bytes, 'updated':updated, 'generation':generation, 'position': position}]
                         elif image_name in blob['position'] and image_name in image_list:
-                            image_list[image_name].append({'name':name, 'image':img, 'image_bytes': img_bytes, 'updated':updated, 'generation':generation})
+                            image_list[image_name].append({'name':name, 'image':img, 'image_bytes': img_bytes, 'updated':updated, 'generation':generation, 'position': position})
                 for img in image_list:
                     image_list[img] = sorted(image_list[img], key=lambda x: x['updated'], reverse=True)
                 # st.write(image_list)
@@ -343,7 +375,17 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                                     object['image_bytes'],
                                     caption=f'{image_name}, updated: {object['updated'].strftime("%Y-%m-%d %H:%M:%S")}, version: {object['generation']}'
                                     )
+                                # delete image from GCS and Amazon
+                                img_view_positions[image_name].button(
+                                    'Delete Storage / Amazon',
+                                    key=object['generation'],
+                                    type='tertiary',
+                                    icon=':material/delete_forever:',
+                                    on_click=start_update_image,
+                                    args=(object['name'], object['generation'], 'delete', object['position'], object['image'])
+                                    )
                                 if ver > 0:
+                                    # delete image from GCS only
                                     img_view_positions[image_name].button(
                                         'Delete version',
                                         key=object['generation'],
@@ -352,6 +394,8 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                                         on_click=update_image,
                                         args=(object['name'], object['generation'], 'delete')
                                         )
+
+
                                     img_view_positions[image_name].button( 
                                         'Restore version',
                                         key=f'{object['generation']}_restore',
@@ -366,15 +410,14 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                                 img_view_positions[image_name].error(f'Error loading image: {e}')
                                 img_view_positions[image_name].button(
                                     'Delete version', key=object['generation'], type='tertiary',
-                                    on_click=update_image,args=(object['name'], object['generation'], 'delete'))
+                                    on_click=start_update_image,args=(object['name'], object['generation'], 'delete', object['position'], object['image']))
             if not versions_toggle:
-                view_area.button('Push to Amazon', icon=':material/arrow_upward:', help='Push main image to Amazon seller central.',
-                    # on_click=lambda: push_images_to_amazon(
-                    # product=selected_product, color=selected_color, size=selected_size, position='main_image',
-                    # image_url=image_list['main_image'][0]['image'] if 'main_image' in image_list else None),
-                    disabled=True, 
+                push_button.button('Push to Amazon', icon=':material/arrow_upward:', help='Push main image to Amazon seller central.',
+                    on_click=start_push_images_to_amazon,
+                    args = ('replace',),
+                    disabled=False, 
                     )
-        # view_area.button('Clear cache', on_click=lambda: st.cache_data.clear(), disabled=False, icon=':material/clear_all:')
+        cache_button.button('Clear cache', on_click=lambda: st.cache_data.clear(), disabled=False, icon=':material/clear_all:')
     except Exception as e:
         view_area.error(f'Error loading images: {e}')
 
