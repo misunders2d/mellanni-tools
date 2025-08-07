@@ -140,6 +140,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-Levenshtein==0.27.1
 python-multipart==0.0.20
+python-amazon-sp-api
 pytz==2025.2
 pyxdg==0.28
 PyYAML==6.0.2
