@@ -25,6 +25,7 @@ imagekit = ImageKit(
 
 MAX_ATTEMPTS = 10
 headers: list[str] = ['collection','color','size','link','position']
+BUCKET_NAME =  "mellanni_images"
 
 
 def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|None=None) -> str | None:
@@ -62,9 +63,11 @@ def upload_image(image_path:str|bytes, file_name:str, tags:list=[], folder:str|N
         return
 
 
-def upload_image_to_gcs(image_path: str | bytes, file_name: str, tags: dict | None = None, folder: str | None = None) -> str | None:
+def upload_image_to_gcs(image_path: str | bytes, file_name: str,
+                        tags: dict | None = None, folder: str | None = None
+                        ) -> str | None:
     """Uploads an image to Google Cloud Storage and sets its metadata."""
-    bucket_name = "mellanni_images"
+    bucket_name = BUCKET_NAME
     
     if folder:
         blob_name = f"{folder}/{file_name}"
@@ -134,12 +137,16 @@ def list_files(folder:str|None=None, versions: bool | None = None) -> list[dict]
 @st.cache_data(ttl=3600)
 def list_files_gcs(folder: str | None = None, versions: bool | None = None, include_bytes: bool = False) -> list[dict]:
     """Lists files in a GCS bucket and returns their metadata."""
-    bucket_name = "mellanni_images"
+    bucket_name = BUCKET_NAME
     result = []
     try:
+        prefix = folder
+        if prefix and not prefix.endswith('/'):
+            prefix = f'{prefix}/'
+
         credentials = service_account.Credentials.from_service_account_info(st.secrets['gcp_service_account'])
         storage_client = storage.Client(credentials=credentials, project=credentials.project_id)
-        blobs = storage_client.list_blobs(bucket_name, prefix=folder, versions=versions)
+        blobs = storage_client.list_blobs(bucket_name, prefix=prefix, versions=versions)
 
         for blob in blobs:
             product, color, size, position = blob.name.split('/')
@@ -157,7 +164,7 @@ def list_files_gcs(folder: str | None = None, versions: bool | None = None, incl
     
 def update_version_gcs(blob_name: str, blob_generation: str, action: Literal['delete','restore']) -> str:
     """Deletes a specific version of a blob in GCS."""
-    bucket_name = "mellanni_images"
+    bucket_name = BUCKET_NAME
     try:
         credentials = service_account.Credentials.from_service_account_info(st.secrets['gcp_service_account'])
         storage_client = storage.Client(credentials=credentials, project=credentials.project_id)
@@ -184,7 +191,7 @@ def delete_noncurrent_versions_gcs(folder: str | None = None) -> list[str]:
     Deletes all noncurrent (older) versions of blobs in the specified GCS folder.
     Returns a list of status messages for each deleted version.
     """
-    bucket_name = "mellanni_images"
+    bucket_name = BUCKET_NAME
     deleted = []
     try:
         credentials = service_account.Credentials.from_service_account_info(st.secrets['gcp_service_account'])

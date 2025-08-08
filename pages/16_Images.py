@@ -66,7 +66,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         else:
             files = list_files_gcs(folder=folder, versions=None, include_bytes=False)
         if files:
-            files = [[x['product'],x['color'],x['size'],x['image'],x['position'],] for x in files]
+            files = [[x['product'],x['color'],x['size'],x['image'],x['position']] for x in files]
             links = pd.DataFrame(files, columns=headers)
             dictionary_links = dictionary[['sku','collection','size','color']].drop_duplicates().copy()
             dictionary_links[['collection','size','color']] = dictionary_links[['collection','size','color']].map(sanitize_products)
@@ -205,7 +205,9 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
 
         try:
             header_file = pd.read_excel(flat_file_obj, sheet_name='Template', skiprows=4, nrows=1)
-            columns = [x for x in header_file.columns if any(['contribution_sku' in x, 'product_image_locator' in x])]
+            columns = [x for x in header_file.columns if any(
+                ['contribution_sku' in x, 'product_image_locator' in x]
+                )]
             flat_file = pd.read_excel(flat_file_obj, sheet_name='Template', skiprows=4, usecols=columns)
             flat_file = flat_file.drop(0)
             image_cols = [x for x in columns if 'sku' not in x]
@@ -231,8 +233,11 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                     pass
         except Exception as e:
             st.warning(f'Please upload a valid flat file template: {e}')
-
-        return result
+        final = {}
+        for r in result:
+            if (r['product'], r['color'], r['size']) not in final:
+                final.update({(r['product'], r['color'], r['size']): r})
+        return [x for x in final.values()]
 
     clone_disable = False if st.user.email == "sergey@mellanni.com" else True
     clone_file_button = clone_area.file_uploader(
