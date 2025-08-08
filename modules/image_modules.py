@@ -84,6 +84,8 @@ def upload_image_to_gcs(image_path: str | bytes, file_name: str,
             bucket = storage_client.bucket(bucket_name)
             blob = bucket.blob(blob_name)
 
+            blob.cache_control = "public, max-age=300"
+
             if isinstance(image_path, str) and os.path.exists(image_path):
                 blob.upload_from_filename(image_path)
             elif isinstance(image_path, str):
