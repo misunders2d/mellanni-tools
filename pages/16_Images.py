@@ -16,7 +16,7 @@ import concurrent.futures
 st.set_page_config(layout='wide', initial_sidebar_state='collapsed')
 
 ACCEPTED_FILE_TYPES = '.jpg'
-MAX_WORKERS=5
+MAX_WORKERS=10
 
 from login import login_st
 if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com','bohdan@mellanni.com','vitalii@mellanni.com', '2djohar@gmail.com'):
@@ -80,12 +80,12 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                 ordered_links.append(link_data)
             ordered_links = pd.concat(ordered_links).reset_index().rename(columns={'index':'sku'})
             st.session_state.result_links = pd.merge(ordered_links, dictionary[['sku','collection','size','color']], how='left', on='sku')
-            if 'result_links' in st.session_state:
-                links_area.dataframe(st.session_state.result_links, hide_index=True)
 
 
     links_area.button('Get links', on_click=create_links, disabled=False, icon=':material/link:')
 
+    if 'result_links' in st.session_state:
+        links_area.dataframe(st.session_state.result_links, hide_index=True)
 
     def push_images(img_bytes, name, product, color, sizes, original_name, destination = target):
         """
