@@ -214,11 +214,14 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
             flat_file = flat_file.rename(columns=dict(zip(image_cols, image_names)))
             sku_col = [x for x in flat_file.columns if 'sku' in x][0]
             flat_file = flat_file.rename(columns={sku_col:'sku'})
+            dictionary_skus = dictionary['sku'].unique().tolist()
 
-            main_image_col = 'main_image'
-            flat_file = flat_file.dropna(subset = main_image_col)
+            # main_image_col = 'main_image'
+            # flat_file = flat_file.dropna(subset = main_image_col)
             flat_file_skus = flat_file['sku'].unique()
             for ffs in flat_file_skus:
+                if not ffs in dictionary_skus:
+                    continue
                 row = {}
                 sku_flat_file = flat_file[flat_file['sku']==ffs]
                 row['sku'] = ffs
