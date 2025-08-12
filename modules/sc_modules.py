@@ -1,5 +1,5 @@
 import os, requests, time
-from sp_api.api import ListingsItems, CatalogItems
+from sp_api.api import ListingsItems
 from typing import List, Literal
 import streamlit as st
 from dotenv import load_dotenv
@@ -10,7 +10,17 @@ REFRESH_TOKEN_US=os.environ.get('AMZ_REFRESH_TOKEN_US', st.secrets['AMZ_REFRESH_
 SELLER_ID = os.environ.get('AMZ_SELLER_ID', st.secrets['AMZ_SELLER_ID'])
 MARKETPLACE_IDS = MARKETPLACE_IDS=["ATVPDKIKX0DER"]
 
-SKU = 'M-TH-BLANKET-CASHM-QUEEN-HBONE-YELLOW'
+positions_mapping = {'main_image': 'main_product_image_locator',
+                        'other_image_1': 'other_product_image_locator_1',
+                        'other_image_2': 'other_product_image_locator_2',
+                        'other_image_3': 'other_product_image_locator_3',
+                        'other_image_4': 'other_product_image_locator_4',
+                        'other_image_5': 'other_product_image_locator_5',
+                        'other_image_6': 'other_product_image_locator_6',
+                        'other_image_7': 'other_product_image_locator_7',
+                        'other_image_8': 'other_product_image_locator_8',
+                        'swatch_image': 'swatch_product_image_locator'}
+
 
 def get_amazon_credentials():
     credentials = dict(
@@ -56,35 +66,21 @@ def get_access_token():
             print(f"LWA Response error: {e.response.text}")
             
 
-def get_asin_details(
-        asin,
-        include: List[Literal[
-            'images', 'attributes', 'summaries', 'identifiers', 'classifications',
-            'dimensions', 'productTypes', 'salesRanks', 'relationships', 'vendorDetails']
-            ] = ['images']
-            ):
-    catalog_items = CatalogItems(credentials=get_amazon_credentials())
+def extract_sku_images(listing_details):
+    images = listing_details.payload['attributes']
+    image_lists = [x for x in images if 'product_image_locator' in x]
+    image_links = {x: images[x][0]['media_location'] for x in image_lists}
+    reverse_mapping = {v: k for k, v in positions_mapping.items()}
+    image_links = {reverse_mapping.get(k, k): v for k, v in image_links.items()}
     
-    response = catalog_items.get_catalog_item(
-        asin=asin,
-        marketplaceIds=["ATVPDKIKX0DER"],
-        includedData=include
-        )
-    return response
-
-
-def extract_asin_images(asin_details):
-    images = asin_details.payload.get('images', {})
-    image_lists = images[0]['images']
-    image_links = [{'position':x['variant'],'link':x['link']} for x in image_lists if x['height'] == 500]
-    image_links = sorted(image_links, key=lambda x: x['position'])
     return image_links
 
 
 def get_listing_details(
     sku: str,
     include: List[Literal[
-        'summaries', 'attributes', 'issues', 'offers', 'fulfillmentAvailability', 'procurement', 'relationships', 'productTypes']
+        'summaries', 'attributes', 'issues', 'offers',
+        'fulfillmentAvailability', 'procurement', 'relationships', 'productTypes']
         ]
     ):
     listings_client = ListingsItems(credentials=get_amazon_credentials())
@@ -143,16 +139,6 @@ def update_sc_image(
         return(f"ERROR: failed to {op} image for {sku}:\n{e}")
 
 def push_images_to_amazon(skus: list, images_to_push: dict, action: Literal['replace','delete']='replace') -> list[str]:
-    positions_mapping = {'main_image': 'main_product_image_locator',
-                            'other_image_1': 'other_product_image_locator_1',
-                            'other_image_2': 'other_product_image_locator_2',
-                            'other_image_3': 'other_product_image_locator_3',
-                            'other_image_4': 'other_product_image_locator_4',
-                            'other_image_5': 'other_product_image_locator_5',
-                            'other_image_6': 'other_product_image_locator_6',
-                            'other_image_7': 'other_product_image_locator_7',
-                            'other_image_8': 'other_product_image_locator_8',
-                            'swatch_image': 'swatch_product_image_locator'}
     
     image_paths = {positions_mapping[position]: link for position, link in images_to_push.items() if position in positions_mapping}
     new_links = ImageAttributes(**image_paths)

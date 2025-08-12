@@ -10,7 +10,7 @@ from modules.image_modules import (
     headers
     )
 from modules import gcloud_modules as gc
-from modules.sc_modules import push_images_to_amazon, get_asin_details, extract_asin_images
+from modules.sc_modules import push_images_to_amazon, get_listing_details, extract_sku_images
 import concurrent.futures
 
 st.set_page_config(layout='wide', initial_sidebar_state='collapsed')
@@ -25,11 +25,10 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
     dictionary = gc.pull_dictionary()
 
     with st.expander('Images on Amazon', expanded=False, icon=":material/image:"):
-        amz_img_names = ["MAIN","PT01","PT02","PT03","PT04","PT05","PT06","PT07","PT08","SWATCH"]
         amz1_area, amz2_area, amz3_area, amz4_area, amz5_area, amz6_area, amz7_area, amz8_area, amz9_area, amz_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
         get_images_area, view_amaon_area, _ = st.columns([3, 1, 3])
 
-        amz_positions = dict(zip(amz_img_names, [amz1_area, amz2_area, amz3_area, amz4_area, amz5_area, amz6_area, amz7_area, amz8_area, amz9_area, amz_swtch_area]))
+        amz_positions = dict(zip(image_names, [amz1_area, amz2_area, amz3_area, amz4_area, amz5_area, amz6_area, amz7_area, amz8_area, amz9_area, amz_swtch_area]))
         if get_images_area.button('Get ASIN images', icon=':material/refresh:', type='tertiary'):
             if all(['selected_product' in st.session_state, 'selected_colors' in st.session_state, 'selected_sizes' in st.session_state]) and all(
                 [len(st.session_state.selected_colors) == 1, len(st.session_state.selected_sizes) == 1]):
@@ -38,18 +37,17 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                     selected_product = st.session_state.selected_product or ""
                     selected_color = st.session_state.selected_colors[0] if st.session_state.selected_colors and st.session_state.selected_colors[0] is not None else ""
                     selected_size = st.session_state.selected_sizes[0] if st.session_state.selected_sizes and st.session_state.selected_sizes[0] is not None else ""
-                    asin = dictionary[
+                    sku, asin = dictionary[
                         (dictionary['collection']==selected_product)
                         &
                         (dictionary['color']==selected_color)
                         &
                         (dictionary['size']==selected_size)
-                        ]['asin'].unique().tolist()[0]
-                    asin_details = extract_asin_images(get_asin_details(asin))
+                        ][['sku','asin']].values[0]
+                    sku_details = extract_sku_images(get_listing_details(sku, include=['attributes']))
 
-                    for image in asin_details:
-                        position = image['position']
-                        link = image['link']
+                    for position, link in sku_details.items():
+
                         if position in amz_positions:
                             amz_positions[position].image(link, caption=position)
 
