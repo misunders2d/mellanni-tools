@@ -13,7 +13,8 @@ from typing import Literal
 
 load_dotenv()
 
-endpoint=os.environ.get('IK_ENDPOINT', st.secrets['IK_ENDPOINT'])
+# endpoint=os.environ.get('IK_ENDPOINT', st.secrets['IK_ENDPOINT'])
+endpoint = 'https://storage.googleapis.com/mellanni_images'
 public_key=os.environ.get('IK_PUBLIC_KEY', st.secrets['IK_PUBLIC_KEY'])
 private_key=os.environ.get('IK_PRIVATE_KEY', st.secrets['IK_PRIVATE_KEY'])
 
@@ -151,10 +152,11 @@ def list_files_gcs(folder: str | None = None, versions: bool | None = None, incl
         blobs = storage_client.list_blobs(bucket_name, prefix=prefix, versions=versions)
 
         for blob in blobs:
+            public_url = blob.public_url
+            version_url = f'{public_url}?generation={blob.generation}' if versions else public_url
             product, color, size, position = blob.name.split('/')
-            image = f'{endpoint}/{blob.name}'
             result.append(
-                {'name': blob.name, 'image': image, 'image_bytes': blob.download_as_bytes() if include_bytes else None,
+                {'name': blob.name, 'image': version_url, 'image_bytes': blob.download_as_bytes() if include_bytes else None,
                  'product': product, 'color': color, 'size': size, 
                  'position': position.split('.')[0], 'generation': blob.generation,
                  'updated': blob.updated

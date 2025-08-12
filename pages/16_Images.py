@@ -10,7 +10,7 @@ from modules.image_modules import (
     headers
     )
 from modules import gcloud_modules as gc
-from modules.sc_modules import push_images_to_amazon
+from modules.sc_modules import push_images_to_amazon, get_asin_details, extract_asin_images
 import concurrent.futures
 
 st.set_page_config(layout='wide', initial_sidebar_state='collapsed')
@@ -21,16 +21,57 @@ MAX_WORKERS=10
 from login import login_st
 if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com','bohdan@mellanni.com','vitalii@mellanni.com', '2djohar@gmail.com'):
 
+    image_names = ['main_image', 'other_image_1', 'other_image_2', 'other_image_3', 'other_image_4', 'other_image_5', 'other_image_6', 'other_image_7', 'other_image_8', 'swatch_image']
+    dictionary = gc.pull_dictionary()
+
+    with st.expander('Images on Amazon', expanded=False, icon=":material/image:"):
+        amz_img_names = ["MAIN","PT01","PT02","PT03","PT04","PT05","PT06","PT07","PT08","SWATCH"]
+        amz1_area, amz2_area, amz3_area, amz4_area, amz5_area, amz6_area, amz7_area, amz8_area, amz9_area, amz_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
+        get_images_area, view_amaon_area, _ = st.columns([3, 1, 3])
+
+        amz_positions = dict(zip(amz_img_names, [amz1_area, amz2_area, amz3_area, amz4_area, amz5_area, amz6_area, amz7_area, amz8_area, amz9_area, amz_swtch_area]))
+        if get_images_area.button('Get ASIN images', icon=':material/refresh:', type='tertiary'):
+            if all(['selected_product' in st.session_state, 'selected_colors' in st.session_state, 'selected_sizes' in st.session_state]) and all(
+                [len(st.session_state.selected_colors) == 1, len(st.session_state.selected_sizes) == 1]):
+
+                try:
+                    selected_product = st.session_state.selected_product or ""
+                    selected_color = st.session_state.selected_colors[0] if st.session_state.selected_colors and st.session_state.selected_colors[0] is not None else ""
+                    selected_size = st.session_state.selected_sizes[0] if st.session_state.selected_sizes and st.session_state.selected_sizes[0] is not None else ""
+                    asin = dictionary[
+                        (dictionary['collection']==selected_product)
+                        &
+                        (dictionary['color']==selected_color)
+                        &
+                        (dictionary['size']==selected_size)
+                        ]['asin'].unique().tolist()[0]
+                    asin_details = extract_asin_images(get_asin_details(asin))
+
+                    for image in asin_details:
+                        position = image['position']
+                        link = image['link']
+                        if position in amz_positions:
+                            amz_positions[position].image(link, caption=position)
+
+                    # Insert a link to the Amazon ASIN page
+                    if asin:
+                        amazon_url = f"https://www.amazon.com/dp/{asin}"
+                        view_amaon_area.markdown(f"[View on Amazon]({amazon_url})", unsafe_allow_html=True)
+                except:
+                    st.warning('Please select a product, color and size first.')
+
+            else:
+                st.warning('Please select a product, color and size first.')
+
     with st.expander('Upload images', expanded=True, icon=":material/image_arrow_up:"):
         product_area, color_area, selector_area, size_area, storage_selector_area = st.columns([6, 6, 2, 6, 2])
         img1_input, img2_input, img3_input, img4_input, img5_input, img6_input, img7_input, img8_input, img9_input, swtch_input = st.columns([1,1,1,1,1,1,1,1,1,1])
         img1_area, img2_area, img3_area, img4_area, img5_area, img6_area, img7_area, img8_area, img9_area, img_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
         
     target: str = storage_selector_area.radio(
-        'Select storage', options=['imagekit', 'gcs'], index=1, horizontal=False,
+        'Select storage', options=['imagekit', 'gcs'], index=1, horizontal=False, disabled=True,
         help='We have two options for image storage, but regardless of the option the links are the same.'
         )
-    image_names = ['main_image', 'other_image_1', 'other_image_2', 'other_image_3', 'other_image_4', 'other_image_5', 'other_image_6', 'other_image_7', 'other_image_8', 'swatch_image']
     
     with st.expander('Get links', icon=':material/link:'):
         links_area = st.container()
@@ -45,7 +86,6 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
         clone_area = st.container()
 
     progress_bar, progress = st.progress(0.0), 0.0
-    dictionary = gc.pull_dictionary()
     products = sorted(dictionary['collection'].unique().tolist())
 
     def sanitize_products(product: str):
@@ -360,7 +400,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
             blobs = list_files_gcs(
                 folder=f"{sanitize_products(selected_product)}/{sanitize_products(selected_color)}/{sanitize_products(selected_size)}",
                 versions=versions_toggle,
-                include_bytes=True
+                include_bytes=False
             )
             # view_area.write(blobs)
             if blobs:
@@ -380,7 +420,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                         for ver, object in enumerate(image_list[image_name]):
                             try:
                                 img_view_positions[image_name].image(
-                                    object['image_bytes'],
+                                    object['image'],
                                     caption=f'{image_name}, updated: {object['updated'].strftime("%Y-%m-%d %H:%M:%S")}, version: {object['generation']}'
                                     )
                                 if ver == 0:

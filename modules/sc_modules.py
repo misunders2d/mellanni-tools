@@ -1,5 +1,5 @@
 import os, requests, time
-from sp_api.api import ListingsItems
+from sp_api.api import ListingsItems, CatalogItems
 from typing import List, Literal
 import streamlit as st
 from dotenv import load_dotenv
@@ -56,6 +56,31 @@ def get_access_token():
             print(f"LWA Response error: {e.response.text}")
             
 
+def get_asin_details(
+        asin,
+        include: List[Literal[
+            'images', 'attributes', 'summaries', 'identifiers', 'classifications',
+            'dimensions', 'productTypes', 'salesRanks', 'relationships', 'vendorDetails']
+            ] = ['images']
+            ):
+    catalog_items = CatalogItems(credentials=get_amazon_credentials())
+    
+    response = catalog_items.get_catalog_item(
+        asin=asin,
+        marketplaceIds=["ATVPDKIKX0DER"],
+        includedData=include
+        )
+    return response
+
+
+def extract_asin_images(asin_details):
+    images = asin_details.payload.get('images', {})
+    image_lists = images[0]['images']
+    image_links = [{'position':x['variant'],'link':x['link']} for x in image_lists if x['height'] == 500]
+    image_links = sorted(image_links, key=lambda x: x['position'])
+    return image_links
+
+
 def get_listing_details(
     sku: str,
     include: List[Literal[
@@ -91,7 +116,7 @@ def update_sc_image(
         product_type: str,
         op: Literal['replace','delete']='replace',
         images: ImageAttributes = {}
-        ):
+        ) -> str:
     time.sleep(0.2) # To avoid hitting API rate limits
     listings_client = ListingsItems(credentials=get_amazon_credentials())
     patch_body = {
@@ -117,7 +142,7 @@ def update_sc_image(
     except Exception as e:
         return(f"ERROR: failed to {op} image for {sku}:\n{e}")
 
-def push_images_to_amazon(skus: list, images_to_push: dict, action: Literal['replace','delete']='replace') -> list:
+def push_images_to_amazon(skus: list, images_to_push: dict, action: Literal['replace','delete']='replace') -> list[str]:
     positions_mapping = {'main_image': 'main_product_image_locator',
                             'other_image_1': 'other_product_image_locator_1',
                             'other_image_2': 'other_product_image_locator_2',
