@@ -1,4 +1,5 @@
 import streamlit as st
+
 # from typing import Final
 # from openai import OpenAI, NotFoundError
 # from openai.types.beta.thread import Thread
@@ -39,12 +40,12 @@ import streamlit as st
 #                 }
 #             }
 #         ]
-#     result = index.upsert(vectors = vectors, namespace = NAMESPACE)    
+#     result = index.upsert(vectors = vectors, namespace = NAMESPACE)
 #     return result
 
 # def delete_record_from_vector(key: str):
 #     index.delete(ids=[key], namespace=NAMESPACE)
-    
+
 # def modify_record_vector(key: str, text: tuple):
 #     current_record = index.fetch(ids = [key], namespace = NAMESPACE)
 #     problem, solution = text
@@ -93,60 +94,67 @@ import streamlit as st
 
 
 ##################################### PAGE CONFIG #######################################
-st.set_page_config(page_title = 'Mellanni knowledge base', page_icon = 'media/logo.ico',layout="wide",initial_sidebar_state='collapsed')
+st.set_page_config(
+    page_title="Mellanni knowledge base",
+    page_icon="media/logo.ico",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
-st.subheader('Mellanni Amazon knowledge database')
-st.write("Tips and tricks on resolving non-ordinary Amazon-related issues.\nAsk a question in any language and see if there's any useful solution.\nIf not - please contact sergey@mellanni.com")
+st.subheader("Mellanni Amazon knowledge database")
+st.write(
+    "Tips and tricks on resolving non-ordinary Amazon-related issues.\nAsk a question in any language and see if there's any useful solution.\nIf not - please contact sergey@mellanni.com"
+)
 
-from login import login_st
-if login_st():
+from login import require_login
 
-    ###  previous chat-like interface - obsolete, using NotebookLM instead
-    # st.session_state.query = st.text_input('What is your question?')
-    # prefix_container = st.empty()
-    # summary_container = st.container(height = 500)
-    # mid_section = st.empty()
-    # raw_container = st.container(height = 400)
+require_login()
 
-    # if prefix_container.button('Submit'):
-    #     # prefix_container.write(f'Your question: {st.session_state.query}')
-    #     prefix_container.write(f"""Here's the AI summary for "{st.session_state.query}":""")
-    #     vector_results = vector_search(st.session_state.query)
-    #     # st.write(results)
-    #     # st.write(type(results))
+###  previous chat-like interface - obsolete, using NotebookLM instead
+# st.session_state.query = st.text_input('What is your question?')
+# prefix_container = st.empty()
+# summary_container = st.container(height = 500)
+# mid_section = st.empty()
+# raw_container = st.container(height = 400)
 
-    #     search_results = '\n\n'.join(
-    #         [
-    #             f"""Problem: {x['metadata']['problem']}
-    #             \nsolution: {x['metadata']['solution']}
-    #             \nDate created: {x['metadata']['date_created']}
-    #             \nDate modified: {x['metadata']['date_modified']}"""\
-    #             for x in vector_results.matches
-    #         ]
-    #     )
+# if prefix_container.button('Submit'):
+#     # prefix_container.write(f'Your question: {st.session_state.query}')
+#     prefix_container.write(f"""Here's the AI summary for "{st.session_state.query}":""")
+#     vector_results = vector_search(st.session_state.query)
+#     # st.write(results)
+#     # st.write(type(results))
 
-    #     response = get_response(st.session_state.query, search_results)
-    #     summary_container.write_stream(response)
+#     search_results = '\n\n'.join(
+#         [
+#             f"""Problem: {x['metadata']['problem']}
+#             \nsolution: {x['metadata']['solution']}
+#             \nDate created: {x['metadata']['date_created']}
+#             \nDate modified: {x['metadata']['date_modified']}"""\
+#             for x in vector_results.matches
+#         ]
+#     )
 
-    #     mid_section.write(f"Here's the most relevant raw results:")
+#     response = get_response(st.session_state.query, search_results)
+#     summary_container.write_stream(response)
 
-    #     for result in vector_results.matches:
-    #         problem = result.metadata['problem']
-    #         solution = result.metadata['solution']
-    #         relevance = result['score']
-    #         dates = f"created on {result.metadata['date_created']}, modified on {result.metadata['date_modified']}"
-    #         raw_container.markdown(f"Problem: {problem} (relevance score is {relevance})")
-    #         raw_container.markdown(f"Solution: {solution}\n")
-    #         raw_container.markdown(dates)
-    #         raw_container.markdown(f'DB key: {result.id}')
-    #         raw_container.write('--------------------')
+#     mid_section.write(f"Here's the most relevant raw results:")
+
+#     for result in vector_results.matches:
+#         problem = result.metadata['problem']
+#         solution = result.metadata['solution']
+#         relevance = result['score']
+#         dates = f"created on {result.metadata['date_created']}, modified on {result.metadata['date_modified']}"
+#         raw_container.markdown(f"Problem: {problem} (relevance score is {relevance})")
+#         raw_container.markdown(f"Solution: {solution}\n")
+#         raw_container.markdown(dates)
+#         raw_container.markdown(f'DB key: {result.id}')
+#         raw_container.write('--------------------')
 
 
-    st.image("media/obsolete.jpg", width=400)
-    st.markdown(
-        """
-        ### This page is obsolete and will be removed in the future.
-        ### Please use this [NotebookLM](https://notebooklm.google.com/notebook/2577443c-82b9-473b-8616-9961217e461d) knowledge base instead.
-        """
-    )
-
+st.image("media/obsolete.jpg", width=400)
+st.markdown(
+    """
+    ### This page is obsolete and will be removed in the future.
+    ### Please use this [NotebookLM](https://notebooklm.google.com/notebook/2577443c-82b9-473b-8616-9961217e461d) knowledge base instead.
+    """
+)
