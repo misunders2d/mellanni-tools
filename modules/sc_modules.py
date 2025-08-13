@@ -143,8 +143,10 @@ def push_images_to_amazon(skus: list, images_to_push: dict, action: Literal['rep
     image_paths = {positions_mapping[position]: link for position, link in images_to_push.items() if position in positions_mapping}
     new_links = ImageAttributes(**image_paths)
     response = get_listing_details(skus[0], include=['summaries'])
-    if response:
+    if response and response.payload['summaries']:
         product_type = response.payload['summaries'][0]['productType']
+    elif response and not response.payload['summaries']:
+        product_type = 'BED_LINEN_SET'
     else:
         return [f"ERROR: Could not retrieve product type for SKU {skus[0]}"]
     results = []
