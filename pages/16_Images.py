@@ -54,7 +54,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
                     # Insert a link to the Amazon ASIN page
                     if asin:
                         amazon_url = f"https://www.amazon.com/dp/{asin}"
-                        view_amaon_area.markdown(f"[View on Amazon]({amazon_url})", unsafe_allow_html=True)
+                        view_amaon_area.markdown(f"[View on Amazon (SKU: {sku})]({amazon_url})", unsafe_allow_html=True)
                 except:
                     st.warning('Either properly select a product, color and size, or the product does not have an ASIN assigned.', icon="⚠️")
 
