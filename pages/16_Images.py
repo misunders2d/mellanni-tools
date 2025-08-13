@@ -26,7 +26,7 @@ if login_st() and st.user.email in ('sergey@mellanni.com','ruslan@mellanni.com',
 
     with st.expander('Images on Amazon', expanded=False, icon=":material/image:"):
         amz1_area, amz2_area, amz3_area, amz4_area, amz5_area, amz6_area, amz7_area, amz8_area, amz9_area, amz_swtch_area = st.columns([1,1,1,1,1,1,1,1,1,1])
-        get_images_area, view_amaon_area, _ = st.columns([3, 1, 3])
+        get_images_area, view_amaon_area, _ = st.columns([3, 3, 1])
 
         amz_positions = dict(zip(image_names, [amz1_area, amz2_area, amz3_area, amz4_area, amz5_area, amz6_area, amz7_area, amz8_area, amz9_area, amz_swtch_area]))
         if get_images_area.button('Get ASIN images', icon=':material/refresh:', type='tertiary'):
