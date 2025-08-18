@@ -28,15 +28,23 @@ MAX_WORKERS = 10
 from login import require_login
 
 require_login()
-if not st.user.email in (
+
+full_access_users = (
     "sergey@mellanni.com",
     "ruslan@mellanni.com",
     "bohdan@mellanni.com",
     "vitalii@mellanni.com",
-    "2djohar@gmail.com",
-):
+)
+
+read_only_users = ("ethan@mellanni.com", "2djohar@gmail.com")
+
+allowed_users = full_access_users + read_only_users
+
+if not st.user.email in allowed_users:
     st.warning("Only Amazon team has access to this tool.", icon="🔥")
     st.stop()
+
+visibility = True if st.user.email in full_access_users else False
 
 image_names = [
     "main_image",
@@ -131,10 +139,13 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
                 # Insert a link to the Amazon ASIN page
                 if asin:
                     amazon_url = f"https://www.amazon.com/dp/{asin}"
-                    view_amaon_area.markdown(
-                        f"[View on Amazon (SKU: {sku})]({amazon_url})",
-                        unsafe_allow_html=True,
+                    view_amaon_area.link_button(
+                        f"View on Amazon (SKU: {sku})",
+                        amazon_url,
+                        type="tertiary",
+                        icon=":material/open_in_new:",
                     )
+
             except:
                 st.warning(
                     "Either properly select a product, color and size, or the product does not have an ASIN assigned.",
@@ -144,7 +155,9 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
         else:
             st.warning("Please select a product, color and size first.")
 
-with st.expander("Upload images", expanded=True, icon=":material/image_arrow_up:"):
+with st.expander(
+    "Select a product or upload images", expanded=True, icon=":material/image_arrow_up:"
+):
     product_area, color_area, selector_area, size_area, storage_selector_area = (
         st.columns([6, 6, 2, 6, 2])
     )
@@ -192,7 +205,7 @@ with st.expander("Current images", icon=":material/image:", expanded=True):
     versions_toggle = view_area.checkbox(
         "Show versions",
         value=False,
-        help="If you want to see the versions of the image, check this box.",
+        help="If you want to see the version history of the image, check this box.",
     )
 
 with st.expander(
@@ -259,7 +272,7 @@ def create_links(source=target):
 
 
 links_area.button(
-    "Get links", on_click=create_links, disabled=False, icon=":material/link:"
+    "Get links", on_click=create_links, disabled=not visibility, icon=":material/link:"
 )
 
 if "result_links" in st.session_state:
@@ -380,7 +393,11 @@ if (
     and st.session_state.selected_sizes
 ):
     files = [
-        position.file_uploader(label=rf"{str(i)}\. {name}", type=ACCEPTED_FILE_TYPES)
+        position.file_uploader(
+            label=rf"{str(i)}\. {name}",
+            type=ACCEPTED_FILE_TYPES,
+            disabled=not visibility,
+        )
         for i, (position, name) in enumerate(
             list(zip(image_positions, image_names)), start=1
         )
@@ -390,7 +407,7 @@ if (
             image_zone.image(file)
 
     if any([file is not None for file in files]):
-        if st.button("Submit"):
+        if st.button("Submit", disabled=not visibility):
             # Get session state data once in the main thread
             product = sanitize_products(st.session_state.selected_product)
             colors = [sanitize_products(x) for x in st.session_state.selected_colors]
@@ -756,6 +773,7 @@ try:
                                     key=f"{object['generation']}_delete_completely",
                                     type="tertiary",
                                     icon=":material/delete_forever:",
+                                    disabled=not visibility,
                                     on_click=start_update_image,
                                     args=(
                                         object["name"],
@@ -778,6 +796,7 @@ try:
                                     key=f"{object['generation']}_remove",
                                     type="tertiary",
                                     icon=":material/delete_forever:",
+                                    disabled=not visibility,
                                     on_click=update_image,
                                     args=(
                                         object["name"],
@@ -791,6 +810,7 @@ try:
                                     key=f"{object['generation']}_restore",
                                     type="tertiary",
                                     icon=":material/restore_from_trash:",
+                                    disabled=not visibility,
                                     on_click=update_image,
                                     args=(
                                         object["name"],
@@ -806,6 +826,7 @@ try:
                                 "Delete version",
                                 key=f"{object['generation']}_delete_error",
                                 type="tertiary",
+                                disabled=not visibility,
                                 on_click=start_update_image,
                                 args=(
                                     object["name"],
@@ -820,9 +841,9 @@ try:
                 "Push to Amazon",
                 icon=":material/arrow_upward:",
                 help="Push main image to Amazon seller central.",
+                disabled=not visibility,
                 on_click=start_push_images_to_amazon,
                 args=("replace",),
-                disabled=False,
             )
     cache_button.button(
         "Clear cache",

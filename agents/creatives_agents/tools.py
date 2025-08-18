@@ -19,16 +19,17 @@ from io import BytesIO
 import pandas as pd
 from google.cloud import storage
 
-SPREADSHEET_ID='1UhZplWd4sg8Mhd0Xd4Gb-6jMy2z_DYcUicEBrmJZL9M'
-FOLDER_ID='1vClPSrDJi16PnvvGoSYeghcCU0WU0Sxw'
-CREDS_FILE=st.secrets["gsheets-access"]
-STORAGE_BUCKET='image-generations-from-agents'
+SPREADSHEET_ID = "1UhZplWd4sg8Mhd0Xd4Gb-6jMy2z_DYcUicEBrmJZL9M"
+FOLDER_ID = "1vClPSrDJi16PnvvGoSYeghcCU0WU0Sxw"
+CREDS_FILE = st.secrets["gsheets-access"]
+STORAGE_BUCKET = "image-generations-from-agents"
 
-VERTEX_CREDS = st.secrets['vertex_cloud_creds']
+VERTEX_CREDS = st.secrets["vertex_cloud_creds"]
 
 with open("vertex_storage_credentials.json", "w") as f:
     json.dump(dict(VERTEX_CREDS), f)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "vertex_storage_credentials.json"
+
 
 def read_session_state(callback_context: CallbackContext) -> Optional[types.Content]:
     """
@@ -76,41 +77,46 @@ def read_session_state(callback_context: CallbackContext) -> Optional[types.Cont
 
 def check_json_string(json_string: str) -> dict:
     """
-        Checks if a given string is a valid JSON string.
+    Checks if a given string is a valid JSON string.
 
-        Args:
-            json_string (str): The string to check.
+    Args:
+        json_string (str): The string to check.
 
-        Returns:
-            dict: {"status":"success"} if the string is a valid JSON string, {"status":"Error {error description}"} otherwise.
-        """
+    Returns:
+        dict: {"status":"success"} if the string is a valid JSON string, {"status":"Error {error description}"} otherwise.
+    """
 
     try:
         _ = json.loads(json_string)
-        return {'status':'success'}
+        return {"status": "success"}
     except Exception as e:
-        return {'status':f'Error: {e}'}
+        return {"status": f"Error: {e}"}
+
 
 def export_json_to_dataframe(json_string: str) -> None:
     """
-        Converts a JSON string to a Pandas DataFrame and provides a download button to export it as an Excel file.
-        Args:
-            json_string (str): A string containing JSON data.
-        Returns:
-            None: The function displays a download button in the Streamlit app.
-                  If an error occurs during JSON parsing or DataFrame conversion, it displays an error message in the Streamlit app.
-        """
+    Converts a JSON string to a Pandas DataFrame and provides a download button to export it as an Excel file.
+    Args:
+        json_string (str): A string containing JSON data.
+    Returns:
+        None: The function displays a download button in the Streamlit app.
+              If an error occurs during JSON parsing or DataFrame conversion, it displays an error message in the Streamlit app.
+    """
 
     try:
         json_data = json.loads(json_string)
         df = pd.DataFrame(json_data)
 
         output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, sheet_name = 'Result', index = False)
-        st.session_state['output'] = output
-        if 'output' in st.session_state:
-            st.download_button('Download file',st.session_state['output'].getvalue(), file_name = 'result.xlsx')
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, sheet_name="Result", index=False)
+        st.session_state["output"] = output
+        if "output" in st.session_state:
+            st.download_button(
+                "Download file",
+                st.session_state["output"].getvalue(),
+                file_name="result.xlsx",
+            )
 
     except Exception as e:
         st.error(f"Could not parse the data into JSON:\n{e}")
@@ -124,29 +130,38 @@ def export_json_to_dataframe(json_string: str) -> None:
 #     return {}
 
 
-def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerationResponse|None]:
+def create_vertexai_image(
+    prompt_list: list[str],
+) -> dict:  # Optional[ImageGenerationResponse|None]:
     """Creates an image or images using Vertex AI based on a text prompt(s) and saves it to Google Cloud Storage.
-    
+
     Args:
         prompt_list (list): A list of text prompts describing images to generate.
-    
+
     Returns:
         dict: A dictionary with 'status' (str) and 'image_url' (str) or 'error_message' (str).
     """
 
     # vertex_creds = Credentials.from_service_account_info(VERTEX_CREDS)
-    vertex_creds = Credentials.from_service_account_file("vertex_storage_credentials.json")
+    vertex_creds = Credentials.from_service_account_file(
+        "vertex_storage_credentials.json"
+    )
 
-
-    client = storage.Client()#credentials=vertex_creds)#project=os.environ['GC_PROJECT'])
+    client = (
+        storage.Client()
+    )  # credentials=vertex_creds)#project=os.environ['GC_PROJECT'])
     bucket_name = STORAGE_BUCKET  # Replace with your bucket name
     bucket = client.bucket(bucket_name)
     sub_folder = time.strftime("%Y-%m-%dT%H:%M:%S")
-    result = {'status':'success'}
+    result = {"status": "success"}
 
-    vertexai.init(project='creatives-agent', credentials=vertex_creds)#, location='us-east1')
-    
-    generation_model = ImageGenerationModel.from_pretrained("imagen-4.0-generate-preview-05-20")
+    vertexai.init(
+        project="creatives-agent", credentials=vertex_creds
+    )  # , location='us-east1')
+
+    generation_model = ImageGenerationModel.from_pretrained(
+        "imagen-4.0-generate-preview-05-20"
+    )
     for pn, prompt in enumerate(prompt_list, start=1):
         try:
             images = generation_model.generate_images(
@@ -159,36 +174,48 @@ def create_vertexai_image(prompt_list: list[str]) -> dict:#Optional[ImageGenerat
                 add_watermark=True,
             )
             for i, image in enumerate(images):
-                image_name = f'image{pn}_{i}.png'
+                image_name = f"image{pn}_{i}.png"
                 image.save(image_name)
-                blob = bucket.blob(f'{sub_folder}/image{pn}_{i}.png')
+                blob = bucket.blob(f"{sub_folder}/image{pn}_{i}.png")
 
                 blob.upload_from_filename(image_name)
-                result[image_name] = f'https://storage.googleapis.com/{bucket_name}/{sub_folder}/image{pn}_{i}.png'
+                result[image_name] = (
+                    f"https://storage.googleapis.com/{bucket_name}/{sub_folder}/image{pn}_{i}.png"
+                )
                 os.remove(image_name)
             time.sleep(1)
         except Exception as e:
-            print(f'\n\n______Error while generating images: {e}\n\n')
-            result[f'failed prompt {pn}'] = f'prompt {prompt} failed'
-    result['status'] = f'Images saved to https://storage.googleapis.com/{bucket_name}/{sub_folder} bucket'
+            print(f"\n\n______Error while generating images: {e}\n\n")
+            result[f"failed prompt {pn}"] = f"prompt {prompt} failed"
+    result["status"] = (
+        f"Images saved to https://storage.googleapis.com/{bucket_name}/{sub_folder} bucket"
+    )
     return result
 
 
-def read_write_google_sheet(callback_context: CallbackContext) -> None:#Optional[types.Content]:
+def read_write_google_sheet(
+    callback_context: CallbackContext,
+) -> None:  # Optional[types.Content]:
     """
     Write data to a Google Spreadsheet.
     A function used at the end of the conversation to record all the session state keys
-    
+
     Parameters:
     - callback_context - a CallbackContext object containing all the session data
-    
+
     Returns:
     - None.
     """
 
     state = callback_context.state
-    if not all([prompts.INITIAL_STORYLINES in state, prompts.CAPTIONS_TEXT in state, prompts.IMAGE_PROMPT in state]):
-        print('\n\n\n' + "keys not found" + '\n\n\n')
+    if not all(
+        [
+            prompts.INITIAL_STORYLINES in state,
+            prompts.CAPTIONS_TEXT in state,
+            prompts.IMAGE_PROMPT in state,
+        ]
+    ):
+        print("\n\n\n" + "keys not found" + "\n\n\n")
         return
     storyline = state.get(prompts.INITIAL_STORYLINES)
     captions = state.get(prompts.CAPTIONS_TEXT)
@@ -196,45 +223,45 @@ def read_write_google_sheet(callback_context: CallbackContext) -> None:#Optional
     date = time.strftime("%Y-%m-%d %H:%M:%S")
 
     try:
-        scope = ['https://www.googleapis.com/auth/spreadsheets']
+        scope = ["https://www.googleapis.com/auth/spreadsheets"]
         # creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scope)
         creds = Credentials.from_service_account_info(CREDS_FILE, scopes=scope)
         client = gspread.authorize(creds)
-        
+
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
-        worksheet = spreadsheet.worksheet('Sheet1')
+        worksheet = spreadsheet.worksheet("Sheet1")
         read_data = worksheet.get("A:E")
         update_range = f"A{len(read_data)+1}:E{len(read_data)+1}"
-        
+
         worksheet.update([[date, storyline, captions, img_prompts]], update_range)
-        
+
         # print('#'* 50)
-        print( {'status':'success'}) 
+        print({"status": "success"})
         return None
-    
+
     except gspread.exceptions.SpreadsheetNotFound:
         # print('#'* 50)
-        print( {'status':'Error: Spreadsheet not found. Check the spreadsheet ID.'}) 
+        print({"status": "Error: Spreadsheet not found. Check the spreadsheet ID."})
         return None
     except gspread.exceptions.WorksheetNotFound:
         # print('#'* 50)
-        print( {'status': 'Error: Worksheet not found. Check the sheet name.'}) 
+        print({"status": "Error: Worksheet not found. Check the sheet name."})
         return None
     except Exception as e:
         # print('#'* 50)
-        print( {'status': f'Error: {str(e)}'}) 
+        print({"status": f"Error: {str(e)}"})
         return None
 
 
 # def manage_drive_folder(callback_context: CallbackContext):
 #     """
 #     Create a folder in a specified Google Shared Drive folder and upload a file to it.
-    
+
 #     Parameters:
 #     - folder_name (str): Name of the new folder to create.
 #     - file_path (str): Local path to the file to upload.
 #     - file_name (str): Name for the file in Google Drive.
-    
+
 #     Returns:
 #     - tuple: (new_folder_id, uploaded_file_id) or (None, None) if an error occurs.
 #     """
@@ -243,7 +270,7 @@ def read_write_google_sheet(callback_context: CallbackContext) -> None:#Optional
 #         scopes = ['https://www.googleapis.com/auth/drive']
 #         creds = Credentials.from_service_account_file('.secrets/creatives-agent-.json', scopes=scopes)
 #         service = build('drive', 'v3', credentials=creds)
-        
+
 #         # Create a new folder in the Shared Drive
 #         folder_metadata = {
 #             'name': folder_name,
@@ -251,13 +278,13 @@ def read_write_google_sheet(callback_context: CallbackContext) -> None:#Optional
 #             'parents': [FOLDER_ID]
 #         }
 #         folder = service.files().create(
-#             body=folder_metadata, 
+#             body=folder_metadata,
 #             fields='id',
 #             supportsAllDrives=True
 #         ).execute()
 #         new_folder_id = folder.get('id')
 #         print(f"Created folder '{folder_name}' with ID: {new_folder_id}")
-        
+
 #         # Upload file to the new folder in the Shared Drive
 #         file_metadata = {
 #             'name': file_name,
@@ -272,10 +299,9 @@ def read_write_google_sheet(callback_context: CallbackContext) -> None:#Optional
 #         ).execute()
 #         file_id = file.get('id')
 #         print(f"Uploaded file '{file_name}' with ID: {file_id}")
-        
+
 #         return new_folder_id, file_id
-    
+
 #     except Exception as e:
 #         print(f"Error: {str(e)}")
 #         return None, None
-    

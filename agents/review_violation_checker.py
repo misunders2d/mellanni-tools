@@ -5,9 +5,7 @@ from google.genai import types
 from .creatives_agents.tools import check_json_string, export_json_to_dataframe
 
 
-
-REVIEW_GUIDELINES = (
-"""
+REVIEW_GUIDELINES = """
 What's not allowed
 Seller, order, or shipping feedback
 We don't allow reviews or questions and answers that focus on:
@@ -155,16 +153,15 @@ Select Something else.
 Select Amazon Community.
 Select the most appropriate option from the list of Amazon Community features.
 """
-)
 
 
 def create_review_violation_checker():
     review_violation_checker_agent = Agent(
-        name='amazon_review_violation_checker',
+        name="amazon_review_violation_checker",
         # model='gemini-2.5-flash-preview-05-20',
-        model='gemini-2.0-flash',
+        model="gemini-2.0-flash",
         # generate_content_config=types.GenerateContentConfig(max_output_tokens=20000),
-        description='An agent who is an expert in assessing customer reviews and checking if the reviews comply with Amazon review community guidelines',
+        description="An agent who is an expert in assessing customer reviews and checking if the reviews comply with Amazon review community guidelines",
         instruction=f"""You have access to `load_web_page` tool.
         You MUST use it to understand Amazon's review guidelines and policies described here:
         https://www.amazon.com/gp/help/customer/display.html?nodeId=GLHXEX85MENUE4XF
@@ -214,6 +211,6 @@ def create_review_violation_checker():
                     If the tool returns {"status":"success"}, you are ok to proceed, otherwise review the tool return, fix errors and run the tool again.
             2.4 VERY IMPORTANT! As a last step you MUST call `export_json_to_dataframe` tool with the updated JSON string. It will create an downloadable Excel file.
         """,
-        tools=[load_web_page,  check_json_string, export_json_to_dataframe]
+        tools=[load_web_page, check_json_string, export_json_to_dataframe],
     )
     return review_violation_checker_agent

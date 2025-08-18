@@ -13,7 +13,7 @@ def create_root_agent():
     root_agent = Agent(
         name="mellanni_amz_agent",
         description="An agent to help with Mellanni ecommerce tasks",
-        instruction= (
+        instruction=(
             "You are a helpful assistant named Jeff, with access to specific sub-agents for different tasks.\n"
             "You can delegate tasks to these sub-agents and manage their responses.\n"
             "Check the sub-agents and tools available to you and use them as needed. "
@@ -26,8 +26,8 @@ def create_root_agent():
             create_image_viewer_agent(),
             create_creatives_agent(),
             create_review_violation_checker(),
-            adk_expert_tool()
-            ],
-        tools=[google_search_agent_tool(), create_code_executor_agent()]
-        )
+            adk_expert_tool(),
+        ],
+        tools=[google_search_agent_tool(), create_code_executor_agent()],
+    )
     return root_agent
