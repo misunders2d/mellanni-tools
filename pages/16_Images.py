@@ -60,6 +60,46 @@ image_names = [
 ]
 dictionary = gc.pull_dictionary()
 
+with st.expander(
+    "Select a product or upload images", expanded=True, icon=":material/image_arrow_up:"
+):
+    product_area, color_area, selector_area, size_area, storage_selector_area = (
+        st.columns([6, 6, 2, 6, 2])
+    )
+    (
+        img1_input,
+        img2_input,
+        img3_input,
+        img4_input,
+        img5_input,
+        img6_input,
+        img7_input,
+        img8_input,
+        img9_input,
+        swtch_input,
+    ) = st.columns([1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+    (
+        img1_area,
+        img2_area,
+        img3_area,
+        img4_area,
+        img5_area,
+        img6_area,
+        img7_area,
+        img8_area,
+        img9_area,
+        img_swtch_area,
+    ) = st.columns([1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+
+target: str = storage_selector_area.radio(
+    "Select storage",
+    options=["imagekit", "gcs"],
+    index=1,
+    horizontal=False,
+    disabled=True,
+    help="We have two options for image storage, but regardless of the option the links are the same.",
+)
+
 with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
     (
         amz1_area,
@@ -155,48 +195,6 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
         else:
             st.warning("Please select a product, color and size first.")
 
-with st.expander(
-    "Select a product or upload images", expanded=True, icon=":material/image_arrow_up:"
-):
-    product_area, color_area, selector_area, size_area, storage_selector_area = (
-        st.columns([6, 6, 2, 6, 2])
-    )
-    (
-        img1_input,
-        img2_input,
-        img3_input,
-        img4_input,
-        img5_input,
-        img6_input,
-        img7_input,
-        img8_input,
-        img9_input,
-        swtch_input,
-    ) = st.columns([1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-    (
-        img1_area,
-        img2_area,
-        img3_area,
-        img4_area,
-        img5_area,
-        img6_area,
-        img7_area,
-        img8_area,
-        img9_area,
-        img_swtch_area,
-    ) = st.columns([1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-
-target: str = storage_selector_area.radio(
-    "Select storage",
-    options=["imagekit", "gcs"],
-    index=1,
-    horizontal=False,
-    disabled=True,
-    help="We have two options for image storage, but regardless of the option the links are the same.",
-)
-
-with st.expander("Get links", icon=":material/link:"):
-    links_area = st.container()
 
 with st.expander("Current images", icon=":material/image:", expanded=True):
     view_area = st.container()
@@ -207,6 +205,9 @@ with st.expander("Current images", icon=":material/image:", expanded=True):
         value=False,
         help="If you want to see the version history of the image, check this box.",
     )
+
+with st.expander("Get links", icon=":material/link:"):
+    links_area = st.container()
 
 with st.expander(
     "Copy images from an old flat file", expanded=False, icon=":material/perm_media:"
