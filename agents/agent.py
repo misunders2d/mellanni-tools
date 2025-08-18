@@ -4,7 +4,7 @@ from agents.gogle_search_agent import google_search_agent_tool
 from .creatives_agents.smm_creator import create_creatives_agent
 from .review_violation_checker import create_review_violation_checker
 from .code_executor_agent import create_code_executor_agent
-from .adk_expert_agent import adk_expert_tool
+from .bigquery_agent import create_bigquery_agent
 
 from data import MODEL, get_username_str
 
@@ -26,7 +26,7 @@ def create_root_agent():
             create_image_viewer_agent(),
             create_creatives_agent(),
             create_review_violation_checker(),
-            adk_expert_tool(),
+            create_bigquery_agent(),
         ],
         tools=[google_search_agent_tool(), create_code_executor_agent()],
     )

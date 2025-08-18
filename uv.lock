@@ -3,6 +3,15 @@ revision = 3
 requires-python = ">=3.13"
 
 [[package]]
+name = "absolufy-imports"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/0f/9da9dc9a12ebf4622ec96d9338d221e0172699e7574929f65ec8fdb30f9c/absolufy_imports-0.3.1.tar.gz", hash = "sha256:c90638a6c0b66826d1fb4880ddc20ef7701af34192c94faf40b95d32b59f9793", size = 4724, upload-time = "2022-01-20T14:48:53.434Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/a4/b65c9fbc2c0c09c0ea3008f62d2010fd261e62a4881502f03a6301079182/absolufy_imports-0.3.1-py2.py3-none-any.whl", hash = "sha256:49bf7c753a9282006d553ba99217f48f947e3eef09e18a700f8a82f75dc7fc5c", size = 5937, upload-time = "2022-01-20T14:48:51.718Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -580,9 +589,11 @@ wheels = [
 
 [[package]]
 name = "google-adk"
-version = "1.2.1"
+version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "absolufy-imports" },
+    { name = "anyio" },
     { name = "authlib" },
     { name = "click" },
     { name = "fastapi" },
@@ -598,16 +609,22 @@ dependencies = [
     { name = "opentelemetry-exporter-gcp-trace" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
+    { name = "python-dateutil" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "sqlalchemy" },
+    { name = "starlette" },
+    { name = "tenacity" },
     { name = "typing-extensions" },
     { name = "tzlocal" },
     { name = "uvicorn" },
+    { name = "watchdog" },
+    { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8c/3f/c17e938b53e6638c75964db92915a866dee3bca29535df2bfd89ca57c999/google_adk-1.2.1.tar.gz", hash = "sha256:7ffac56d1ee457f64b3877f81aed099171c52e03ac2ef7b42de2f7f4973995e7", size = 1104116, upload-time = "2025-06-04T23:43:25.754Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/1b/1f61a4e6f076d91e9354687d1ea71f61a950512c65eef4382434f7bd948d/google_adk-1.10.0.tar.gz", hash = "sha256:9a35fa6099c1a91c8b970ca98efb80640faad51d93520aa5d7c63ac08ebde8ba", size = 1620716, upload-time = "2025-08-07T16:56:12.856Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/83/4fa0a0e765258e4f3f6cf452a28cde0d335cce27542041fcf3afe9df4cef/google_adk-1.2.1-py3-none-any.whl", hash = "sha256:93b805180caadb5b2265a9737c7ac472d10443ddec18ad83efdef8a7a6217d2a", size = 1247947, upload-time = "2025-06-04T23:43:23.737Z" },
+    { url = "https://files.pythonhosted.org/packages/82/a6/93819a03ace1457fcb8a811fcc7f3d3ee5546c69bf02078b10ea68d74fa3/google_adk-1.10.0-py3-none-any.whl", hash = "sha256:8f7a41be6cd1cc1d47319335fa799b260a683b2c56644d0a747112c5e0d017ba", size = 1841748, upload-time = "2025-08-07T16:56:11.14Z" },
 ]
 
 [[package]]
@@ -914,7 +931,7 @@ wheels = [
 
 [[package]]
 name = "google-genai"
-version = "1.19.0"
+version = "1.30.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -922,12 +939,13 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "requests" },
+    { name = "tenacity" },
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/14/17/8f717f43732ae2b7775f816f0d8f0b39e2a020bbe7ba202f2ddb2f948c3b/google_genai-1.19.0.tar.gz", hash = "sha256:66f5de78075781bfd9e423f1e3592e4240759dfe0ac42ac74a9dcb2c4f662e9d", size = 198000, upload-time = "2025-06-04T23:10:04.69Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/24/f7/2dc4c106cb0e42aec8562ee1b62df1d858f269239c10948108a5984a6429/google_genai-1.30.0.tar.gz", hash = "sha256:90dad6a9a895f30d0cbd5754462c82d3c060afcc2c3c9dccbcef4ff54019ef3f", size = 230937, upload-time = "2025-08-14T00:59:38.164Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/ae/64fccdebf5811453ce53b0d5ee23d4f27ef173ef36d3b67dad791a0007aa/google_genai-1.19.0-py3-none-any.whl", hash = "sha256:a2955612e4af8c84f83eb43c1ce4e74e1b714732926d0705e639761938192466", size = 200043, upload-time = "2025-06-04T23:10:02.692Z" },
+    { url = "https://files.pythonhosted.org/packages/44/81/b413aa382eeeae41d2fdedd19a2c43d9580059eebccef5321d7d64b1d910/google_genai-1.30.0-py3-none-any.whl", hash = "sha256:52955e79284899991bf2fef36b30f375b0736030ba3d089ca39002c18aa95c01", size = 229330, upload-time = "2025-08-14T00:59:36.356Z" },
 ]
 
 [[package]]
@@ -1805,10 +1823,10 @@ requires-dist = [
     { name = "gdown", specifier = "==5.2.0" },
     { name = "gitdb", specifier = "==4.0.12" },
     { name = "gitpython", specifier = "==3.1.44" },
-    { name = "google-adk", specifier = "==1.2.1" },
+    { name = "google-adk", specifier = ">=1.10.0" },
     { name = "google-api-core", specifier = "==2.25.0" },
     { name = "google-api-python-client", specifier = "==2.171.0" },
-    { name = "google-auth", specifier = "==2.40.3" },
+    { name = "google-auth", specifier = ">=2.40.3" },
     { name = "google-auth-httplib2", specifier = "==0.2.0" },
     { name = "google-auth-oauthlib", specifier = "==1.2.2" },
     { name = "google-cloud-aiplatform", specifier = "==1.96.0" },
@@ -1824,7 +1842,7 @@ requires-dist = [
     { name = "google-cloud-storage", specifier = "==2.19.0" },
     { name = "google-cloud-trace", specifier = "==1.16.1" },
     { name = "google-crc32c", specifier = "==1.7.1" },
-    { name = "google-genai", specifier = "==1.19.0" },
+    { name = "google-genai", specifier = ">=1.19.0" },
     { name = "google-resumable-media", specifier = "==2.7.2" },
     { name = "googleapis-common-protos", specifier = "==1.70.0" },
     { name = "graphviz", specifier = "==0.20.3" },
@@ -1916,7 +1934,7 @@ requires-dist = [
     { name = "rapidfuzz", specifier = "==3.13.0" },
     { name = "referencing", specifier = "==0.36.2" },
     { name = "regex", specifier = "==2024.11.6" },
-    { name = "requests", specifier = "==2.32.3" },
+    { name = "requests", specifier = ">=2.32.3" },
     { name = "requests-oauthlib", specifier = "==2.0.0" },
     { name = "requests-toolbelt", specifier = "==0.10.1" },
     { name = "rpds-py", specifier = "==0.25.1" },
@@ -2796,7 +2814,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.32.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -2804,9 +2822,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3.tar.gz", hash = "sha256:55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760", size = 131218, upload-time = "2024-05-29T15:37:49.536Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/0a/929373653770d8a0d7ea76c37de6e41f11eb07559b103b1c02cafb3f7cf8/requests-2.32.4.tar.gz", hash = "sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422", size = 135258, upload-time = "2025-06-09T16:43:07.34Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl", hash = "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6", size = 64928, upload-time = "2024-05-29T15:37:47.027Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/e4/56027c4a6b4ae70ca9de302488c5ca95ad4a39e190093d6c1a8ace08341b/requests-2.32.4-py3-none-any.whl", hash = "sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c", size = 64847, upload-time = "2025-06-09T16:43:05.728Z" },
 ]
 
 [package.optional-dependencies]

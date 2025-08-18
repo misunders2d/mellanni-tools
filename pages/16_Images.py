@@ -113,7 +113,7 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
         amz9_area,
         amz_swtch_area,
     ) = st.columns([1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-    get_images_area, view_amaon_area, _ = st.columns([3, 3, 1])
+    get_images_area, view_amaon_area, sku_asin_area = st.columns([3, 3, 2])
 
     amz_positions = dict(
         zip(
@@ -185,6 +185,9 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
                         type="tertiary",
                         icon=":material/open_in_new:",
                     )
+
+                    sku_asin_str = f"ASIN: {asin}, SKU: {sku}"
+                    sku_asin_area.write(sku_asin_str)
 
             except:
                 st.warning(
