@@ -150,7 +150,7 @@ if prompt := st.chat_input(
         try:
             st.write_stream(
                 run_agent(
-                    user_input=prompt_text, session_id="session123", user_id=user_id
+                    user_input=prompt_text, session_id=f"{user_id}_session", user_id=user_id
                 )
             )
         except Exception as e:

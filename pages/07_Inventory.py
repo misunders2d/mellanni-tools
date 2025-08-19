@@ -368,7 +368,7 @@ bottom_area.markdown(
 ###### inventory report section
 if st.user.email in (
     "sergey@mellanni.com",
-    "natalie@mellanni.com",
+    "lina@mellanni.com",
     "ruslan@mellanni.com",
     "andreia@mellanni.com",
     "dariyka@mellanni.com",
