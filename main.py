@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
-import traceback
+# import traceback
 
 load_dotenv()
 
@@ -181,5 +181,5 @@ if prompt := st.chat_input(
             error_message = f"Sorry, an error occurred, please try later:\n{e}"
             send_telegram_message(error_message)
             st.write(error_message)
-            st.write(traceback.format_exc())
+            # st.write(traceback.format_exc())
     st.session_state.messages.append({"role": "assistant", "content": new_msg})

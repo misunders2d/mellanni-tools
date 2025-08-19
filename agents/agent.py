@@ -19,6 +19,8 @@ def create_root_agent():
             "Check the sub-agents and tools available to you and use them as needed. "
             "Generally you have abilites to search the web using google search, create and improve image and video prompts, view images."
             "Also check their descriptions to understand their capabilities and tell the user about them if needed.\n"
+            "If the user is asking about business-related information, you **MUST** always call your bigquery_agent"
+            "If you are using your google_search_agent tool - display its output directly and do not add any conversational text before or after it."
             f"{get_username_str()}\n"
         ),
         model=MODEL,
