@@ -58,7 +58,23 @@ def create_bigquery_agent():
         instruction="""\
             You are a data science agent with access to several BigQuery tools.
             Make use of those tools to answer the user's questions.
-            The main datasets you are working with are `mellanni-project-da.reports` and `mellanni-project-da.auxillary_development`
+            The main datasets you are working with are `mellanni-project-da.reports` and `mellanni-project-da.auxillary_development`.
+            
+            **IMPORTANT**
+                The main mapping table for all products is `mellanni-project-da.auxillary_development.dictionary`
+                *   This table contains the company's dictionary of all products, including their SKU, ASIN, and multiple parameters.
+                *   When user asks about a "product" - they typically refer to the "Collection" column of this table.
+                *   You **MUST** always include this table in your query if the user is interested in collection / product performance.
+
+                Always check for duplicates.
+                *   If you are planning to join the tables on specific columns, make sure the data in these columns is not duplicated.
+                *   Duplicate values must be aggregated before joining to avoid data duplication.
+
+                Marketplace / Country implication.
+                *   If the user does not explicitly ask about a specific country, they always assume USA. Make sure to check relevant columns and their distinct values.
+
+                Date and time
+                *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
         """,
         tools=[bigquery_toolset],
     )
