@@ -26,6 +26,7 @@ import traceback
 load_dotenv()
 
 APP_NAME = "mellanni_amz_agent"
+show_tool_calls = False
 
 require_login()
 
@@ -43,11 +44,26 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for message in st.session_state.messages:
-    with st.chat_message(
-        message["role"],
-        avatar=user_picture if message["role"] == "user" else "media/jeff_avatar.jpeg",
-    ):
-        st.markdown(message["content"])
+    if message["role"] == "thought":
+        icon = "🧠"
+        if message.get("type") == "tool_call":
+            icon = "🔧"
+        elif message.get("type") == "tool_response":
+            icon = "📥"
+
+        with st.expander(message["label"], icon=icon):
+            if message.get("type") == "tool_response":
+                st.json(message["content"])
+            else:
+                st.info(message["content"])
+    else:
+        with st.chat_message(
+            message["role"],
+            avatar=(
+                user_picture if message["role"] == "user" else "media/jeff_avatar.jpeg"
+            ),
+        ):
+            st.markdown(message["content"])
 
 
 new_msg = ""
@@ -80,52 +96,58 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
         session_id=session_id,
         new_message=types.Content(role="user", parts=[types.Part(text=user_input)]),
     ):
+        if not event.content:
+            continue
+        if not event.content.parts:
+            continue
+        # An event can have multiple parts, iterate through them
+        for part in event.content.parts:
+            # Case 1: It's a "thought" from the planner
+            if part.thought:
+                thought_data = {
+                    "role": "thought",
+                    "type": "thought",
+                    "label": "Thought",
+                    "content": part.text,
+                }
+                st.session_state.messages.append(thought_data)
+                with st.expander(thought_data["label"], icon="🧠"):
+                    st.info(thought_data["content"])
 
-        if event.content and event.content.parts and event.content.parts[0].text:
-            new_msg += event.content.parts[0].text
-            yield event.content.parts[0].text
-        elif (
-            event.content
-            and event.content.parts
-            and event.content.parts[0].function_call
-        ):
-            # yield f'Running {event.content.parts[0].function_call.name} function\n'
-            st.toast(f"Running {event.content.parts[0].function_call.name} function\n")
-        elif (
-            event.content
-            and event.content.parts
-            and event.content.parts[0].function_response
-            and event.content.parts[0].function_response.response
-            and "result" in event.content.parts[0].function_response.response
-            and isinstance(
-                event.content.parts[0].function_response.response["result"], str
-            )
-        ):
-            new_msg += event.content.parts[0].function_response.response["result"]
-            yield event.content.parts[0].function_response.response["result"]
-        # handle errors
-        elif event.error_code:
+            # Case 2: It's a tool call
+            elif part.function_call and show_tool_calls:
+                fc = part.function_call
+                thought_data = {
+                    "role": "thought",
+                    "type": "tool_call",
+                    "label": f"Tool Call: `{fc.name}`",
+                    "content": f"Arguments: `{fc.args}`",
+                }
+                st.session_state.messages.append(thought_data)
+                with st.expander(thought_data["label"], icon="🔧"):
+                    st.info(thought_data["content"])
+
+            # Case 3: It's a tool response
+            elif part.function_response and show_tool_calls:
+                fr = part.function_response
+                thought_data = {
+                    "role": "thought",
+                    "type": "tool_response",
+                    "label": f"Tool Response: `{fr.name}`",
+                    "content": fr.response,
+                }
+                st.session_state.messages.append(thought_data)
+                with st.expander(thought_data["label"], icon="📥"):
+                    st.json(thought_data["content"])
+
+            # Case 4: It's regular text for the final reply
+            elif part.text:
+                new_msg += part.text
+                yield part.text
+
+        # Handle errors at the event level
+        if event.error_code:
             st.error(f"Sorry, the following error happened:\n{event.error_code}")
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session_id,
-                new_message=types.Content(
-                    role="user",
-                    parts=[
-                        types.Part(text=f"This error happened, please check: {event}")
-                    ],
-                ),
-            ):
-                if (
-                    event.content
-                    and event.content.parts
-                    and event.content.parts[0].text
-                ):
-                    new_msg += event.content.parts[0].text
-                    yield event.content.parts[0].text
-
-        # else:
-        #     yield event
 
 
 if prompt := st.chat_input(
@@ -150,9 +172,14 @@ if prompt := st.chat_input(
         try:
             st.write_stream(
                 run_agent(
-                    user_input=prompt_text, session_id=f"{user_id}_session", user_id=user_id
+                    user_input=prompt_text,
+                    session_id=f"{user_id}_session",
+                    user_id=user_id,
                 )
             )
         except Exception as e:
-            send_telegram_message(f"Sorry, an error occurred, please try later:\n{e}")
+            error_message = f"Sorry, an error occurred, please try later:\n{e}"
+            send_telegram_message(error_message)
+            st.write(error_message)
+            st.write(traceback.format_exc())
     st.session_state.messages.append({"role": "assistant", "content": new_msg})

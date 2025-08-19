@@ -5,10 +5,10 @@ import streamlit as st
 
 OPENAI_API_KEY = os.environ.get("OPENAI_AGENTS_API_KEY")
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-2.5-flash-lite"
 # MODEL = LiteLlm('openai/gpt-4o-mini', api_key=OPENAI_API_KEY)
-SEARCH_AGENT_MODEL = "gemini-2.0-flash"
-CREATIVES_AGENT_MODEL = "gemini-2.0-flash"
+SEARCH_AGENT_MODEL = "gemini-2.5-flash-lite"
+CREATIVES_AGENT_MODEL = "gemini-2.5-flash-lite"
 
 
 def get_user_email():
