@@ -13,6 +13,7 @@ import os
 import json
 
 from data import MODEL
+from .gogle_search_agent import google_search_agent_tool
 
 # Define a tool configuration to block any write operations
 tool_config = BigQueryToolConfig(write_mode=WriteMode.BLOCKED)
@@ -81,7 +82,7 @@ def create_bigquery_agent():
                 Date and time
                 *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
         """,
-        tools=[bigquery_toolset],
+        tools=[bigquery_toolset, google_search_agent_tool(name='bigquery_search_agent')],
         planner=BuiltInPlanner(
             thinking_config=types.ThinkingConfig(
                 include_thoughts=True, thinking_budget=1024
