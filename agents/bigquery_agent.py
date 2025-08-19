@@ -57,8 +57,8 @@ def create_bigquery_agent():
         model=MODEL,
         name="bigquery_agent",
         description=(
-            "Agent to answer questions about BigQuery data and models and execute"
-            " SQL queries."
+            "Agent to answer questions about the company's performance (sales, inventory, payments etc)."
+            "Uses BigQuery data and models and executes SQL queries."
         ),
         instruction="""\
             You are a data science agent with access to several BigQuery tools.
@@ -68,7 +68,7 @@ def create_bigquery_agent():
             **IMPORTANT**
                 The main mapping table for all products is `mellanni-project-da.auxillary_development.dictionary`
                 *   This table contains the company's dictionary of all products, including their SKU, ASIN, and multiple parameters.
-                *   When user asks about a "product" - they typically refer to the "Collection" column of this table.
+                *   When user asks about a "product" or "collection" - they typically refer to the "Collection" column of this table.
                 *   You **MUST** always include this table in your query if the user is interested in collection / product performance.
 
                 Always check for duplicates.
