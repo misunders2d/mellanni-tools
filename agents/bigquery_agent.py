@@ -86,8 +86,7 @@ def create_bigquery_agent():
 
                 Date and time
                 *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
-                
-                Test
+
         """,
         tools=[
             bigquery_toolset,
