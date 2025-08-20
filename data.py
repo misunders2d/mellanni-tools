@@ -36,6 +36,7 @@ def get_username_str():
 
 # USERNAME_STR = f"The user's name is {USERNAME}." if USERNAME != 'Unknown User' else "The user's name is not available."
 
+
 def get_current_datetime():
     """A helper function used to retrieve current date and time. Use it when you need to be time-aware."""
     return datetime.now()

@@ -52,7 +52,6 @@ bigquery_toolset = BigQueryToolset(
 )
 
 
-
 # Agent Definition
 def create_bigquery_agent():
     bigquery_agent = Agent(
@@ -88,7 +87,11 @@ def create_bigquery_agent():
                 Date and time
                 *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
         """,
-        tools=[bigquery_toolset, google_search_agent_tool(name='bigquery_search_agent'), get_current_datetime],
+        tools=[
+            bigquery_toolset,
+            google_search_agent_tool(name="bigquery_search_agent"),
+            get_current_datetime,
+        ],
         planner=BuiltInPlanner(
             thinking_config=types.ThinkingConfig(
                 include_thoughts=True, thinking_budget=-1

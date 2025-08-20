@@ -21,6 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
+
 # import traceback
 
 load_dotenv()
@@ -34,7 +35,11 @@ thought_icon = ":material/lightbulb_2:"
 require_login()
 
 with st.sidebar:
-    include_tool_calls = st.checkbox('Include tool calls output?', value = show_tool_calls)
+    include_tool_calls = st.checkbox(
+        "Include tool calls output?",
+        value=show_tool_calls,
+        help="Checking this box will include tool/function calls in the chat, used for debugging",
+    )
 
 if "email" in st.user and isinstance(st.user.email, str):
     user_id = st.user.email
@@ -110,7 +115,7 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
         for part in event.content.parts:
             # Case 1: It's a "thought" from the planner
             if part.thought:
-                st.toast('Thinking', icon=":material/psychology:")
+                st.toast("Thinking", icon=":material/psychology:")
                 thought_data = {
                     "role": "thought",
                     "type": "thought",
