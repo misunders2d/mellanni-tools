@@ -12,16 +12,10 @@ import tempfile
 import os
 import json
 
-from data import MODEL, get_current_datetime
+from data import MODEL, get_current_datetime, table_data
 from .gogle_search_agent import google_search_agent_tool
 
-# Define a tool configuration to block any write operations
 tool_config = BigQueryToolConfig(write_mode=WriteMode.BLOCKED)
-
-# Define a credentials config - in this example we are using application default
-# credentials
-# https://cloud.google.com/docs/authentication/provide-credentials-adc
-# application_default_credentials, _ = google.auth.default()
 
 try:
     import streamlit as st
@@ -32,7 +26,7 @@ except:
         os.environ.get("gcp_service_account", "")
     )
 
-
+# set google application credentials to use BigQuery tools
 with tempfile.NamedTemporaryFile(
     mode="w", delete=False, suffix=".json"
 ) as temp_key_file:
@@ -42,14 +36,16 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_key_file_path
 
 
 credentials = service_account.Credentials.from_service_account_file(temp_key_file_path)
-
-
 credentials_config = BigQueryCredentialsConfig(credentials=credentials)
 
 # Instantiate a BigQuery toolset
 bigquery_toolset = BigQueryToolset(
     credentials_config=credentials_config, bigquery_tool_config=tool_config
 )
+
+today = get_current_datetime().date()
+
+
 
 
 # Agent Definition
@@ -61,10 +57,14 @@ def create_bigquery_agent():
             "Agent to answer questions about the company's business performance (sales, inventory, payments etc)."
             "Uses BigQuery data and models and executes SQL queries."
         ),
-        instruction="""\
+        instruction=f"""\
             You are a data science agent with access to several BigQuery tools.
             Make use of those tools to answer the user's questions.
             The main datasets you are working with are `mellanni-project-da.reports` and `mellanni-project-da.auxillary_development`.
+            Today's date is {today.strftime("%YYY-%mm-dd")}.
+
+            Here's the list and description of the company data structure in bigquery tables:\n{table_data}. Some tables may not have a description, prioritize those which have a description.
+
             You must NEVER output simulated data without explicitly telling the user that the data is simulated.
             
             **IMPORTANT**
@@ -76,6 +76,7 @@ def create_bigquery_agent():
                 Date and time implications.
                 *   Your date and time awareness is outdated, ALWAYS use `get_current_datetime` function to check for the current date and time,
                     especially when performing queries with dates.
+                *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
                 
                 Always check for duplicates.
                 *   If you are planning to join the tables on specific columns, make sure the data in these columns is not duplicated.
@@ -84,8 +85,6 @@ def create_bigquery_agent():
                 Marketplace / Country implication.
                 *   If the user does not explicitly ask about a specific country, they always assume USA. Make sure to check relevant columns and their distinct values.
 
-                Date and time
-                *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
 
         """,
         tools=[
