@@ -15,6 +15,6 @@ def google_search_agent_tool(name="google_search_agent"):
             sub_agents=[],
             tools=[google_search],
         ),
-        skip_summarization=True,
+        skip_summarization=False,
     )
     return google_search_agent_tool

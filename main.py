@@ -27,8 +27,14 @@ load_dotenv()
 
 APP_NAME = "mellanni_amz_agent"
 show_tool_calls = False
+tool_call_icon = ":material/construction:"
+tool_response_icon = ":material/quick_reference:"
+thought_icon = ":material/lightbulb_2:"
 
 require_login()
+
+with st.sidebar:
+    include_tool_calls = st.checkbox('Include tool calls output?', value = show_tool_calls)
 
 if "email" in st.user and isinstance(st.user.email, str):
     user_id = st.user.email
@@ -45,11 +51,11 @@ if "messages" not in st.session_state:
 
 for message in st.session_state.messages:
     if message["role"] == "thought":
-        icon = "🧠"
+        icon = thought_icon
         if message.get("type") == "tool_call":
-            icon = "🔧"
+            icon = tool_call_icon
         elif message.get("type") == "tool_response":
-            icon = "📥"
+            icon = tool_response_icon
 
         with st.expander(message["label"], icon=icon):
             if message.get("type") == "tool_response":
@@ -104,6 +110,7 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
         for part in event.content.parts:
             # Case 1: It's a "thought" from the planner
             if part.thought:
+                st.toast('Thinking', icon=":material/psychology:")
                 thought_data = {
                     "role": "thought",
                     "type": "thought",
@@ -111,11 +118,11 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
                     "content": part.text,
                 }
                 st.session_state.messages.append(thought_data)
-                with st.expander(thought_data["label"], icon="🧠"):
+                with st.expander(thought_data["label"], icon=thought_icon):
                     st.info(thought_data["content"])
 
             # Case 2: It's a tool call
-            elif part.function_call and show_tool_calls:
+            elif part.function_call and include_tool_calls:
                 fc = part.function_call
                 thought_data = {
                     "role": "thought",
@@ -124,11 +131,11 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
                     "content": f"Arguments: `{fc.args}`",
                 }
                 st.session_state.messages.append(thought_data)
-                with st.expander(thought_data["label"], icon="🔧"):
+                with st.expander(thought_data["label"], icon=tool_call_icon):
                     st.info(thought_data["content"])
 
             # Case 3: It's a tool response
-            elif part.function_response and show_tool_calls:
+            elif part.function_response and include_tool_calls:
                 fr = part.function_response
                 thought_data = {
                     "role": "thought",
@@ -137,7 +144,7 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
                     "content": fr.response,
                 }
                 st.session_state.messages.append(thought_data)
-                with st.expander(thought_data["label"], icon="📥"):
+                with st.expander(thought_data["label"], icon=tool_response_icon):
                     st.json(thought_data["content"])
 
             # Case 4: It's regular text for the final reply
