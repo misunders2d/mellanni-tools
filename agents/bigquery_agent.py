@@ -148,6 +148,12 @@ def create_bigquery_agent():
                     especially when performing queries with dates.
                 *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
                 
+                Averages calculations.
+                *   When calculating average daily sales (or units/revenue), please ensure the average is computed across all days in the specified period, including days where there were zero sales.
+                    Treat non-selling days as having 0 units/revenue for the average calculation.
+                    Avoid using "average" in your SQL queries, instead summarize relevant values and divide by the necessary number of days/records etc.
+                    ALWAYS confirm with the user, how they want the averages to be calculated.
+
                 Always check for duplicates.
                 *   If you are planning to join the tables on specific columns, make sure the data in these columns is not duplicated.
                 *   Duplicate values must be aggregated before joining to avoid data duplication.
