@@ -88,27 +88,51 @@ table_data = {
         },
     },
     "clickup": {
-        "dataset_description": "",
+        "dataset_description": "Dataset containg different Clickup related tables",
         "tables": {
-            "active_projects_tasks": {"description": ""},
-            "active_spaces_tasks": {"description": ""},
-            "clickup_tasks": {"description": ""},
-            "clickup_tasks_hist": {"description": ""},
-            "projects_statuses": {"description": ""},
-            "spaces_statuses": {"description": ""},
-            "tasks_report": {"description": ""},
-            "tasks_report_hist": {"description": ""},
+            "active_projects_tasks": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "active_spaces_tasks": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "clickup_tasks": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "clickup_tasks_hist": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "projects_statuses": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "spaces_statuses": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "tasks_report": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "tasks_report_hist": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
         },
     },
     "daily_reports": {
-        "dataset_description": "",
+        "dataset_description": "A buffer dataset containing Amazon related data refreshed daily, do not use",
         "tables": {
             "pricelist": {"description": ""},
             "restock": {"description": ""},
         },
     },
     "ds_for_bi": {
-        "dataset_description": "",
+        "dataset_description": "A combined dataset from multiple sources, used primarily as a source for PowerBi reports.",
         "tables": {
             "abc_analysis_dumps": {"description": ""},
             "ad_internal_amz": {"description": ""},
@@ -136,11 +160,26 @@ table_data = {
             "creators_pivot_view": {"description": ""},
             "daily_targets": {"description": ""},
             "daily_targets_high_level": {"description": ""},
-            "date_range_all_countries": {"description": ""},
-            "date_range_business_report": {"description": ""},
-            "date_range_depr_view": {"description": ""},
-            "date_range_report_test": {"description": ""},
-            "date_range_summary_v2": {"description": ""},
+            "date_range_all_countries": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "date_range_business_report": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "date_range_depr_view": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "date_range_report_test": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "date_range_summary_v2": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "deals_group": {"description": ""},
             "dictionary": {"description": ""},
             "dictionary_fbm_missed": {"description": ""},
@@ -208,17 +247,23 @@ table_data = {
         },
     },
     "ebay": {
-        "dataset_description": "",
+        "dataset_description": "Ecom information about company's ebay business",
         "tables": {
             "orders": {"description": ""},
-            "payout": {"description": ""},
+            "payout": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "promoted_listings_general": {"description": ""},
             "promoted_listings_priority": {"description": ""},
-            "transactions": {"description": ""},
+            "transactions": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
         },
     },
     "facebook": {
-        "dataset_description": "",
+        "dataset_description": "Facebook Ads and posts data",
         "tables": {
             "attribution_facebook": {"description": ""},
             "facebook_posts": {"description": ""},
@@ -228,7 +273,7 @@ table_data = {
         },
     },
     "google": {
-        "dataset_description": "",
+        "dataset_description": "Dataset for data from Google ad campaigns, external marketing data",
         "tables": {
             "ads_report": {"description": ""},
             "conversions_report": {"description": ""},
@@ -237,24 +282,63 @@ table_data = {
         },
     },
     "hurma": {
-        "dataset_description": "",
+        "dataset_description": "HR related dataset.",
         "tables": {
-            "candidates": {"description": ""},
-            "careers": {"description": ""},
-            "clickup_candidates": {"description": ""},
-            "clickup_contact_list": {"description": ""},
-            "clickup_job_posting": {"description": ""},
-            "clickup_pto_calendar": {"description": ""},
-            "departments": {"description": ""},
-            "employees": {"description": ""},
-            "employees_archive": {"description": ""},
-            "out_off_office": {"description": ""},
-            "stages": {"description": ""},
-            "teams": {"description": ""},
-            "temp_workers": {"description": ""},
-            "temp_workers_pb": {"description": ""},
-            "tenure": {"description": ""},
-            "vacancies": {"description": ""},
+            "candidates": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "careers": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "clickup_candidates": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "clickup_contact_list": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "clickup_job_posting": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "clickup_pto_calendar": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "departments": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "employees": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "employees_archive": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "out_off_office": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "stages": {"description": "", "authorized_users": ["valerii@mellanni.com"]},
+            "teams": {"description": "", "authorized_users": ["valerii@mellanni.com"]},
+            "temp_workers": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "temp_workers_pb": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "tenure": {"description": "", "authorized_users": ["valerii@mellanni.com"]},
+            "vacancies": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
         },
     },
     "klaviyo": {
@@ -293,7 +377,7 @@ table_data = {
         "tables": {"ads_analytics": {"description": ""}},
     },
     "reports": {
-        "dataset_description": "",
+        "dataset_description": "The main dataset for the company's Amazon business data. Includes data from multiple Amazon channels (amazon.com, amazon.ca etc.), including sales data which came from outside of Amazon, but was fulfilled by Amazon.",
         "tables": {
             "AdvertisedProduct": {"description": ""},
             "PurchasedProduct": {"description": ""},
@@ -317,7 +401,10 @@ table_data = {
             "business_report_asin": {
                 "description": "One of the main tables showing sales data including Sessions (organic impressions) on an ASIN level. Use for conversion calculations.",
             },
-            "date_range_report": {"description": ""},
+            "date_range_report": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "dictionary": {"description": ""},
             "dsp_report": {"description": ""},
             "exchange_rates": {"description": ""},
@@ -332,8 +419,14 @@ table_data = {
             "fee_preview_usd": {"description": ""},
             "fulfilled_inventory": {"description": ""},
             "inventory": {"description": ""},
-            "profitability": {"description": ""},
-            "profitability_view": {"description": ""},
+            "profitability": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "profitability_view": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "promotions": {"description": ""},
             "reserved_inventory": {"description": ""},
             "restock_inventory": {"description": ""},
@@ -363,7 +456,7 @@ table_data = {
         },
     },
     "sellercloud": {
-        "dataset_description": "",
+        "dataset_description": "A company's invnentory dataset, containing tables on the warehouse invnetory, bins, incoming PO's etc, coming from Sellercloud software",
         "tables": {
             "fba_shipments": {"description": ""},
             "fba_shipments_partitioned": {"description": ""},
@@ -393,10 +486,16 @@ table_data = {
         },
     },
     "shopify": {
-        "dataset_description": "",
+        "dataset_description": "Ecom information about company's Shopify business",
         "tables": {
-            "abandoned_checkouts": {"description": ""},
-            "customers": {"description": ""},
+            "abandoned_checkouts": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "customers": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
             "ebay_vs_shopify": {"description": ""},
             "inventory": {"description": ""},
             "ordered_products": {"description": ""},
@@ -404,7 +503,7 @@ table_data = {
         },
     },
     "skai": {
-        "dataset_description": "",
+        "dataset_description": "A PPC related dataset with data points from the Skai software for the company's Amazon advertising",
         "tables": {
             "campaigns_info": {"description": ""},
             "campaigns_performance": {"description": ""},
@@ -412,8 +511,13 @@ table_data = {
         },
     },
     "slack": {
-        "dataset_description": "",
-        "tables": {"users_list": {"description": ""}},
+        "dataset_description": "List of users of the company's Slack workspace",
+        "tables": {
+            "users_list": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            }
+        },
     },
     "supply_chain": {
         "dataset_description": "",
@@ -446,16 +550,19 @@ table_data = {
         },
     },
     "target": {
-        "dataset_description": "",
+        "dataset_description": "Ecom information about company's Target business",
         "tables": {
-            "financial_reconciliation": {"description": ""},
+            "financial_reconciliation": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "orders": {"description": ""},
             "returns": {"description": ""},
             "returns_details": {"description": ""},
         },
     },
     "tiktok": {
-        "dataset_description": "",
+        "dataset_description": "Ecom information about company's TikTok business",
         "tables": {
             "attribution_tiktok": {"description": ""},
             "campaign_metrics": {"description": ""},
@@ -465,37 +572,70 @@ table_data = {
             "sku_duplicates": {"description": ""},
             "states_dict": {"description": ""},
             "tiktok_fba_finder": {"description": ""},
-            "tiktok_fin_view_bi": {"description": ""},
-            "tiktok_fin_view_bi_2": {"description": ""},
-            "tiktok_finance_report": {"description": ""},
-            "tiktok_finance_report_2": {"description": ""},
+            "tiktok_fin_view_bi": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "tiktok_fin_view_bi_2": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "tiktok_finance_report": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "tiktok_finance_report_2": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "tiktok_order_temp": {"description": ""},
             "tiktok_shipping": {"description": ""},
             "tiktok_shipping_cost": {"description": ""},
         },
     },
     "walmart": {
-        "dataset_description": "",
+        "dataset_description": "Ecom information about company's Walmart business",
         "tables": {
             "inventory": {"description": ""},
             "inventory_wfs": {"description": ""},
-            "legacy_payments": {"description": ""},
-            "legacy_payments_tmp": {"description": ""},
+            "legacy_payments": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "legacy_payments_tmp": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "orders": {"description": ""},
             "orders_total": {"description": ""},
-            "payments": {"description": ""},
-            "payments_tmp": {"description": ""},
+            "payments": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "payments_tmp": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
             "returns": {"description": ""},
             "summary": {"description": ""},
         },
     },
     "zenefits": {
-        "dataset_description": "",
+        "dataset_description": "HR-related dataset, do not use",
         "tables": {
-            "employments": {"description": ""},
-            "out_off_office": {"description": ""},
-            "people": {"description": ""},
-            "people_and_employments": {"description": ""},
+            "employments": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "out_off_office": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "people": {"description": "", "authorized_users": ["valerii@mellanni.com"]},
+            "people_and_employments": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
         },
     },
 }

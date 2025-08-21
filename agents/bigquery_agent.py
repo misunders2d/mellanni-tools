@@ -54,6 +54,8 @@ def before_bq_callback(
 ) -> Optional[Dict]:
     """Checks if the user is authorized to see data in a specific table"""
 
+    superusers = ['igor@mellanni.com', 'margarita@mellanni.com', 'masao@mellanni.com']
+
 
     # agent_name = tool_context.agent_name
     # tool_name = tool.name
@@ -65,10 +67,10 @@ def before_bq_callback(
     )
 
     if all([project_id, dataset_id, table_id]):
-        allowed_users = table_data[dataset_id]["tables"][table_id].get(
+        allowed_users: list = table_data[dataset_id]["tables"][table_id].get(
             "allowed_users", []
         )
-        if allowed_users and user not in allowed_users:
+        if allowed_users and user not in allowed_users + superusers:
             return {"error": f"User {user} does not have access to {table_id} table data. Message `sergey@mellanni.com` if you need access."}
 
 
@@ -89,6 +91,8 @@ def create_bigquery_agent():
 
             Here's the list and description of the company data structure in bigquery tables:\n{table_data}. Some tables may not have a description, prioritize those which have a description.
 
+            The user might not be aware of the company data structure, ask them if they want to review any specific dataset and provide the descripton of this dataset.
+
             You must NEVER output simulated data without explicitly telling the user that the data is simulated.
             
             **IMPORTANT**
@@ -97,7 +101,7 @@ def create_bigquery_agent():
                 *   When user asks about a "product" or "collection" - they typically refer to the "Collection" column of this table.
                 *   You **MUST** always include this table in your query if the user is interested in collection / product performance.
 
-                Date and time implications.
+                Date and time imperatives.
                 *   Your date and time awareness is outdated, ALWAYS use `get_current_datetime` function to check for the current date and time,
                     especially when performing queries with dates.
                 *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
