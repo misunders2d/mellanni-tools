@@ -14,6 +14,7 @@ import tempfile
 
 import os
 import json
+import re
 
 from data import MODEL, get_current_datetime, table_data
 from .gogle_search_agent import google_search_agent_tool
@@ -54,24 +55,65 @@ def before_bq_callback(
 ) -> Optional[Dict]:
     """Checks if the user is authorized to see data in a specific table"""
 
-    superusers = ['igor@mellanni.com', 'margarita@mellanni.com', 'masao@mellanni.com']
-
-
-    # agent_name = tool_context.agent_name
-    # tool_name = tool.name
+    superusers = ["igor@mellanni.com", "margarita@mellanni.com", "masao@mellanni.com"]
     user = tool_context._invocation_context.user_id
-    project_id, dataset_id, table_id = (
-        args.get("project_id", ""),
-        args.get("dataset_id", ""),
-        args.get("table_id", ""),
-    )
+    tool_name = tool.name
 
-    if all([project_id, dataset_id, table_id]):
-        allowed_users: list = table_data[dataset_id]["tables"][table_id].get(
-            "allowed_users", []
+    tables_to_check = []
+
+    query = args.get("query", "")
+    if query:
+        # Regex to find table names after FROM or JOIN. Handles backticks.
+        found_tables = re.findall(
+            r"(?:FROM|JOIN)\s+`?([\w.-]+)`?", query, re.IGNORECASE
         )
-        if allowed_users and user not in allowed_users + superusers:
-            return {"error": f"User {user} does not have access to {table_id} table data. Message `sergey@mellanni.com` if you need access."}
+        for table_name in found_tables:
+            parts = table_name.split(".")
+            if len(parts) == 3:
+                tables_to_check.append(
+                    {
+                        "project_id": parts[0],
+                        "dataset_id": parts[1],
+                        "table_id": parts[2],
+                    }
+                )
+            elif len(parts) == 2:
+                project_id = args.get("project_id")
+                if project_id:
+                    tables_to_check.append(
+                        {
+                            "project_id": project_id,
+                            "dataset_id": parts[0],
+                            "table_id": parts[1],
+                        }
+                    )
+    else:
+        project_id = args.get("project_id")
+        dataset_id = args.get("dataset_id")
+        table_id = args.get("table_id")
+        if all([project_id, dataset_id, table_id]):
+            tables_to_check.append(
+                {
+                    "project_id": project_id,
+                    "dataset_id": dataset_id,
+                    "table_id": table_id,
+                }
+            )
+
+    for table_info in tables_to_check:
+        project_id = table_info["project_id"]
+        dataset_id = table_info["dataset_id"]
+        table_id = table_info["table_id"]
+
+        if dataset_id in table_data and table_id in table_data[dataset_id]["tables"]:
+            allowed_users = table_data[dataset_id]["tables"][table_id].get(
+                "authorized_users", []
+            )
+            if allowed_users and user not in allowed_users + superusers:
+                return {
+                    "error": f"User {user} does not have access to table `{project_id}.{dataset_id}.{table_id}`. Message `sergey@mellanni.com` if you need access."
+                }
+    return None
 
 
 # Agent Definition

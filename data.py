@@ -432,15 +432,15 @@ table_data = {
             "restock_inventory": {"description": ""},
             "settlement": {
                 "description": "",
-                "allowed_users": ["sergey@mellanni.com", "valerii@mellanni.com"],
+                "authorized_users": ["sergey@mellanni.com", "valerii@mellanni.com"],
             },
             "settlement_daily": {
                 "description": "",
-                "allowed_users": ["sergey@mellanni.com", "valerii@mellanni.com"],
+                "authorized_users": ["sergey@mellanni.com", "valerii@mellanni.com"],
             },
             "settlement_daily_usd": {
                 "description": "",
-                "allowed_users": ["sergey@mellanni.com", "valerii@mellanni.com"],
+                "authorized_users": ["sergey@mellanni.com", "valerii@mellanni.com"],
             },
             "shipments": {
                 "description": "Amazon fulfilled orders (excluding FBM shipments), crucial table for building a Promotions report",
