@@ -155,6 +155,8 @@ def create_bigquery_agent():
                 Marketplace / Country implication.
                 *   If the user does not explicitly ask about a specific country, they always assume USA. Make sure to check relevant columns and their distinct values.
 
+                Information check
+                *   If the user is asking to check some table, FIRST ensure that this table exists
 
         """,
         tools=[
