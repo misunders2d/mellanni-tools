@@ -1,11 +1,14 @@
 from google.adk.agents import Agent
 from google.adk.tools.bigquery import BigQueryCredentialsConfig
 from google.adk.tools.bigquery import BigQueryToolset
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.tool_context import ToolContext
 from google.adk.tools.bigquery.config import BigQueryToolConfig
 from google.adk.tools.bigquery.config import WriteMode
 from google.adk.planners import BuiltInPlanner
 from google.genai import types
 
+from typing import Optional, Dict, Any
 from google.oauth2 import service_account
 import tempfile
 
@@ -46,6 +49,27 @@ bigquery_toolset = BigQueryToolset(
 today = get_current_datetime().date()
 
 
+def before_bq_callback(
+    tool: BaseTool, args: Dict[str, Any], tool_context: ToolContext
+) -> Optional[Dict]:
+    """Checks if the user is authorized to see data in a specific table"""
+
+
+    # agent_name = tool_context.agent_name
+    # tool_name = tool.name
+    user = tool_context._invocation_context.user_id
+    project_id, dataset_id, table_id = (
+        args.get("project_id", ""),
+        args.get("dataset_id", ""),
+        args.get("table_id", ""),
+    )
+
+    if all([project_id, dataset_id, table_id]):
+        allowed_users = table_data[dataset_id]["tables"][table_id].get(
+            "allowed_users", []
+        )
+        if allowed_users and user not in allowed_users:
+            return {"error": f"User {user} does not have access to {table_id} table data. Message `sergey@mellanni.com` if you need access."}
 
 
 # Agent Definition
@@ -97,5 +121,6 @@ def create_bigquery_agent():
                 include_thoughts=True, thinking_budget=-1
             )
         ),
+        before_tool_callback=before_bq_callback,
     )
     return bigquery_agent
