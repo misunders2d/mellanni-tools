@@ -464,7 +464,7 @@ table_data = {
             "fba_shipments_partitioned": {"description": ""},
             "inventory": {"description": ""},
             "inventory_bins": {"description": ""},
-            "inventory_bins_partitioned": {"""description": "Use this table to obtain the warehouse inventory for the company. When calculating the actual available (on-hand) inventory make sure to apply the following filters: `Sellable == True & BinType != "Picking" & ~BinName.str.startswith("DS")`"""},
+            "inventory_bins_partitioned": {"description": """Use this table to obtain the warehouse inventory for the company. When calculating the actual available (on-hand) inventory make sure to apply the following filters: `Sellable == True & BinType != "Picking" & ~BinName.str.startswith("DS")`"""},
             "inventory_bins_report": {"description": ""},
             "inventory_partitioned": {"description": ""},
             "orders": {"description": ""},
