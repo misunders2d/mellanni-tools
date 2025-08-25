@@ -427,7 +427,9 @@ table_data = {
                 "description": "",
                 "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
             },
-            "promotions": {"description": ""},
+            "promotions": {
+                "description": "Contains data about all promotions applied to Amazon purchases, including LD (Lightning Deals), coupons, promo codes etc. Use it when user asks about promotions and their performance. Also contains a lot of Amazon-internal promotions, like free shipping, which does not impact seller profitability."
+            },
             "reserved_inventory": {"description": ""},
             "restock_inventory": {"description": ""},
             "settlement": {
