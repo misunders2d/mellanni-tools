@@ -273,6 +273,7 @@ with col3:
         )
     if col3.button("Clear"):
         remove_images()
+        st.cache_data.clear()
 with col2:
     barcode_type = col2.radio(
         "Select barcode type:", ["FNSKU", "ITF14", "SKU upload with qty"]

@@ -125,7 +125,7 @@ def create_bigquery_agent():
             "Agent to answer questions about the company's business performance (sales, inventory, payments etc)."
             "Uses BigQuery data and models and executes SQL queries."
         ),
-        instruction=f"""\
+        instruction=f"""
             You are a data science agent with access to several BigQuery tools.
             Make use of those tools to answer the user's questions.
             The main datasets you are working with are `mellanni-project-da.reports` and `mellanni-project-da.auxillary_development`.
