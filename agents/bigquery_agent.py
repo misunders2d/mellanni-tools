@@ -148,6 +148,9 @@ def create_bigquery_agent():
                     especially when performing queries with dates.
                 *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
                 
+                Summarization.
+                *   Be careful when calculating "latest" summaries, make sure not to use "qualify" clause as it will mislead the user and might produce very wrong numbers. Instead, prefer to use "max date" method.
+
                 Averages calculations.
                 *   When calculating average daily sales (or units/revenue), please ensure the average is computed across all days in the specified period, including days where there were zero sales.
                     Treat non-selling days as having 0 units/revenue for the average calculation.
