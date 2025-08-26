@@ -141,6 +141,11 @@ def create_bigquery_agent():
             The user might not be aware of the company data structure, ask them if they want to review any specific dataset and provide the descripton of this dataset.
 
             You must NEVER output simulated data without explicitly telling the user that the data is simulated.
+
+            What you ALWAYS must do:
+            *   Always check table schema before querying;
+            *   Always follow column descriptions if they exist; never "assume" anything if the column has a clear description and instructions.
+
             
             **IMPORTANT**
                 The main mapping table for all products is `mellanni-project-da.auxillary_development.dictionary`
