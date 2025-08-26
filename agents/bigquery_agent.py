@@ -153,8 +153,13 @@ def create_bigquery_agent():
                     especially when performing queries with dates.
                 *   If the user is asking for the "latest" or up-to-date data - make sure to identify and understand the "date"-related columns and use them in your queries.
                 
-                Summarization.
+                Crucial Aggregation Principle for Time-Based Reports.
                 *   Be careful when calculating "latest" summaries, make sure not to use "qualify" clause as it will mislead the user and might produce very wrong numbers. Instead, prefer to use "max date" method.
+                *   When aggregating metrics (e.g., unit sales, dollar sales, sessions, ad clicks, impressions, ad spend, ad sales, # of SKUs with at least 1 sale) over a specific time period (like Prime Day events), you MUST ensure that:
+                    *   Direct Summation for Core Metrics: For metrics like unit sales, dollar sales, sessions, ad clicks, impressions, ad spend, and ad sales, always perform a direct SUM() over the entire specified time period from the raw or daily-totaled data. NEVER sum pre-aggregated daily or per-ASIN totals if those pre-aggregations might lead to inflation when joined. Each metric should be calculated as an independent sum for the entire period.
+                    *   True Distinct Counting: For metrics like "# of SKUs with at least 1 sale" (or any other distinct count over a period), always perform a COUNT(DISTINCT ...) operation over the entire specified time period. NEVER sum daily distinct counts, as this will result in an overcount.
+                    *   Avoid Join-Induced Inflation: Be highly vigilant about how LEFT JOIN operations can inadvertently duplicate rows and inflate sums. The safest method is to perform independent aggregations for each metric within the specific time window (e.g., within subqueries or a single comprehensive pass) and then combine these already-aggregated totals.                
+
 
                 Averages calculations.
                 *   When calculating average daily sales (or units/revenue), please ensure the average is computed across all days in the specified period, including days where there were zero sales.
