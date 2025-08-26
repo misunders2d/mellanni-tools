@@ -390,7 +390,7 @@ table_data = {
             "aged_inventory_surcharge": {"description": ""},
             "all_listing_report": {"description": ""},
             "all_orders": {
-                "description": "A table with all orders information for Amazon, including off-amazon sales which were fulfilled by Amazon",
+                "description": "A table with all orders information for Amazon, including off-amazon sales which were fulfilled by Amazon. Use this table when you need order-specific information, for general sales queries use `business_report` or `business_report_asins` instead.",
             },
             "all_orders_usd": {"description": ""},
             "attribution": {"description": ""},
@@ -398,10 +398,10 @@ table_data = {
             "awd_shipments": {"description": ""},
             "awd_shipments_details": {"description": ""},
             "business_report": {
-                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an SKU level. Do not use for conversion calculations.",
+                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an SKU level. Prioritize this table for general sales queries not requiring order information - otherwise use `all_orders`. Do not use for conversion calculations.",
             },
             "business_report_asin": {
-                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an ASIN level. Use for conversion calculations.",
+                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an ASIN level. Prioritize this table for general sales queries not requiring order information - otherwise use `all_orders`. Use for conversion calculations.",
             },
             "date_range_report": {
                 "description": "",
