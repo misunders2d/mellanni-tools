@@ -55,7 +55,12 @@ def before_bq_callback(
 ) -> Optional[Dict]:
     """Checks if the user is authorized to see data in a specific table"""
 
-    superusers = ["igor@mellanni.com", "margarita@mellanni.com", "masao@mellanni.com"]
+    superusers = [
+        "igor@mellanni.com",
+        "margarita@mellanni.com",
+        "masao@mellanni.com",
+        "neel@mellanni.com",
+    ]
     user = tool_context._invocation_context.user_id
     tool_name = tool.name
 

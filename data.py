@@ -379,7 +379,9 @@ table_data = {
     "reports": {
         "dataset_description": "The main dataset for the company's Amazon business data. Includes data from multiple Amazon channels (amazon.com, amazon.ca etc.), including sales data which came from outside of Amazon, but was fulfilled by Amazon.",
         "tables": {
-            "AdvertisedProduct": {"description": "`Sponsored Products` PPC performance for the advertised product. Shows most relevant data for one of the PPC types. DOES NOT show"},
+            "AdvertisedProduct": {
+                "description": "`Sponsored Products` PPC performance for the advertised product. Shows most relevant data for one of the PPC types. DOES NOT show"
+            },
             "PurchasedProduct": {"description": ""},
             "SponsoredBrandsPlacement": {"description": ""},
             "SponsoredDisplay": {"description": ""},
@@ -464,7 +466,9 @@ table_data = {
             "fba_shipments_partitioned": {"description": ""},
             "inventory": {"description": ""},
             "inventory_bins": {"description": ""},
-            "inventory_bins_partitioned": {"description": """Use this table to obtain the warehouse inventory for the company. When calculating the actual available (on-hand) inventory make sure to apply the following filters: `Sellable == True & BinType != "Picking" & ~BinName.str.startswith("DS")`"""},
+            "inventory_bins_partitioned": {
+                "description": """Use this table to obtain the warehouse inventory for the company. When calculating the actual available (on-hand) inventory make sure to apply the following filters: `Sellable == True & BinType != "Picking" & ~BinName.str.startswith("DS")`"""
+            },
             "inventory_bins_report": {"description": ""},
             "inventory_partitioned": {"description": ""},
             "orders": {"description": ""},
@@ -509,7 +513,9 @@ table_data = {
         "tables": {
             "campaigns_info": {"description": ""},
             "campaigns_performance": {"description": ""},
-            "campaigns_performance_v2": {"description": "Use this as a main source of all ad-related information - Amazon PPC, Google, Meta etc advertisement"},
+            "campaigns_performance_v2": {
+                "description": "Use this as a main source of all ad-related information - Amazon PPC, Google, Meta etc advertisement"
+            },
         },
     },
     "slack": {
