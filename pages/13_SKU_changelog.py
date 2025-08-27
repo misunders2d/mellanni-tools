@@ -38,7 +38,7 @@ if not st.user.email in markets_access:
 GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
 )
-client = bigquery.Client(credentials=GC_CREDENTIALS)
+client = bigquery.Client(credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id)
 NUM_DAYS = 60
 
 change_types = [
@@ -109,8 +109,12 @@ def pull_dictionary(marketplace: str = "US") -> pd.DataFrame:
     dictionary_report = markets_match["dictionaries"].get(marketplace)
     query = f"SELECT {columns} FROM {dictionary_report}"
     if dictionary_report is not None:
-        with bigquery.Client(credentials=GC_CREDENTIALS) as client:
+        with bigquery.Client(
+            credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id
+        ) as client:
             dictionary = client.query(query).result().to_dataframe()
+    else:
+        dictionary = pd.DataFrame()
     return dictionary
 
 
@@ -127,7 +131,9 @@ def pull_changes(
     query = f'SELECT {columns} FROM {report} WHERE DATE(date) >= DATE("{start}") AND DATE(date) <= DATE("{end}")'
     if report is not None:
         try:
-            with bigquery.Client(credentials=GC_CREDENTIALS) as client:
+            with bigquery.Client(
+                credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id
+            ) as client:
                 changes = client.query(query).result().to_dataframe()
         except:
             return pd.DataFrame(columns=["date", "sku", "change_type", "notes"])

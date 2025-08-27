@@ -1,9 +1,7 @@
 import os, re
 
 from openai import OpenAI, NotFoundError
-import base64, time
 import streamlit as st
-import keepa
 from modules.keepa_modules import get_product_details
 
 
@@ -94,6 +92,7 @@ def compare_products(details, instructions, props, test=False):
             },
             {"role": "user", "content": "Once upon a time on Amazon..."},
         ]
+
     response = client.chat.completions.create(
         model=MODEL, messages=messages, max_tokens=MAX_TOKENS, stream=True
     )
@@ -166,11 +165,12 @@ instructions = instr_col.text_area(
 
 if st.button("Analyze"):
     asins_str = re.split(" |,|\n|\t", asins_input)
-    asins = [
-        re.search("([A-Z0-9]{10})", x).group().strip()
-        for x in asins_str
-        if re.search("([A-Z0-9]{10})", x)
-    ]
+    asins = []
+    for asin in asins_str:
+        asin_group = re.search("([A-Z0-9]{10})", asin)
+        if asin_group:
+            asins.append(asin_group.group().strip())
+
     if len(asins) == 0:
         st.error("No products to research")
     else:

@@ -204,7 +204,7 @@ def show_plot(df, type="Monthly"):
             position=0.05,
             showgrid=False,
             range=[0, max(df["final price"]) * 1.1],
-            titlefont=dict(color="red"),
+            title_font=dict(color="red"),
             tickfont=dict(color="red"),
         ),
         yaxis3=dict(
@@ -215,7 +215,7 @@ def show_plot(df, type="Monthly"):
             position=1,
             showgrid=False,
             range=[1, max(1000, max(df["BSR"]))],
-            titlefont=dict(color="lightgreen"),
+            title_font=dict(color="lightgreen"),
             tickfont=dict(color="lightgreen"),
         ),
     )
@@ -369,11 +369,12 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
         products = []
         try:
             asins_bulk = re.split(r"[\n\r,]", bulk_asin_input)
-            asins_bulk = [
-                re.search("B[A-Z0-9]{9}", asin.upper()).group()
-                for asin in asins_bulk
-                if asin.strip() and re.search("B[A-Z0-9]{9}", asin.upper())
-            ]
+            asins_bulk = []
+            for asin in asins_bulk:
+                asin_match = re.match("B[A-Z0-9]{9}", asin.upper())
+                if asin_match:
+                    asins_bulk.append(asin_match.group().strip())
+
             products_data = get_products(asins_bulk)
             products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
             _ = [p.extract_from_products(products_data) for p in products]
@@ -392,6 +393,8 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
             products_data = []
 
         for ap in products:
+            if not ap.data:
+                continue
             try:
                 ap.extract_from_products(products_data)
                 ap.get_last_days(days=bulk_days)

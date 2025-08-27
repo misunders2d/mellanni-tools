@@ -93,7 +93,9 @@ def get_stock():
     GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
         st.secrets["gcp_service_account"]
     )
-    client = bigquery.Client(credentials=GC_CREDENTIALS)
+    client = bigquery.Client(
+        credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id
+    )
     query = f"""
                 SELECT date, sku, asin, afn_fulfillable_quantity
                 FROM `reports.fba_inventory`

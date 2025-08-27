@@ -1,7 +1,6 @@
 from openai import OpenAI
 import streamlit as st
 import time, os, re
-import keepa
 from modules.keepa_modules import get_product_details
 
 
@@ -27,11 +26,11 @@ if competitor_area.checkbox("Add competitor data"):
         placeholder="Enter ASINs or Amazon.com links (up to 5 perferably)",
     )
     asins_str = re.split(" |,|\n|\t", competitors)
-    st.session_state.asins = [
-        re.search("([A-Z0-9]{10})", x).group().strip()
-        for x in asins_str
-        if re.search("([A-Z0-9]{10})", x)
-    ]
+    st.session_state.asins = []
+    for asin in asins_str:
+        asin_group = re.match("([A-Z0-9]{10})", asin.strip())
+        if asin_group:
+            st.session_state.asins.append(asin_group.group())
 
 product_description_area = st.empty()
 title_area1 = st.empty()
@@ -127,7 +126,11 @@ def process(full_prompt):
 
 if button_col1.button("Optimize"):  # and 'result' not in st.session_state:
     st.session_state.prompt = f"Product:\n{product}\n\nTitle:\n{title_current},\n\nBulletpoints:\n{bullets_real}\n\nKeywords:\n{keywords}"
-    if "asins" in st.session_state and len(st.session_state.asins) > 0:
+    if (
+        "asins" in st.session_state
+        and isinstance(st.session_state.asins, list)
+        and len(st.session_state.asins) > 0
+    ):
         items = get_product_details(st.session_state.asins)
         st.session_state.competitors_prompt = (
             "\n\nCompetitors information for reference: "
