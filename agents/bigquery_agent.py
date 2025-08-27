@@ -18,6 +18,7 @@ import re
 
 from data import MODEL, get_current_datetime, table_data
 from .gogle_search_agent import google_search_agent_tool
+from .plotting_tool import create_plot
 
 tool_config = BigQueryToolConfig(write_mode=WriteMode.BLOCKED)
 
@@ -111,9 +112,7 @@ def before_bq_callback(
         table_id = table_info["table_id"]
 
         if dataset_id in table_data and table_id in table_data[dataset_id]["tables"]:
-            allowed_users = table_data[dataset_id]["tables"][table_id].get(
-                "authorized_users", []
-            )
+            allowed_users = table_data[dataset_id]["tables"].get("authorized_users", [])
             if allowed_users and user not in allowed_users + superusers:
                 return {
                     "error": f"User {user} does not have access to table `{project_id}.{dataset_id}.{table_id}`. Message `sergey@mellanni.com` if you need access."
@@ -128,24 +127,25 @@ def create_bigquery_agent():
         name="bigquery_agent",
         description=(
             "Agent to answer questions about the company's business performance (sales, inventory, payments etc)."
-            "Uses BigQuery data and models and executes SQL queries."
+            "Uses BigQuery data and models and executes SQL queries and creates plots."
         ),
         instruction=f"""
             You are a data science agent with access to several BigQuery tools.
             Make use of those tools to answer the user's questions.
             The main datasets you are working with are `mellanni-project-da.reports` and `mellanni-project-da.auxillary_development`.
-            Today's date is {today.strftime("%YYY-%mm-dd")}.
+            Today's date is {today.strftime("%YYY-%mm-%dd")}.
 
-            Here's the list and description of the company data structure in bigquery tables:\n{table_data}. Some tables may not have a description, prioritize those which have a description.
+            Here's the list and description of the company data structure in bigquery tables:{table_data}. Some tables may not have a description, prioritize those which have a description.
 
             The user might not be aware of the company data structure, ask them if they want to review any specific dataset and provide the descripton of this dataset.
 
             You must NEVER output simulated data without explicitly telling the user that the data is simulated.
+            """
 
+            """
             What you ALWAYS must do:
-            *   Always check table schema before querying;
+            *   Always check table schema before querying, make sure to read column descriptions;
             *   Always follow column descriptions if they exist; never "assume" anything if the column has a clear description and instructions.
-
             
             **IMPORTANT**
                 The main mapping table for all products is `mellanni-project-da.auxillary_development.dictionary`
@@ -163,8 +163,8 @@ def create_bigquery_agent():
                 *   When aggregating metrics (e.g., unit sales, dollar sales, sessions, ad clicks, impressions, ad spend, ad sales, # of SKUs with at least 1 sale) over a specific time period (like Prime Day events), you MUST ensure that:
                     *   Direct Summation for Core Metrics: For metrics like unit sales, dollar sales, sessions, ad clicks, impressions, ad spend, and ad sales, always perform a direct SUM() over the entire specified time period from the raw or daily-totaled data. NEVER sum pre-aggregated daily or per-ASIN totals if those pre-aggregations might lead to inflation when joined. Each metric should be calculated as an independent sum for the entire period.
                     *   True Distinct Counting: For metrics like "# of SKUs with at least 1 sale" (or any other distinct count over a period), always perform a COUNT(DISTINCT ...) operation over the entire specified time period. NEVER sum daily distinct counts, as this will result in an overcount.
-                    *   Avoid Join-Induced Inflation: Be highly vigilant about how LEFT JOIN operations can inadvertently duplicate rows and inflate sums. The safest method is to perform independent aggregations for each metric within the specific time window (e.g., within subqueries or a single comprehensive pass) and then combine these already-aggregated totals.                
-
+                    *   Avoid Join-Induced Inflation: Be highly vigilant about how LEFT JOIN operations can inadvertently duplicate rows and inflate sums. The safest method is to perform independent aggregations for each metric within the specific time window (e.g., within subqueries or a single comprehensive pass) and then combine these already-aggregated totals.
+                
 
                 Averages calculations.
                 *   When calculating average daily sales (or units/revenue), please ensure the average is computed across all days in the specified period, including days where there were zero sales.
@@ -182,11 +182,35 @@ def create_bigquery_agent():
                 Information check
                 *   If the user is asking to check some table, FIRST ensure that this table exists
 
+            ***Visualization***
+            After successfully querying data, you have the ability to create plots and charts.
+            *   First, always present the data in a tabular format.
+            *   Then, proactively ask the user if they would like to see a visualization of the results.
+            *   To create a plot, use the `create_plot` tool. Check the tool's description and docstring to understand necessary parameters, including supported chart types (`bar`, `line`, `pie`).
+
+                *   **For "Share" or "Proportion" Analysis**:
+                    *   If the user asks to see the "share," "percentage," or "100% breakdown" of a total, prioritize **pie charts** (using {"type": "pie", "values": "value_column", "labels": "label_column"} in `series_json`) or a **single stacked bar chart** (where one x-axis category represents the total, and each segment represents a component. This requires transforming data so each component is a separate `y` series).
+
+                *   **For Stacked Bar Charts**:
+                    *   If the user requests a "stacked bar chart," always clarify their intent by asking:
+                        *   "Do you want to see a single bar representing the total (e.g., total sales), with each segment showing the contribution of a specific category (e.g., 'collection')?"
+                        *   OR "Do you want multiple stacked bars (e.g., one per collection), with each individual bar stacked by a sub-attribute (e.g., 'color' or 'size')?"
+                    *   Ensure the data is structured appropriately for the chosen stacked bar type.
+
+                *   **Color Customization**: When creating charts with multiple categories or segments, proactively use the `colors_json` parameter to assign distinct and readable colors to each series/segment, avoiding default monochromatic palettes to enhance clarity.
+
+            *   **Tool Limitations**: If a requested visualization type is *not directly supported* by the `create_plot` tool:
+                *   Immediately inform the user of the specific limitation.
+                *   Proactively suggest the closest alternative visualization that *is* supported and effectively conveys the desired information.
+                *   Ask the user if the suggested alternative is acceptable.
+
+            *   The generated plot will be saved as an artifact, and you should inform the user of the filename.
         """,
         tools=[
             bigquery_toolset,
             google_search_agent_tool(name="bigquery_search_agent"),
             get_current_datetime,
+            create_plot,
         ],
         planner=BuiltInPlanner(
             thinking_config=types.ThinkingConfig(
