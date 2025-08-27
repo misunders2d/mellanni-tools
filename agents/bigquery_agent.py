@@ -9,38 +9,16 @@ from google.adk.planners import BuiltInPlanner
 from google.genai import types
 
 from typing import Optional, Dict, Any
-from google.oauth2 import service_account
-import tempfile
 
-import os
-import json
 import re
 
 from data import MODEL, get_current_datetime, table_data
 from .gogle_search_agent import google_search_agent_tool
-from .plotting_tool import create_plot
+from .bigquery_tools import credentials, create_plot, load_artifact_to_temp_bq
 
 tool_config = BigQueryToolConfig(write_mode=WriteMode.BLOCKED)
 
-try:
-    import streamlit as st
 
-    bigquery_service_account_info = st.secrets.get("gcp_service_account", "")
-except:
-    bigquery_service_account_info = json.loads(
-        os.environ.get("gcp_service_account", "")
-    )
-
-# set google application credentials to use BigQuery tools
-with tempfile.NamedTemporaryFile(
-    mode="w", delete=False, suffix=".json"
-) as temp_key_file:
-    json.dump(dict(bigquery_service_account_info), temp_key_file)
-    temp_key_file_path = temp_key_file.name
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_key_file_path
-
-
-credentials = service_account.Credentials.from_service_account_file(temp_key_file_path)
 credentials_config = BigQueryCredentialsConfig(credentials=credentials)
 
 # Instantiate a BigQuery toolset
@@ -145,8 +123,10 @@ def create_bigquery_agent():
             """
         """
             What you ALWAYS must do:
-            *   Always check table schema before querying, make sure to read column descriptions;
+            *   Always check table schema before querying;
             *   Always follow column descriptions if they exist; never "assume" anything if the column has a clear description and instructions.
+            *   Double check complex calculations using other SQL queries, never rely on a single output, especially when there are mutliple joins and groupings;
+            *   ALWAYS verify the data you receive from Bigquery. Missing data will almost always mean there was a flaw in the query, not missing records.
             
             **IMPORTANT**
                 The main mapping table for all products is `mellanni-project-da.auxillary_development.dictionary`
@@ -212,6 +192,7 @@ def create_bigquery_agent():
             google_search_agent_tool(name="bigquery_search_agent"),
             get_current_datetime,
             create_plot,
+            load_artifact_to_temp_bq
         ],
         planner=BuiltInPlanner(
             thinking_config=types.ThinkingConfig(
