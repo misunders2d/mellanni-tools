@@ -619,11 +619,15 @@ def create_bytes_df(dfs, sheet_names, **kwargs):
 
 @st.fragment
 def filter_df(search_term, threshold=70):
-    bq = st.session_state["bq_data"].copy()
+    bq = (
+        st.session_state["bq_data"].copy()
+        if "bq_data" in st.session_state
+        else pd.DataFrame(columns=["bq_data"])
+    )
     kw = (
         st.session_state["kw_records"].copy()
         if "kw_records" in st.session_state
-        else pd.DataFrame()
+        else pd.DataFrame(columns=["search_term"])
     )
     if search_term:
         bq = bq[
@@ -717,9 +721,8 @@ if selected_dates:
 
     def update_search_term():
         st.session_state["search_term"] = st.session_state["keyword_input"]
-        if st.session_state["search_term"]:
-            filter_df(st.session_state["search_term"])
-            st.session_state.update({"export_sqp_data": False})
+        filter_df(st.session_state["search_term"])
+        st.session_state.update({"export_sqp_data": False})
 
     kw_filter_area.text_input(
         "Search for a specific keyword",

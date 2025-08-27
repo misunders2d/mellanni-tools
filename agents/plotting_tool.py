@@ -14,7 +14,7 @@ async def create_plot(
     colors_json: str,
     y_axis_title: str,
     y2_axis_title: str,
-    bar_mode: str = "group",   # "group" | "stack" | "overlay"
+    bar_mode: str = "group",  # "group" | "stack" | "overlay"
 ) -> str:
     """
     Generates a flexible plot (pie, bar, line, scatter, area) and saves it as an artifact.
@@ -54,41 +54,66 @@ async def create_plot(
             color = colors.get(name)
 
             if s_type == "line":
-                fig.add_trace(go.Scatter(
-                    x=df[x_axis], y=df[s["y"]], mode="lines",
-                    name=name, yaxis="y2" if axis == "secondary" else "y",
-                    line=dict(color=color) if color else None
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=df[x_axis],
+                        y=df[s["y"]],
+                        mode="lines",
+                        name=name,
+                        yaxis="y2" if axis == "secondary" else "y",
+                        line=dict(color=color) if color else None,
+                    )
+                )
 
             elif s_type == "scatter":
-                fig.add_trace(go.Scatter(
-                    x=df[x_axis], y=df[s["y"]], mode="markers",
-                    name=name, yaxis="y2" if axis == "secondary" else "y",
-                    marker=dict(color=color) if color else None
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=df[x_axis],
+                        y=df[s["y"]],
+                        mode="markers",
+                        name=name,
+                        yaxis="y2" if axis == "secondary" else "y",
+                        marker=dict(color=color) if color else None,
+                    )
+                )
 
             elif s_type == "bar":
-                fig.add_trace(go.Bar(
-                    x=df[x_axis], y=df[s["y"]], name=name,
-                    yaxis="y2" if axis == "secondary" else "y",
-                    marker=dict(color=color) if color else None
-                ))
+                fig.add_trace(
+                    go.Bar(
+                        x=df[x_axis],
+                        y=df[s["y"]],
+                        name=name,
+                        yaxis="y2" if axis == "secondary" else "y",
+                        marker=dict(color=color) if color else None,
+                    )
+                )
 
             elif s_type == "area":
-                fig.add_trace(go.Scatter(
-                    x=df[x_axis], y=df[s["y"]], name=name, fill="tozeroy",
-                    yaxis="y2" if axis == "secondary" else "y",
-                    line=dict(color=color) if color else None
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=df[x_axis],
+                        y=df[s["y"]],
+                        name=name,
+                        fill="tozeroy",
+                        yaxis="y2" if axis == "secondary" else "y",
+                        line=dict(color=color) if color else None,
+                    )
+                )
 
             elif s_type == "pie":
-                fig.add_trace(go.Pie(
-                    values=df[s["values"]],
-                    labels=df[s["labels"]],
-                    name=name,
-                    hole=s.get("hole", 0),  # support donut if hole > 0
-                    marker=dict(colors=[colors.get(val) for val in df[s["labels"]]]) if colors else None
-                ))
+                fig.add_trace(
+                    go.Pie(
+                        values=df[s["values"]],
+                        labels=df[s["labels"]],
+                        name=name,
+                        hole=s.get("hole", 0),  # support donut if hole > 0
+                        marker=(
+                            dict(colors=[colors.get(val) for val in df[s["labels"]]])
+                            if colors
+                            else None
+                        ),
+                    )
+                )
 
             else:
                 return f"Error: Unsupported chart type '{s_type}'."
@@ -101,8 +126,12 @@ async def create_plot(
                 xaxis=dict(title=x_axis),
                 yaxis=dict(title=y_axis_title),
                 yaxis2=dict(title=y2_axis_title, overlaying="y", side="right"),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                barmode=bar_mode if bar_mode in ["group", "stack", "overlay"] else "group"
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                ),
+                barmode=(
+                    bar_mode if bar_mode in ["group", "stack", "overlay"] else "group"
+                ),
             )
         else:
             fig.update_layout(title=title)
@@ -114,7 +143,9 @@ async def create_plot(
         # Save artifact
         plot_artifact = Part.from_bytes(data=html_bytes, mime_type="text/html")
         filename = f"{user}:{title.replace(' ', '_')}.html"
-        version = await tool_context.save_artifact(filename=filename, artifact=plot_artifact)
+        version = await tool_context.save_artifact(
+            filename=filename, artifact=plot_artifact
+        )
 
         return f"Successfully created and saved interactive plot '{filename}' (version {version})."
 
