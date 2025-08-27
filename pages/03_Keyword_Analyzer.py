@@ -717,8 +717,9 @@ if selected_dates:
 
     def update_search_term():
         st.session_state["search_term"] = st.session_state["keyword_input"]
-        filter_df(st.session_state["search_term"])
-        st.session_state.update({"export_sqp_data": False})
+        if st.session_state["search_term"]:
+            filter_df(st.session_state["search_term"])
+            st.session_state.update({"export_sqp_data": False})
 
     kw_filter_area.text_input(
         "Search for a specific keyword",

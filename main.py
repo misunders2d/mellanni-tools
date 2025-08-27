@@ -67,6 +67,11 @@ for message in st.session_state.messages:
                 st.json(message["content"])
             else:
                 st.info(message["content"])
+    elif message["role"] == "artifact":
+        if message.get("type") == "image":
+            st.image(message["content"])
+        elif message.get("type") == "plot":
+            st.components.v1.html(message["content"], height=600)  # type: ignore
     else:
         with st.chat_message(
             message["role"],
@@ -107,6 +112,38 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
         session_id=session_id,
         new_message=types.Content(role="user", parts=[types.Part(text=user_input)]),
     ):
+
+        if event.actions.artifact_delta:
+            artifact = await artifact_service.load_artifact(
+                app_name=APP_NAME,
+                user_id=user_id,
+                session_id=session_id,
+                filename=list(event.actions.artifact_delta.keys())[0],
+            )
+            if artifact and artifact.inline_data and artifact.inline_data.mime_type:
+                if "image" in artifact.inline_data.mime_type:
+                    st.image(artifact.inline_data.data)  # type: ignore
+                    artifact_data = {
+                        "role": "artifact",
+                        "type": "image",
+                        "label": "Image",
+                        "content": artifact.inline_data.data,
+                    }
+                    st.session_state.messages.append(artifact_data)
+                elif "html" in artifact.inline_data.mime_type:
+                    st.components.v1.html(artifact.inline_data.data, height=600)  # type: ignore
+                    artifact_data = {
+                        "role": "artifact",
+                        "type": "plot",
+                        "label": "Image",
+                        "content": artifact.inline_data.data,
+                    }
+                    st.session_state.messages.append(artifact_data)
+                else:
+                    st.write(
+                        f"Don't know yet how to show {artifact.inline_data.mime_type}"
+                    )
+
         if not event.content:
             continue
         if not event.content.parts:
