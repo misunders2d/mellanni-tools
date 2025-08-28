@@ -90,7 +90,7 @@ def before_bq_callback(
         table_id = table_info["table_id"]
 
         if dataset_id in table_data and table_id in table_data[dataset_id]["tables"]:
-            allowed_users = table_data[dataset_id]["tables"].get("authorized_users", [])
+            allowed_users = table_data[dataset_id]["tables"][table_id].get("authorized_users", [])
             if allowed_users and user not in allowed_users + superusers:
                 return {
                     "error": f"User {user} does not have access to table `{project_id}.{dataset_id}.{table_id}`. Message `sergey@mellanni.com` if you need access."
