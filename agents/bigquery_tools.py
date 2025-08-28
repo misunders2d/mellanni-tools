@@ -213,16 +213,18 @@ async def load_artifact_to_temp_bq(tool_context: ToolContext, filename: str) -> 
     df = normalize_columns(df)
 
     with bigquery.Client(credentials=credentials, project=credentials.project_id) as client:
+        try:
+            # Create unique temp table name
+            table_id = f"mellanni-project-da.auxillary_development.tmp_{filename.replace('.', '_')}_{int(datetime.now().timestamp())}"
 
-        # Create unique temp table name
-        table_id = f"mellanni-project-da.auxillary_development.tmp_{filename.replace('.', '_')}_{int(datetime.now().timestamp())}"
+            job = client.load_table_from_dataframe(df, table_id)
+            job.result()  # wait for upload
 
-        job = client.load_table_from_dataframe(df, table_id)
-        job.result()  # wait for upload
-
-        # Set expiration time (1 hour from now)
-        table = client.get_table(table_id)
-        table.expires = datetime.now() + timedelta(hours=1)
-        client.update_table(table, ["expires"])
+            # Set expiration time (1 hour from now)
+            table = client.get_table(table_id)
+            table.expires = datetime.now() + timedelta(hours=1)
+            client.update_table(table, ["expires"])
+        except Exception as e:
+            return f"Failed to upload file for analysis, convert it to .csv for better compatibility:\n{e}"
 
     return f"Uploaded `{filename}` to temporary BigQuery table `{table_id}` (expires in 1 hour)."
