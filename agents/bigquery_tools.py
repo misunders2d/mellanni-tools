@@ -209,10 +209,12 @@ async def load_artifact_to_temp_bq(tool_context: ToolContext, filename: str) -> 
         df = pd.read_excel(io.BytesIO(data))
     else:
         return f"Unsupported artifact type: {mime}"
-    
+
     df = normalize_columns(df)
 
-    with bigquery.Client(credentials=credentials, project=credentials.project_id) as client:
+    with bigquery.Client(
+        credentials=credentials, project=credentials.project_id
+    ) as client:
         try:
             # Create unique temp table name
             table_id = f"mellanni-project-da.auxillary_development.tmp_{filename.replace('.', '_')}_{int(datetime.now().timestamp())}"

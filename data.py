@@ -147,10 +147,19 @@ table_data = {
             "bq_table_meta_data": {"description": ""},
             "check": {"description": ""},
             "classified_reviews": {"description": ""},
-            "cogs": {"description": ""},
-            "cogs_calculation_gsheet": {"description": ""},
-            "cogs_calculations_results": {"description": ""},
-            "cogs_calulation_data": {"description": ""},
+            "cogs": {"description": "", "authorized_users": ["valerii@mellanni.com"]},
+            "cogs_calculation_gsheet": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "cogs_calculations_results": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
+            "cogs_calulation_data": {
+                "description": "",
+                "authorized_users": ["valerii@mellanni.com"],
+            },
             "container_processing_collections_pivot": {
                 "description": "",
             },

@@ -84,13 +84,20 @@ def before_bq_callback(
                 }
             )
 
+    if len(tables_to_check) == 0:
+        return {
+            "error": "Access to tables could not be identified and required immediate attention"
+        }
+
     for table_info in tables_to_check:
         project_id = table_info["project_id"]
         dataset_id = table_info["dataset_id"]
         table_id = table_info["table_id"]
 
         if dataset_id in table_data and table_id in table_data[dataset_id]["tables"]:
-            allowed_users = table_data[dataset_id]["tables"][table_id].get("authorized_users", [])
+            allowed_users = table_data[dataset_id]["tables"][table_id].get(
+                "authorized_users", ["example_user@example.com"]
+            )
             if allowed_users and user not in allowed_users + superusers:
                 return {
                     "error": f"User {user} does not have access to table `{project_id}.{dataset_id}.{table_id}`. Message `sergey@mellanni.com` if you need access."
@@ -192,7 +199,7 @@ def create_bigquery_agent():
             google_search_agent_tool(name="bigquery_search_agent"),
             get_current_datetime,
             create_plot,
-            load_artifact_to_temp_bq
+            load_artifact_to_temp_bq,
         ],
         planner=BuiltInPlanner(
             thinking_config=types.ThinkingConfig(
