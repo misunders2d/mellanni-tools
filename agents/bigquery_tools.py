@@ -69,11 +69,6 @@ async def create_plot(
     user = tool_context._invocation_context.user_id
 
     try:
-        # Load inputs
-        # df = pd.DataFrame(json.loads(data_json))
-        # series = json.loads(series_json)
-        # colors = json.loads(colors_json)
-
         df = pd.DataFrame(data_list)
         series = series_list
         colors = colors_dict

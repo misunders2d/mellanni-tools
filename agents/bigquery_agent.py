@@ -7,6 +7,8 @@ from google.adk.tools.bigquery.config import BigQueryToolConfig
 from google.adk.tools.bigquery.config import WriteMode
 from google.adk.planners import BuiltInPlanner
 from google.genai import types
+import pandas as pd
+from io import StringIO
 
 from typing import Optional, Dict, Any
 
@@ -16,7 +18,9 @@ from data import MODEL, get_current_datetime, table_data
 from .gogle_search_agent import google_search_agent_tool
 from .bigquery_tools import credentials, create_plot, load_artifact_to_temp_bq
 
-tool_config = BigQueryToolConfig(write_mode=WriteMode.BLOCKED)
+tool_config = BigQueryToolConfig(
+    write_mode=WriteMode.BLOCKED, max_query_result_rows=10000
+)
 
 
 credentials_config = BigQueryCredentialsConfig(credentials=credentials)
@@ -102,6 +106,38 @@ def before_bq_callback(
                 return {
                     "error": f"User {user} does not have access to table `{project_id}.{dataset_id}.{table_id}`. Message `sergey@mellanni.com` if you need access."
                 }
+    return None
+
+
+async def after_bq_callback(
+    tool: BaseTool, args: Dict[str, Any], tool_context: ToolContext, tool_response: Dict
+) -> Optional[Dict]:
+    """Saves the received Bigquery response to artifacts."""
+
+    user = tool_context._invocation_context.user_id
+    tool_name = tool.name
+    if (
+        tool_name == "execute_sql"
+        and tool_response
+        and tool_response.get("status") == "SUCCESS"
+    ):
+        try:
+            filename = f"{user}:{tool_name}_response.csv"
+            df = pd.DataFrame(tool_response["rows"])
+            buf = StringIO()
+            df.to_csv(buf, index=False)
+
+            df_artifact = types.Part.from_bytes(
+                data=buf.getvalue().encode("utf-8"), mime_type="text/csv"
+            )
+            await tool_context.save_artifact(filename=filename, artifact=df_artifact)
+            return {
+                "success": f"The tool successfully saved the result to artifact service with the filename {filename}. **IMPORTANT:** Do not show the user the tool response as it has been presented to them in a table form via artifact service",
+                "tool_response": tool_response,
+            }
+        except:
+            pass
+
     return None
 
 
@@ -207,5 +243,6 @@ def create_bigquery_agent():
             )
         ),
         before_tool_callback=before_bq_callback,
+        after_tool_callback=after_bq_callback,
     )
     return bigquery_agent

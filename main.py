@@ -1,5 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import pandas as pd
+from io import StringIO
 
 import asyncio
 
@@ -75,6 +77,9 @@ for message in st.session_state.messages:
             st.image(message["content"])
         elif message.get("type") == "plot":
             components.html(message["content"], height=600)  # type: ignore
+        elif message.get("type") == "table":
+            st.dataframe(message["content"], width="content", hide_index=True)
+
     else:
         with st.chat_message(
             message["role"],
@@ -145,6 +150,22 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
                             "content": artifact.inline_data.data,
                         }
                         st.session_state.messages.append(artifact_data)
+                    elif "text/csv" in artifact.inline_data.mime_type:
+                        try:
+                            data_bytes = bytes(artifact.inline_data.data)
+                            csv_str = data_bytes.decode("utf-8")
+                            df = pd.read_csv(StringIO(csv_str))
+                            st.dataframe(df, width="content", hide_index=True)
+                            artifact_data = {
+                                "role": "artifact",
+                                "type": "table",
+                                "label": "Table",
+                                "content": df,
+                            }
+                            st.session_state.messages.append(artifact_data)
+                        except:
+                            pass
+
                     else:
                         st.write(
                             f"Don't know yet how to show {artifact.inline_data.mime_type}"
