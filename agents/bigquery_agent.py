@@ -84,7 +84,7 @@ def before_bq_callback(
                 }
             )
 
-    if len(tables_to_check) == 0:
+    if tool_name in ("get_table_info", "execute_sql") and len(tables_to_check) == 0:
         return {
             "error": "Access to tables could not be identified and required immediate attention"
         }
