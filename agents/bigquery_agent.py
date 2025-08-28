@@ -96,7 +96,7 @@ def before_bq_callback(
 
         if dataset_id in table_data and table_id in table_data[dataset_id]["tables"]:
             allowed_users = table_data[dataset_id]["tables"][table_id].get(
-                "authorized_users", ["example_user@example.com"]
+                "authorized_users"
             )
             if allowed_users and user not in allowed_users + superusers:
                 return {
