@@ -407,10 +407,10 @@ table_data = {
             "awd_shipments": {"description": ""},
             "awd_shipments_details": {"description": ""},
             "business_report": {
-                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an SKU level. Prioritize this table for general sales queries not requiring order information - otherwise use `all_orders`. Do not use for conversion calculations.",
+                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an SKU level. Due to data lag the last 2 days' numbers are alwyas missing. Prioritize this table for general sales queries requiring SKU sessions performance - otherwise use `all_orders`. Do not use for conversion calculations.",
             },
             "business_report_asin": {
-                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an ASIN level. Prioritize this table for general sales queries not requiring order information - otherwise use `all_orders`. Use for conversion calculations.",
+                "description": "One of the main tables showing sales data including Sessions (organic impressions) on an ASIN level. Due to data lag the last 2 days' numbers are alwyas missing. Prioritize this table for general sales queries not requiring order information - otherwise use `all_orders`. Use for conversion calculations.",
             },
             "date_range_report": {
                 "description": "",
