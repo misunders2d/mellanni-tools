@@ -351,12 +351,18 @@ table_data = {
         },
     },
     "klaviyo": {
-        "dataset_description": "",
+        "dataset_description": "Dataset containing marketing data retrieved from the Klaviyo API. It includes campaign metadata, campaign performance metrics, and flow performance metrics. Data is refreshed daily with rolling time windows depending on the endpoint.",
         "tables": {
-            "campaign_values": {"description": ""},
-            "campaigns_details": {"description": ""},
-            "flow_series": {"description": ""},
-        },
+            "campaigns_details": {
+                "description": "Stores campaign metadata retrieved from the Klaviyo Campaigns API (https://a.klaviyo.com/api/campaigns). Includes information such as campaign identifiers, names, statuses, creation and scheduling timestamps, audience targeting details, sending strategies, and tracking options. Data is refreshed daily with a 60-day rolling window based on the created_at field."
+            },
+            "campaign_values": {
+                "description": "Contains performance metrics for individual campaigns retrieved from the Klaviyo Campaign Values Reports API (https://a.klaviyo.com/api/campaign-values-reports). Includes metrics such as deliveries, opens, clicks, conversions, revenue value, unsubscribes, bounces, and spam complaints. Data is refreshed daily for the last 30 campaigns."
+            },
+            "flow_series": {
+                "description": "Contains performance metrics for Klaviyo flows (automated sequences) retrieved from the Klaviyo Flow Series Reports API (https://a.klaviyo.com/api/flow-series-reports). Includes metrics such as deliveries, opens, clicks, conversions, revenue value, unsubscribes, bounces, and spam complaints. Data is refreshed daily with a 30-day rolling window."
+            }
+        }
     },
     "kustomer": {
         "dataset_description": "",
