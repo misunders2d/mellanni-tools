@@ -1,7 +1,7 @@
 average_sales_amazon = """
 
 -- Calculate the average daily sales for all ASINs in the US marketplace over the last 180 days and the last 14 days, excluding Prime Day 2025 (2025-07-08 to 2025-07-11).
--- This exampe query assumes that the current date is 2025-09-01, and only one HVE is used. Adjust accordingly if needed.
+-- This exampe query assumes that the current date is "2025-09-02", and only one HVE is used. Adjust accordingly if needed.
 WITH TopASINs AS (
   SELECT
       childAsin AS asin
