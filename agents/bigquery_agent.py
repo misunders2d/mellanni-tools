@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any
 
 import re
 
-from data import MODEL, get_current_datetime, table_data, BIGQUERY_AGENT_INSTRUCTIONS
+from data import MODEL, get_current_datetime, create_bq_agent_instruction, table_data
 from .gogle_search_agent import google_search_agent_tool
 from .bigquery_tools import credentials, create_plot, load_artifact_to_temp_bq
 
@@ -149,7 +149,7 @@ def create_bigquery_agent():
             "Agent to answer questions about the company's business performance (sales, inventory, payments etc)."
             "Uses BigQuery data and models and executes SQL queries and creates plots."
         ),
-        instruction=BIGQUERY_AGENT_INSTRUCTIONS,
+        instruction=create_bq_agent_instruction(),
         tools=[
             bigquery_toolset,
             google_search_agent_tool(name="bigquery_search_agent"),
