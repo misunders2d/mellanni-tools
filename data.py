@@ -37,6 +37,17 @@ def get_current_datetime():
 
 
 table_data = {
+    "attentive": {
+      "dataset_description": "Dataset with marketing performance data exported from the Attentive platform via Scheduled Reporting. It contains campaign level and journey level daily performance with a 30 day rolling refresh window. Data is refreshed once per day.",
+      "tables": {
+        "campaign_performance": {
+          "description": "Campaign level performance exported from Attentive Scheduled Reporting. Each row aggregates results for a campaign message on a given send date. Includes key metrics such as delivered messages, total clicks, conversions, revenue, and unsubscribes. Refreshed daily with a 30 day rolling window."
+        },
+        "journey_performance": {
+          "description": "Journey level performance exported from Attentive Scheduled Reporting. Each row aggregates results for a journey on a given send date. Includes key metrics such as delivered messages, total clicks, conversions, revenue, and unsubscribes. Refreshed daily with a 30 day rolling window."
+        }
+      }
+    },
     "auxillary_development": {
         "dataset_description": "additional dataset for Amazon sales channels",
         "tables": {
@@ -285,13 +296,21 @@ table_data = {
         },
     },
     "google": {
-        "dataset_description": "Dataset for data from Google ad campaigns, external marketing data",
-        "tables": {
-            "ads_report": {"description": ""},
-            "conversions_report": {"description": ""},
-            "google_vs_pinterest": {"description": ""},
-            "google_vs_pinterest_": {"description": ""},
+      "dataset_description": "Collection of Google Ads reporting tables populated directly from the Google Ads API. Account time zone: (GMT-04:00) Eastern Time. Currency: US dollars (USD). Use only ads_report and conversions_report for analytics and agent tasks. Other objects (google_vs_pinterest, google_vs_pinterest_) are internal views and should not be used.",
+      "tables": {
+        "ads_report": {
+          "description": "Daily campaign/ad-level performance metrics retrieved from the Google Ads API. One row per entity per date (date in (GMT-04:00) Eastern Time). Includes impressions, clicks, conversions, conversion value (USD), and cost (micros of USD). Use for spend and performance analysis."
         },
+        "conversions_report": {
+          "description": "Daily conversion reporting retrieved from the Google Ads API by conversion action. One row per entity/action per date (date in (GMT-04:00) Eastern Time). Includes conversions and conversion value in US dollars (USD), along with action name and category."
+        },
+        "google_vs_pinterest": {
+          "description": "Internal helper view for comparisons. Not maintained for the agent. Do not use."
+        },
+        "google_vs_pinterest_": {
+          "description": "Internal helper view for comparisons. Not maintained for the agent. Do not use."
+        }
+      }
     },
     "hurma": {
         "dataset_description": "HR related dataset.",
@@ -527,14 +546,18 @@ table_data = {
         },
     },
     "skai": {
-        "dataset_description": "A PPC related dataset with data points from the Skai software for the company's Amazon advertising",
-        "tables": {
-            "campaigns_info": {"description": ""},
-            "campaigns_performance": {"description": ""},
-            "campaigns_performance_v2": {
-                "description": "Use this as a main source of all ad-related information - Amazon PPC, Google, Meta etc advertisement"
-            },
+      "dataset_description": "Marketing performance dataset exported from the Skai (Kenshoo) platform via Scheduled Reporting using the 'Fusion: Campaigns' template. Data is refreshed daily with a 30-day rolling window. Important: only campaigns_performance_v2 is maintained and should be used; campaigns_info and campaigns_performance are legacy/internal and not kept up to date.",
+      "tables": {
+        "campaigns_info": {
+          "description": "Legacy/internal helper table. Not maintained and not refreshed regularly. Do not use."
         },
+        "campaigns_performance": {
+          "description": "Legacy performance table superseded by campaigns_performance_v2. Not maintained and not refreshed regularly. Do not use."
+        },
+        "campaigns_performance_v2": {
+          "description": "Primary campaign performance table exported from Skai via 'Fusion: Campaigns' Scheduled Reporting. One row per {date, campaign_name, channel, profile_name} with metrics including impressions, clicks, link clicks, outbound clicks, conversions, revenue, profit, and cost. Currency indicates the monetary units for revenue/profit/cost. Refreshed daily with a 30-day rolling window."
+        }
+      }
     },
     "slack": {
         "dataset_description": "List of users of the company's Slack workspace",
