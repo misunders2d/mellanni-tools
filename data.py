@@ -1,8 +1,9 @@
 import os
 import json
-from google.adk.models.lite_llm import LiteLlm
 import streamlit as st
 from datetime import datetime
+
+import query_examples
 
 
 OPENAI_API_KEY = os.environ.get("OPENAI_AGENTS_API_KEY")
@@ -362,8 +363,8 @@ table_data = {
             },
             "flow_series": {
                 "description": "Contains performance metrics for Klaviyo flows (automated sequences) retrieved from the Klaviyo Flow Series Reports API (https://a.klaviyo.com/api/flow-series-reports). Includes metrics such as deliveries, opens, clicks, conversions, revenue value, unsubscribes, bounces, and spam complaints. Data is refreshed daily with a 30-day rolling window."
-            }
-        }
+            },
+        },
     },
     "kustomer": {
         "dataset_description": "",
@@ -739,6 +740,23 @@ BIGQUERY_AGENT_INSTRUCTIONS_OLD_DICT = {
         "`mellanni-project-da.reports`",
         "`mellanni-project-da.auxillary_development`",
     ],
+    "common terms": {
+        "HVE": {
+            "description": "High Volume Event, with unusually high sales, which often needs to be excluded from calcluations.",
+            "examples": {
+                "PD": "Prime Day",
+                "BF": "Black Friday",
+                "CM": "Cyber Monday",
+                "BFCM": "Black Friday + Cyber Monday combined",
+                "PBDD": "Prime Big Deal Days",
+                "PFE": "Prime Fall Event (same as PBDD or Prime Early Access Sale)",
+                "BSS": "Big Spring Sale",
+            },
+        },
+        "SKU": "Stock Keeping Unit, a unique identifier for each distinct product and service that can be purchased.",
+        "ASIN": "Amazon Standard Identification Number, a unique identifier for products on Amazon.",
+        "Collection": "A group of products, often referred to by the user as 'product' or 'collection'. Obtained ONLY from the 'Collection' column of the `dictionary...` table (dictionary, dictionary_ca etc.).",
+    },
     "date_awareness": f"Today's date is {today.strftime("%YYY-%mm-%dd")}.",
     "data_structure_info": {
         "summary": f"Here's the list and description of the company data structure in bigquery tables:{table_data}. Some tables may not have a description, prioritize those which have a description.",
@@ -802,7 +820,7 @@ BIGQUERY_AGENT_INSTRUCTIONS_OLD_DICT = {
         "guidelines": {
             "share_analysis": {
                 "recommendation": "If the user asks to see the 'share,' 'percentage,' or '100% breakdown' of a total, prioritize **pie charts** or a **single stacked bar chart**.",
-                "pie_chart_config": "Use `{\"type\": \"pie\", \"values\": \"value_column\", \"labels\": \"label_column\"}` in `series_json`.",
+                "pie_chart_config": 'Use `{"type": "pie", "values": "value_column", "labels": "label_column"}` in `series_json`.',
                 "stacked_bar_data_prep": "For a single stacked bar, the data needs to be transformed so each component is a separate `y` series.",
             },
             "stacked_bar_charts": {
@@ -823,6 +841,7 @@ BIGQUERY_AGENT_INSTRUCTIONS_OLD_DICT = {
         },
         "artifact_notification": "The generated plot will be saved as an artifact, and you should inform the user of the filename.",
     },
+    "examples": f"Refer to the provided examples for guidance on handling various user requests effectively:\n{query_examples.average_sales_amazon}",
 }
 
 BIGQUERY_AGENT_INSTRUCTIONS_OLD = f"""

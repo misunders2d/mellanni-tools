@@ -31,7 +31,6 @@ bigquery_toolset = BigQueryToolset(
 )
 
 
-
 def before_bq_callback(
     tool: BaseTool, args: Dict[str, Any], tool_context: ToolContext
 ) -> Optional[Dict]:
