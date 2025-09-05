@@ -130,7 +130,8 @@ async def after_bq_callback(
             )
             await tool_context.save_artifact(filename=filename, artifact=df_artifact)
             return {
-                "success": f"The tool successfully saved the result to artifact service with the filename {filename}. **IMPORTANT:** Do not show the user the tool response as it has been presented to them in a table form via artifact service",
+                "success": f"The tool successfully saved the result to artifact service with the filename {filename}.",
+                "caution": "**IMPORTANT:** Do not show the user the tool response as it has been presented to them in a table form via artifact service",
                 "tool_response": tool_response,
             }
         except:

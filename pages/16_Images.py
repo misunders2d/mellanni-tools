@@ -36,13 +36,13 @@ full_access_users = (
     "vitalii@mellanni.com",
 )
 
-read_only_users = ("ethan@mellanni.com", "2djohar@gmail.com")
+read_only_users = ("ethan@mellanni.com", "2djohar@gmail.com", "andreia@mellanni.com")
 
-allowed_users = full_access_users + read_only_users
+# allowed_users = full_access_users + read_only_users
 
-if not st.user.email in allowed_users:
-    st.warning("Only Amazon team has access to this tool.", icon="🔥")
-    st.stop()
+# if not st.user.email in allowed_users:
+#     st.warning("Only Amazon team has access to this tool.", icon="🔥")
+#     st.stop()
 
 visibility = True if st.user.email in full_access_users else False
 
