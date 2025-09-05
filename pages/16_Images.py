@@ -276,7 +276,7 @@ def create_links(source=target):
 
 
 links_area.button(
-    "Get links", on_click=create_links, disabled=not visibility, icon=":material/link:"
+    "Get links", on_click=create_links, disabled=False, icon=":material/link:"
 )
 
 if "result_links" in st.session_state:
