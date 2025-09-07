@@ -629,36 +629,58 @@ table_data = {
         },
     },
     "tiktok": {
-        "dataset_description": "Ecom information about company's TikTok business",
-        "tables": {
-            "attribution_tiktok": {"description": ""},
-            "campaign_metrics": {"description": ""},
-            "gmv_max_metrics": {"description": ""},
-            "orders": {"description": ""},
-            "returns": {"description": ""},
-            "sku_duplicates": {"description": ""},
-            "states_dict": {"description": ""},
-            "tiktok_fba_finder": {"description": ""},
-            "tiktok_fin_view_bi": {
-                "description": "",
-                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
-            },
-            "tiktok_fin_view_bi_2": {
-                "description": "",
-                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
-            },
-            "tiktok_finance_report": {
-                "description": "",
-                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
-            },
-            "tiktok_finance_report_2": {
-                "description": "",
-                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
-            },
-            "tiktok_order_temp": {"description": ""},
-            "tiktok_shipping": {"description": ""},
-            "tiktok_shipping_cost": {"description": ""},
+      "dataset_description": "Operational and marketing data for the company’s TikTok business (TikTok Ads and TikTok Shop). Includes ad campaign metrics, GMV Max spend, order and return logistics, and finance statements. Data is sourced via TikTok APIs with daily refresh for operational reports and a weekly refresh for finance statements. Use this dataset to analyze paid performance, shop sales operations, refunds/returns, and settlement-level finances.",
+      "tables": {
+        "attribution_tiktok": {
+            "description": "Do not use."
         },
+        "campaign_metrics": {
+          "description": "TikTok Ads campaign-level daily performance retrieved via API. One row per campaign per day with core media KPIs (impressions, clicks, CTR, CPC, CPM, conversions, cost, ROAS bidding parameters, budgets, objectives, statuses). Use to evaluate paid performance and pacing."
+        },
+        "gmv_max_metrics": {
+          "description": "Daily spend and billed cost for TikTok GMV Max activity by advertiser and country."
+        },
+        "orders": {
+          "description": "TikTok Shop order-level feed retrieved via API. One row per order with timestamps (creation, paid, ship/RTS/RTD milestones), fulfillment details, shipping provider and tracking, payment method and amounts, recipient address (structured), line items and SKU counts, status and cancellation fields. Use to analyze order lifecycle, fulfillment SLAs, and operational exceptions."
+        },
+        "returns": {
+          "description": "TikTok Shop return-level feed retrieved via API. One row per return with amounts (refund, discounts, shipping fees), return reasons and statuses, logistics (provider, tracking, method), item-level details, arbitration flags, and seller next actions. Use to measure return rates, reasons, and financial impact of returns."
+        },
+        "sku_duplicates": {
+            "description": "Do not use."
+        },
+        "states_dict": {
+            "description": "Do not use."
+        },
+        "tiktok_fba_finder": {
+            "description": "Do not use."
+        },
+        "tiktok_finance_report": {
+          "description": "Do not use.",
+          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
+        },
+        "tiktok_finance_report_2": {
+          "description": "Do not use",
+          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
+        },
+        "tiktok_fin_view_bi": {
+          "description": "Do not use.",
+          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
+        },
+        "tiktok_fin_view_bi_2": {
+          "description": "Weekly BI finance view for TikTok Shop statements, enriched with human-readable seller SKUs and mapped cost of goods (COGS). Prefer seller_sku_period as the canonical SKU; if it is empty/invalid, fall back to seller_sku_total. For product cost, prefer product_cost_seller_sku_period; if empty/invalid, fall back to product_cost_seller_sku_total. Use this table as the curated source for settlement-level P&L by SKU, order, channel, and fulfillment type.",
+          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
+        },
+        "tiktok_order_temp": {
+            "description": "Do not use."
+        },
+        "tiktok_shipping": {
+            "description": "Do not use."
+        },
+        "tiktok_shipping_cost": {
+            "description": "Do not use."
+        }
+      }
     },
     "walmart": {
         "dataset_description": "Ecom information about company's Walmart business",
