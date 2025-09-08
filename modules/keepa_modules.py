@@ -431,6 +431,7 @@ def get_products(asins: list, domain="US", update=None):
 
 def get_tokens(api_key=KEEPA_KEY):
     api = keepa.Keepa(api_key, timeout=60)
+    api.update_status()
     return api.tokens_left
 
 

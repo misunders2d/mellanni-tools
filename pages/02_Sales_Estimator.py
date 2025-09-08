@@ -393,8 +393,6 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
             products_data = []
 
         for ap in products:
-            if not ap.data:
-                continue
             try:
                 ap.extract_from_products(products_data)
                 ap.get_last_days(days=bulk_days)
