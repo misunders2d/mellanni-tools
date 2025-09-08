@@ -369,14 +369,14 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
         products = []
         try:
             asins_bulk = re.split(r"[\n\r,]", bulk_asin_input)
-            asins_bulk = []
+            asins_clean = []
             for asin in asins_bulk:
                 asin_match = re.match("B[A-Z0-9]{9}", asin.upper())
                 if asin_match:
-                    asins_bulk.append(asin_match.group().strip())
+                    asins_clean.append(asin_match.group().strip())
 
-            products_data = get_products(asins_bulk)
-            products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
+            products_data = get_products(asins_clean)
+            products = [KeepaProduct(asin, domain="US") for asin in asins_clean]
             _ = [p.extract_from_products(products_data) for p in products]
             if include_bulk_variations:
                 bulk_variations = set()
@@ -386,8 +386,8 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                 if len(bulk_variations) > 0:
                     variations_data = get_products(list(bulk_variations))
                     products_data.extend(variations_data)
-                    asins_bulk.extend(list(bulk_variations))
-                    products = [KeepaProduct(asin, domain="US") for asin in asins_bulk]
+                    asins_clean.extend(list(bulk_variations))
+                    products = [KeepaProduct(asin, domain="US") for asin in asins_clean]
         except Exception as e:
             bulk.warning(f"Sorry, error occurred.\n{e}")
             products_data = []
@@ -438,4 +438,4 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                 bulk.warning(
                     f"Sorry, error occurred.\n{e}\nProduct:\n{str(ap)}\nSKIPPING"
                 )
-        bulk.dataframe(bulk_df, use_container_width=True, hide_index=True)
+        bulk.dataframe(bulk_df, width='stretch', hide_index=True)
