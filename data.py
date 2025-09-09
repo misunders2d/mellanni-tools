@@ -286,14 +286,20 @@ table_data = {
         },
     },
     "facebook": {
-        "dataset_description": "Facebook Ads and posts data",
-        "tables": {
-            "attribution_facebook": {"description": ""},
-            "facebook_posts": {"description": ""},
-            "facebook_posts_copy": {"description": ""},
-            "insights": {"description": ""},
-            "instagram_posts": {"description": ""},
+      "dataset_description": "Meta (Facebook + Instagram) marketing dataset refreshed daily from official Meta APIs. Use it to analyze organic content performance (posts) and paid media performance (ad insights). Do not use internal/helper views marked as such.",
+      "tables": {
+        "facebook_posts": {
+          "description": "Facebook post-level analytics. One row per post with creation time, permalink, message, media, impressions (total/paid/organic/viral/fans), clicks, reactions, comments, and detailed video view metrics (views by length, autoplay/click-to-play, unique counts, watch time, avg watch time). Use to understand reach, engagement, and video performance for FB posts."
         },
+        "insights": {
+          "description": "Paid media performance from Meta Ads. One row per ad set/campaign and date range with impressions, reach, clicks, CTR, CPC, spend, frequency, rankings (quality, engagement rate, conversion rate) and action-based records (e.g., outbound clicks CTR, purchase ROAS) delivered as RECORD fields. Use to evaluate PPC efficiency and optimize campaigns."
+        },
+        "instagram_posts": {
+          "description": "Instagram post/Reels analytics. One row per IG post with creation time, permalink, basic engagement (likes, comments, shares, saves, follows), reach/impressions, profile actions, plays/views, and Reels watch-time metrics (total time, avg watch time, replays, all plays). Use to measure IG content reach and engagement."
+        },
+        "attribution_facebook": { "description": "Internal or unused object. Not intended for agent use. Do not use." },
+        "facebook_posts_copy": { "description": "Internal copy/helper object. Not intended for agent use. Do not use." }
+      }
     },
     "google": {
       "dataset_description": "Collection of Google Ads reporting tables populated directly from the Google Ads API. Account time zone: (GMT-04:00) Eastern Time. Currency: US dollars (USD). Use only ads_report and conversions_report for analytics and agent tasks. Other objects (google_vs_pinterest, google_vs_pinterest_) are internal views and should not be used.",
