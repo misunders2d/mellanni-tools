@@ -3,6 +3,9 @@ from google.cloud import bigquery
 from modules.gcloud_modules import normalize_columns
 import io
 from datetime import datetime, timedelta
+import uuid
+from io import StringIO
+import pandas as pd
 
 import tempfile
 import os
@@ -45,7 +48,7 @@ async def create_plot(
     y_axis_title: str,
     y2_axis_title: str,
     bar_mode: str = "group",  # "group" | "stack" | "overlay"
-) -> str:
+) -> dict:
     """
     Generates a flexible plot (pie, bar, line, scatter, area) and saves it as an artifact.
 
@@ -64,6 +67,8 @@ async def create_plot(
         y_axis_title: Label for the primary y-axis.
         y2_axis_title: Label for the secondary y-axis.
         bar_mode: How to display multiple bars. One of "group", "stack", "overlay".
+    Returns:
+        dict: a dictionary with the status and message
     """
 
     user = tool_context._invocation_context.user_id
@@ -145,7 +150,10 @@ async def create_plot(
                 )
 
             else:
-                return f"Error: Unsupported chart type '{s_type}'."
+                return {
+                    "status": "FAILED",
+                    "message": f"Error: Unsupported chart type '{s_type}'.",
+                }
 
         # Layout (skip axes if only pie charts)
         has_pie = any(s.get("type") == "pie" for s in series)
@@ -176,13 +184,16 @@ async def create_plot(
             filename=filename, artifact=plot_artifact
         )
 
-        return f"Successfully created and saved interactive plot '{filename}' (version {version})."
+        return {
+            "status": "SUCCESS",
+            "message": f"Successfully created and saved interactive plot '{filename}' (version {version}).",
+        }
 
     except Exception as e:
-        return f"Error while creating plot: {e}"
+        return {"status": "FAILED", "message": f"Error while creating plot: {e}"}
 
 
-async def load_artifact_to_temp_bq(tool_context: ToolContext, filename: str) -> str:
+async def load_artifact_to_temp_bq(tool_context: ToolContext, filename: str) -> dict:
     """
     Upload a CSV/Excel artifact into BigQuery as a temporary table for quick file analysis
     (auto-deletes after 1 hour).
@@ -193,7 +204,7 @@ async def load_artifact_to_temp_bq(tool_context: ToolContext, filename: str) -> 
     """
     artifact = await tool_context.load_artifact(filename)
     if not artifact or not artifact.inline_data or not artifact.inline_data.data:
-        return f"Artifact {filename} not found."
+        return {"status": "FAILED", "message": f"Artifact {filename} not found."}
 
     data = bytes(artifact.inline_data.data)
     mime = artifact.inline_data.mime_type or ""
@@ -203,7 +214,7 @@ async def load_artifact_to_temp_bq(tool_context: ToolContext, filename: str) -> 
     elif "excel" in mime or filename.endswith((".xls", ".xlsx", ".xlsm")):
         df = pd.read_excel(io.BytesIO(data))
     else:
-        return f"Unsupported artifact type: {mime}"
+        return {"status": "FAILED", "message": f"Unsupported artifact type: {mime}"}
 
     df = normalize_columns(df)
 
@@ -222,6 +233,43 @@ async def load_artifact_to_temp_bq(tool_context: ToolContext, filename: str) -> 
             table.expires = datetime.now() + timedelta(hours=1)
             client.update_table(table, ["expires"])
         except Exception as e:
-            return f"Failed to upload file for analysis, convert it to .csv for better compatibility:\n{e}"
+            return {
+                "status": "FAILED",
+                "message": f"Failed to upload file for analysis, convert it to .csv for better compatibility:\n{e}",
+            }
 
-    return f"Uploaded `{filename}` to temporary BigQuery table `{table_id}` (expires in 1 hour)."
+    return {
+        "status": "SUCCESS",
+        "message": f"Uploaded `{filename}` to temporary BigQuery table `{table_id}` (expires in 1 hour).",
+    }
+
+
+async def save_tool_output_to_artifact(
+    tool_context: ToolContext, tool_response: dict
+) -> dict:
+    """
+    Saves the received Bigquery tool response to artifacts. Always use this tool to present table data.
+
+    Args:
+        tool_response (dict): the tool response dict, containing "rows" - usually the response from execute_sql tool
+    Returns:
+        dict: a status and an important message
+    """
+
+    user = tool_context._invocation_context.user_id
+    try:
+        filename = f"{user}:Table_{uuid.uuid4()}.csv"
+        df = pd.DataFrame(tool_response["rows"])
+        buf = StringIO()
+        df.to_csv(buf, index=False)
+
+        df_artifact = Part.from_bytes(
+            data=buf.getvalue().encode("utf-8"), mime_type="text/csv"
+        )
+        await tool_context.save_artifact(filename=filename, artifact=df_artifact)
+        return {
+            "status": "SUCCESS",
+            "message": f"The table has been presented to the user in the artifact service with the filename {filename}. Do not show the table data again to avoid duplication",
+        }
+    except Exception as e:
+        return {"status": "FAILED", "MESSAGE": f"The following error occurred: {e}"}

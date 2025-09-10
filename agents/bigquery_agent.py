@@ -6,18 +6,25 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.tools.bigquery.config import BigQueryToolConfig
 from google.adk.tools.bigquery.config import WriteMode
 from google.adk.planners import BuiltInPlanner
-import uuid
 from google.genai import types
-import pandas as pd
-from io import StringIO
 
 from typing import Optional, Dict, Any
 
 import re
 
-from data import BIGQUERY_AGENT_MODEL, get_current_datetime, create_bq_agent_instruction, table_data
+from data import (
+    BIGQUERY_AGENT_MODEL,
+    get_current_datetime,
+    create_bq_agent_instruction,
+    table_data,
+)
 from .gogle_search_agent import google_search_agent_tool
-from .bigquery_tools import credentials, create_plot, load_artifact_to_temp_bq
+from .bigquery_tools import (
+    credentials,
+    create_plot,
+    load_artifact_to_temp_bq,
+    save_tool_output_to_artifact,
+)
 
 tool_config = BigQueryToolConfig(
     write_mode=WriteMode.BLOCKED, max_query_result_rows=10000
@@ -108,37 +115,22 @@ def before_bq_callback(
     return None
 
 
-async def save_tool_output_to_artifact(
-    tool_context: ToolContext, tool_response: dict
-) -> dict:
-    """
-    Saves the received Bigquery tool response to artifacts. Always use this tool to present table data.
+def after_table_save_callback(
+    tool: BaseTool, args: Dict[str, Any], tool_context: ToolContext, tool_response: Dict
+) -> Optional[Dict]:
+    """Checks if the table view was presented to prevent the agent from duplicating the output"""
 
-    Args:
-        tool_response (dict): the tool response dict, containing "rows" - usually the response from execute_sql tool
-    Returns:
-        dict
-    """
+    tool_name = tool.name
 
-    user = tool_context._invocation_context.user_id
-    try:
-        filename = f"{user}:Table_{uuid.uuid4()}.csv"
-        df = pd.DataFrame(tool_response["rows"])
-        buf = StringIO()
-        df.to_csv(buf, index=False)
-
-        df_artifact = types.Part.from_bytes(
-            data=buf.getvalue().encode("utf-8"), mime_type="text/csv"
-        )
-        await tool_context.save_artifact(filename=filename, artifact=df_artifact)
+    if (
+        tool_name == "save_tool_output_to_artifact"
+        and tool_response["status"] == "SUCCESS"
+    ):
         return {
-            "status":"SUCCESS",
-            "message": f"The table has been presented to the user in the artifact service with the filename {filename}."
+            "WARNING": "The table data has been presented to the user in downloadable format, DON'T SHOW THIS DATA TO THE USER!!!"
         }
-    except Exception as e:
-        return {"status": "FAILED", "MESSAGE":f"The following error occurred: {e}"}
 
-    
+    return None
 
 
 # Agent Definition
@@ -157,7 +149,7 @@ def create_bigquery_agent():
             get_current_datetime,
             create_plot,
             load_artifact_to_temp_bq,
-            save_tool_output_to_artifact
+            save_tool_output_to_artifact,
         ],
         planner=BuiltInPlanner(
             thinking_config=types.ThinkingConfig(
@@ -165,6 +157,6 @@ def create_bigquery_agent():
             )
         ),
         before_tool_callback=before_bq_callback,
-        # after_tool_callback=after_bq_callback,
+        after_tool_callback=after_table_save_callback,
     )
     return bigquery_agent

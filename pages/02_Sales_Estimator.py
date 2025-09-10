@@ -408,7 +408,7 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                 )
                 df_data = {
                     "asin": [ap.asin],
-                    "parent": [ap.data[0].get("parentAsin")],
+                    "parent": [ap.data[0].get("parentAsin")],  # type: ignore
                     "brand": [ap.brand],
                     "sales_min": [ap.min_sales],
                     "sales_max": [ap.max_sales],
@@ -436,4 +436,4 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                 bulk.warning(
                     f"Sorry, error occurred.\n{e}\nProduct:\n{str(ap)}\nSKIPPING"
                 )
-        bulk.dataframe(bulk_df, width='stretch', hide_index=True)
+        bulk.dataframe(bulk_df, width="stretch", hide_index=True)

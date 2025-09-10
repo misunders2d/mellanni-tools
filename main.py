@@ -100,8 +100,10 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
     if "session_service" not in st.session_state:
         st.session_state["session_service"] = InMemorySessionService()
         await st.session_state["session_service"].create_session(
-            app_name=APP_NAME, user_id=user_id, session_id=session_id,
-            state={"table_data":table_data}
+            app_name=APP_NAME,
+            user_id=user_id,
+            session_id=session_id,
+            state={"table_data": table_data},
         )
     else:
         await st.session_state["session_service"].get_session(

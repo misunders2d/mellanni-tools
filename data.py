@@ -31,22 +31,27 @@ def get_username_str():
     )
 
 
-def get_current_datetime():
-    """A helper function used to retrieve current date and time. Use it when you need to be time-aware."""
-    return datetime.now()
+def get_current_datetime() -> dict:
+    """
+    A helper function used to retrieve current date and time. Use it when you need to be time-aware.
+        Args: None
+        Returns:
+            dict: a status and payload with current datetime
+    """
+    return {"status": "SUCCESS", "payload": datetime.now()}
 
 
 table_data = {
     "attentive": {
-      "dataset_description": "Dataset with marketing performance data exported from the Attentive platform via Scheduled Reporting. It contains campaign level and journey level daily performance with a 30 day rolling refresh window. Data is refreshed once per day.",
-      "tables": {
-        "campaign_performance": {
-          "description": "Campaign level performance exported from Attentive Scheduled Reporting. Each row aggregates results for a campaign message on a given send date. Includes key metrics such as delivered messages, total clicks, conversions, revenue, and unsubscribes. Refreshed daily with a 30 day rolling window."
+        "dataset_description": "Dataset with marketing performance data exported from the Attentive platform via Scheduled Reporting. It contains campaign level and journey level daily performance with a 30 day rolling refresh window. Data is refreshed once per day.",
+        "tables": {
+            "campaign_performance": {
+                "description": "Campaign level performance exported from Attentive Scheduled Reporting. Each row aggregates results for a campaign message on a given send date. Includes key metrics such as delivered messages, total clicks, conversions, revenue, and unsubscribes. Refreshed daily with a 30 day rolling window."
+            },
+            "journey_performance": {
+                "description": "Journey level performance exported from Attentive Scheduled Reporting. Each row aggregates results for a journey on a given send date. Includes key metrics such as delivered messages, total clicks, conversions, revenue, and unsubscribes. Refreshed daily with a 30 day rolling window."
+            },
         },
-        "journey_performance": {
-          "description": "Journey level performance exported from Attentive Scheduled Reporting. Each row aggregates results for a journey on a given send date. Includes key metrics such as delivered messages, total clicks, conversions, revenue, and unsubscribes. Refreshed daily with a 30 day rolling window."
-        }
-      }
     },
     "auxillary_development": {
         "dataset_description": "additional dataset for Amazon sales channels",
@@ -286,37 +291,41 @@ table_data = {
         },
     },
     "facebook": {
-      "dataset_description": "Meta (Facebook + Instagram) marketing dataset refreshed daily from official Meta APIs. Use it to analyze organic content performance (posts) and paid media performance (ad insights). Do not use internal/helper views marked as such.",
-      "tables": {
-        "facebook_posts": {
-          "description": "Facebook post-level analytics. One row per post with creation time, permalink, message, media, impressions (total/paid/organic/viral/fans), clicks, reactions, comments, and detailed video view metrics (views by length, autoplay/click-to-play, unique counts, watch time, avg watch time). Use to understand reach, engagement, and video performance for FB posts."
+        "dataset_description": "Meta (Facebook + Instagram) marketing dataset refreshed daily from official Meta APIs. Use it to analyze organic content performance (posts) and paid media performance (ad insights). Do not use internal/helper views marked as such.",
+        "tables": {
+            "facebook_posts": {
+                "description": "Facebook post-level analytics. One row per post with creation time, permalink, message, media, impressions (total/paid/organic/viral/fans), clicks, reactions, comments, and detailed video view metrics (views by length, autoplay/click-to-play, unique counts, watch time, avg watch time). Use to understand reach, engagement, and video performance for FB posts."
+            },
+            "insights": {
+                "description": "Paid media performance from Meta Ads. One row per ad set/campaign and date range with impressions, reach, clicks, CTR, CPC, spend, frequency, rankings (quality, engagement rate, conversion rate) and action-based records (e.g., outbound clicks CTR, purchase ROAS) delivered as RECORD fields. Use to evaluate PPC efficiency and optimize campaigns."
+            },
+            "instagram_posts": {
+                "description": "Instagram post/Reels analytics. One row per IG post with creation time, permalink, basic engagement (likes, comments, shares, saves, follows), reach/impressions, profile actions, plays/views, and Reels watch-time metrics (total time, avg watch time, replays, all plays). Use to measure IG content reach and engagement."
+            },
+            "attribution_facebook": {
+                "description": "Internal or unused object. Not intended for agent use. Do not use."
+            },
+            "facebook_posts_copy": {
+                "description": "Internal copy/helper object. Not intended for agent use. Do not use."
+            },
         },
-        "insights": {
-          "description": "Paid media performance from Meta Ads. One row per ad set/campaign and date range with impressions, reach, clicks, CTR, CPC, spend, frequency, rankings (quality, engagement rate, conversion rate) and action-based records (e.g., outbound clicks CTR, purchase ROAS) delivered as RECORD fields. Use to evaluate PPC efficiency and optimize campaigns."
-        },
-        "instagram_posts": {
-          "description": "Instagram post/Reels analytics. One row per IG post with creation time, permalink, basic engagement (likes, comments, shares, saves, follows), reach/impressions, profile actions, plays/views, and Reels watch-time metrics (total time, avg watch time, replays, all plays). Use to measure IG content reach and engagement."
-        },
-        "attribution_facebook": { "description": "Internal or unused object. Not intended for agent use. Do not use." },
-        "facebook_posts_copy": { "description": "Internal copy/helper object. Not intended for agent use. Do not use." }
-      }
     },
     "google": {
-      "dataset_description": "Collection of Google Ads reporting tables populated directly from the Google Ads API. Account time zone: (GMT-04:00) Eastern Time. Currency: US dollars (USD). Use only ads_report and conversions_report for analytics and agent tasks. Other objects (google_vs_pinterest, google_vs_pinterest_) are internal views and should not be used.",
-      "tables": {
-        "ads_report": {
-          "description": "Daily campaign/ad-level performance metrics retrieved from the Google Ads API. One row per entity per date (date in (GMT-04:00) Eastern Time). Includes impressions, clicks, conversions, conversion value (USD), and cost (micros of USD). Use for spend and performance analysis."
+        "dataset_description": "Collection of Google Ads reporting tables populated directly from the Google Ads API. Account time zone: (GMT-04:00) Eastern Time. Currency: US dollars (USD). Use only ads_report and conversions_report for analytics and agent tasks. Other objects (google_vs_pinterest, google_vs_pinterest_) are internal views and should not be used.",
+        "tables": {
+            "ads_report": {
+                "description": "Daily campaign/ad-level performance metrics retrieved from the Google Ads API. One row per entity per date (date in (GMT-04:00) Eastern Time). Includes impressions, clicks, conversions, conversion value (USD), and cost (micros of USD). Use for spend and performance analysis."
+            },
+            "conversions_report": {
+                "description": "Daily conversion reporting retrieved from the Google Ads API by conversion action. One row per entity/action per date (date in (GMT-04:00) Eastern Time). Includes conversions and conversion value in US dollars (USD), along with action name and category."
+            },
+            "google_vs_pinterest": {
+                "description": "Internal helper view for comparisons. Not maintained for the agent. Do not use."
+            },
+            "google_vs_pinterest_": {
+                "description": "Internal helper view for comparisons. Not maintained for the agent. Do not use."
+            },
         },
-        "conversions_report": {
-          "description": "Daily conversion reporting retrieved from the Google Ads API by conversion action. One row per entity/action per date (date in (GMT-04:00) Eastern Time). Includes conversions and conversion value in US dollars (USD), along with action name and category."
-        },
-        "google_vs_pinterest": {
-          "description": "Internal helper view for comparisons. Not maintained for the agent. Do not use."
-        },
-        "google_vs_pinterest_": {
-          "description": "Internal helper view for comparisons. Not maintained for the agent. Do not use."
-        }
-      }
     },
     "hurma": {
         "dataset_description": "HR related dataset.",
@@ -393,38 +402,38 @@ table_data = {
         },
     },
     "kustomer": {
-      "dataset_description": "Customer support dataset exported from the Kustomer CRM platform. It contains support tickets related to product issues, returns, and refunds that were handled directly by the internal support team (cases not resolved via marketplace). Use this dataset to analyze customer complaints, reasons for returns, and refund handling.",
-      "tables": {
-        "diff_report": {
-          "description": "Support ticket records from Kustomer, including order identifiers, issue types, product variations (SKUs), complaint details, refund amounts, refund types, and timestamps. Each row represents a customer service case handled outside the marketplace, with information on why and how the issue was resolved."
-        }
-      }
+        "dataset_description": "Customer support dataset exported from the Kustomer CRM platform. It contains support tickets related to product issues, returns, and refunds that were handled directly by the internal support team (cases not resolved via marketplace). Use this dataset to analyze customer complaints, reasons for returns, and refund handling.",
+        "tables": {
+            "diff_report": {
+                "description": "Support ticket records from Kustomer, including order identifiers, issue types, product variations (SKUs), complaint details, refund amounts, refund types, and timestamps. Each row represents a customer service case handled outside the marketplace, with information on why and how the issue was resolved."
+            }
+        },
     },
     "levanta": {
-      "dataset_description": "Dataset from the Levanta platform (https://app.levanta.io), integrated with Amazon to manage creator partnerships and track performance of external traffic campaigns. Includes reports on clicks, conversions, sales, commissions, and Amazon Brand Referral Bonus, as well as reference data for creators, products, and brands. Reporting tables refresh daily with a 7-day rolling window (excluding the current day). Reference tables refresh daily with the latest metadata.",
-      "tables": {
-        "brb_reports": {
-          "description": "Amazon Brand Referral Bonus (BRB) reports from Levanta API (endpoint: /reports/brb). Contains daily bonus amounts earned for sales driven by external traffic. Columns include date, amount, currency, and load timestamp. Refreshed daily with a 7-day rolling window."
+        "dataset_description": "Dataset from the Levanta platform (https://app.levanta.io), integrated with Amazon to manage creator partnerships and track performance of external traffic campaigns. Includes reports on clicks, conversions, sales, commissions, and Amazon Brand Referral Bonus, as well as reference data for creators, products, and brands. Reporting tables refresh daily with a 7-day rolling window (excluding the current day). Reference tables refresh daily with the latest metadata.",
+        "tables": {
+            "brb_reports": {
+                "description": "Amazon Brand Referral Bonus (BRB) reports from Levanta API (endpoint: /reports/brb). Contains daily bonus amounts earned for sales driven by external traffic. Columns include date, amount, currency, and load timestamp. Refreshed daily with a 7-day rolling window."
+            },
+            "click_reports": {
+                "description": "Click-level reports from Levanta API (endpoint: /reports/clicks). Each row records clicks generated by a creator for a specific brand/product on a given date and marketplace. Includes identifiers (link, creator, brand), click counts, finalization flag, and load timestamp. Refreshed daily with a 7-day rolling window."
+            },
+            "creators": {
+                "description": "Reference data of active creators from Levanta API (endpoint: /creators/active). Includes creator ID, name, email, bio, and partnered brand IDs. Refreshed daily."
+            },
+            "products": {
+                "description": "Reference data of products available in Levanta from Levanta API (endpoint: /products). Contains ASIN, commission percentage, title, stock availability, category, brand association, marketplace, active flag, and pricing info (price and currency). Refreshed daily."
+            },
+            "summary_performance": {
+                "description": "Performance summary reports from Levanta API (endpoint: /reports). Provides daily aggregated metrics per product/creator/brand, including sales, commissions, conversions, clicks, page views, and add-to-carts. Includes identifiers (ASIN, campaign, link, creator, brand) and load timestamp. Refreshed daily with a 7-day rolling window."
+            },
+            "brands": {
+                "description": "Reference data of brands from Levanta API (endpoint: /brands). Contains brand metadata including ID, name, status, image, bio, URL, and marketplace. Refreshed daily."
+            },
+            "test_groups": {
+                "description": "Internal or unused table. Not maintained for the agent. Do not use."
+            },
         },
-        "click_reports": {
-          "description": "Click-level reports from Levanta API (endpoint: /reports/clicks). Each row records clicks generated by a creator for a specific brand/product on a given date and marketplace. Includes identifiers (link, creator, brand), click counts, finalization flag, and load timestamp. Refreshed daily with a 7-day rolling window."
-        },
-        "creators": {
-          "description": "Reference data of active creators from Levanta API (endpoint: /creators/active). Includes creator ID, name, email, bio, and partnered brand IDs. Refreshed daily."
-        },
-        "products": {
-          "description": "Reference data of products available in Levanta from Levanta API (endpoint: /products). Contains ASIN, commission percentage, title, stock availability, category, brand association, marketplace, active flag, and pricing info (price and currency). Refreshed daily."
-        },
-        "summary_performance": {
-          "description": "Performance summary reports from Levanta API (endpoint: /reports). Provides daily aggregated metrics per product/creator/brand, including sales, commissions, conversions, clicks, page views, and add-to-carts. Includes identifiers (ASIN, campaign, link, creator, brand) and load timestamp. Refreshed daily with a 7-day rolling window."
-        },
-        "brands": {
-          "description": "Reference data of brands from Levanta API (endpoint: /brands). Contains brand metadata including ID, name, status, image, bio, URL, and marketplace. Refreshed daily."
-        },
-        "test_groups": {
-          "description": "Internal or unused table. Not maintained for the agent. Do not use."
-        }
-      }
     },
     "lookerstudio_ds": {
         "dataset_description": "",
@@ -570,18 +579,18 @@ table_data = {
         },
     },
     "skai": {
-      "dataset_description": "Marketing performance dataset exported from the Skai (Kenshoo) platform via Scheduled Reporting using the 'Fusion: Campaigns' template. Data is refreshed daily with a 30-day rolling window. Important: only campaigns_performance_v2 is maintained and should be used; campaigns_info and campaigns_performance are legacy/internal and not kept up to date.",
-      "tables": {
-        "campaigns_info": {
-          "description": "Legacy/internal helper table. Not maintained and not refreshed regularly. Do not use."
+        "dataset_description": "Marketing performance dataset exported from the Skai (Kenshoo) platform via Scheduled Reporting using the 'Fusion: Campaigns' template. Data is refreshed daily with a 30-day rolling window. Important: only campaigns_performance_v2 is maintained and should be used; campaigns_info and campaigns_performance are legacy/internal and not kept up to date.",
+        "tables": {
+            "campaigns_info": {
+                "description": "Legacy/internal helper table. Not maintained and not refreshed regularly. Do not use."
+            },
+            "campaigns_performance": {
+                "description": "Legacy performance table superseded by campaigns_performance_v2. Not maintained and not refreshed regularly. Do not use."
+            },
+            "campaigns_performance_v2": {
+                "description": "Primary campaign performance table exported from Skai via 'Fusion: Campaigns' Scheduled Reporting. One row per {date, campaign_name, channel, profile_name} with metrics including impressions, clicks, link clicks, outbound clicks, conversions, revenue, profit, and cost. Currency indicates the monetary units for revenue/profit/cost. Refreshed daily with a 30-day rolling window."
+            },
         },
-        "campaigns_performance": {
-          "description": "Legacy performance table superseded by campaigns_performance_v2. Not maintained and not refreshed regularly. Do not use."
-        },
-        "campaigns_performance_v2": {
-          "description": "Primary campaign performance table exported from Skai via 'Fusion: Campaigns' Scheduled Reporting. One row per {date, campaign_name, channel, profile_name} with metrics including impressions, clicks, link clicks, outbound clicks, conversions, revenue, profit, and cost. Currency indicates the monetary units for revenue/profit/cost. Refreshed daily with a 30-day rolling window."
-        }
-      }
     },
     "slack": {
         "dataset_description": "List of users of the company's Slack workspace",
@@ -635,58 +644,44 @@ table_data = {
         },
     },
     "tiktok": {
-      "dataset_description": "Operational and marketing data for the company’s TikTok business (TikTok Ads and TikTok Shop). Includes ad campaign metrics, GMV Max spend, order and return logistics, and finance statements. Data is sourced via TikTok APIs with daily refresh for operational reports and a weekly refresh for finance statements. Use this dataset to analyze paid performance, shop sales operations, refunds/returns, and settlement-level finances.",
-      "tables": {
-        "attribution_tiktok": {
-            "description": "Do not use."
+        "dataset_description": "Operational and marketing data for the company’s TikTok business (TikTok Ads and TikTok Shop). Includes ad campaign metrics, GMV Max spend, order and return logistics, and finance statements. Data is sourced via TikTok APIs with daily refresh for operational reports and a weekly refresh for finance statements. Use this dataset to analyze paid performance, shop sales operations, refunds/returns, and settlement-level finances.",
+        "tables": {
+            "attribution_tiktok": {"description": "Do not use."},
+            "campaign_metrics": {
+                "description": "TikTok Ads campaign-level daily performance retrieved via API. One row per campaign per day with core media KPIs (impressions, clicks, CTR, CPC, CPM, conversions, cost, ROAS bidding parameters, budgets, objectives, statuses). Use to evaluate paid performance and pacing."
+            },
+            "gmv_max_metrics": {
+                "description": "Daily spend and billed cost for TikTok GMV Max activity by advertiser and country."
+            },
+            "orders": {
+                "description": "TikTok Shop order-level feed retrieved via API. One row per order with timestamps (creation, paid, ship/RTS/RTD milestones), fulfillment details, shipping provider and tracking, payment method and amounts, recipient address (structured), line items and SKU counts, status and cancellation fields. Use to analyze order lifecycle, fulfillment SLAs, and operational exceptions."
+            },
+            "returns": {
+                "description": "TikTok Shop return-level feed retrieved via API. One row per return with amounts (refund, discounts, shipping fees), return reasons and statuses, logistics (provider, tracking, method), item-level details, arbitration flags, and seller next actions. Use to measure return rates, reasons, and financial impact of returns."
+            },
+            "sku_duplicates": {"description": "Do not use."},
+            "states_dict": {"description": "Do not use."},
+            "tiktok_fba_finder": {"description": "Do not use."},
+            "tiktok_finance_report": {
+                "description": "Do not use.",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "tiktok_finance_report_2": {
+                "description": "Do not use",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "tiktok_fin_view_bi": {
+                "description": "Do not use.",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "tiktok_fin_view_bi_2": {
+                "description": "Weekly BI finance view for TikTok Shop statements, enriched with human-readable seller SKUs and mapped cost of goods (COGS). Prefer seller_sku_period as the canonical SKU; if it is empty/invalid, fall back to seller_sku_total. For product cost, prefer product_cost_seller_sku_period; if empty/invalid, fall back to product_cost_seller_sku_total. Use this table as the curated source for settlement-level P&L by SKU, order, channel, and fulfillment type.",
+                "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"],
+            },
+            "tiktok_order_temp": {"description": "Do not use."},
+            "tiktok_shipping": {"description": "Do not use."},
+            "tiktok_shipping_cost": {"description": "Do not use."},
         },
-        "campaign_metrics": {
-          "description": "TikTok Ads campaign-level daily performance retrieved via API. One row per campaign per day with core media KPIs (impressions, clicks, CTR, CPC, CPM, conversions, cost, ROAS bidding parameters, budgets, objectives, statuses). Use to evaluate paid performance and pacing."
-        },
-        "gmv_max_metrics": {
-          "description": "Daily spend and billed cost for TikTok GMV Max activity by advertiser and country."
-        },
-        "orders": {
-          "description": "TikTok Shop order-level feed retrieved via API. One row per order with timestamps (creation, paid, ship/RTS/RTD milestones), fulfillment details, shipping provider and tracking, payment method and amounts, recipient address (structured), line items and SKU counts, status and cancellation fields. Use to analyze order lifecycle, fulfillment SLAs, and operational exceptions."
-        },
-        "returns": {
-          "description": "TikTok Shop return-level feed retrieved via API. One row per return with amounts (refund, discounts, shipping fees), return reasons and statuses, logistics (provider, tracking, method), item-level details, arbitration flags, and seller next actions. Use to measure return rates, reasons, and financial impact of returns."
-        },
-        "sku_duplicates": {
-            "description": "Do not use."
-        },
-        "states_dict": {
-            "description": "Do not use."
-        },
-        "tiktok_fba_finder": {
-            "description": "Do not use."
-        },
-        "tiktok_finance_report": {
-          "description": "Do not use.",
-          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
-        },
-        "tiktok_finance_report_2": {
-          "description": "Do not use",
-          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
-        },
-        "tiktok_fin_view_bi": {
-          "description": "Do not use.",
-          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
-        },
-        "tiktok_fin_view_bi_2": {
-          "description": "Weekly BI finance view for TikTok Shop statements, enriched with human-readable seller SKUs and mapped cost of goods (COGS). Prefer seller_sku_period as the canonical SKU; if it is empty/invalid, fall back to seller_sku_total. For product cost, prefer product_cost_seller_sku_period; if empty/invalid, fall back to product_cost_seller_sku_total. Use this table as the curated source for settlement-level P&L by SKU, order, channel, and fulfillment type.",
-          "authorized_users": ["valerii@mellanni.com", "sergey@mellanni.com"]
-        },
-        "tiktok_order_temp": {
-            "description": "Do not use."
-        },
-        "tiktok_shipping": {
-            "description": "Do not use."
-        },
-        "tiktok_shipping_cost": {
-            "description": "Do not use."
-        }
-      }
     },
     "walmart": {
         "dataset_description": "Ecom information about company's Walmart business",
@@ -736,7 +731,7 @@ table_data = {
 }
 
 
-today = get_current_datetime().date()
+today = get_current_datetime()["payload"].date()
 
 BIGQUERY_AGENT_INSTRUCTIONS = f"""
 You are a data science agent with access to several BigQuery tools.
@@ -914,7 +909,8 @@ BIGQUERY_AGENT_INSTRUCTIONS_OLD_DICT = {
     "examples": f"Refer to the provided examples for guidance on handling various user requests effectively:\n{query_examples.average_sales_amazon}",
 }
 
-BIGQUERY_AGENT_INSTRUCTIONS_OLD = (f"""
+BIGQUERY_AGENT_INSTRUCTIONS_OLD = (
+    f"""
 <GENERAL INFORMATION>
     You are a data science agent with access to several BigQuery tools.
     Make use of those tools to answer the user's questions.
@@ -922,7 +918,7 @@ BIGQUERY_AGENT_INSTRUCTIONS_OLD = (f"""
     Today's date is {today.strftime("%YYY-%mm-%dd")}.
 </GENERAL INFORMATION>
 """
-"""
+    """
 <CORE PRINCIPLES>
     The list and description of the company data structure in bigquery tables is saved in session state key: {table_data}. Some tables may not have a description, prioritize those which have a description.
 
@@ -1009,14 +1005,15 @@ After successfully querying data, you have the ability to create plots and chart
 *   The generated plot will be saved as an artifact, and you should inform the user of the filename.
 </Visualization>
 """
-f"""
+    f"""
 <EXAMPLES>
     refer to the provided examples for guidance on handling various user requests effectively:
         - {query_examples.average_sales_amazon}
 
 </EXAMPLES>
 
-""")
+"""
+)
 
 
 def create_bq_agent_instruction():
