@@ -11,8 +11,8 @@ import query_examples
 OPENAI_API_KEY = os.environ.get("OPENAI_AGENTS_API_KEY")
 
 MODEL = "gemini-2.5-flash"
-# BIGQUERY_AGENT_MODEL = "gemini-2.5-flash"
-BIGQUERY_AGENT_MODEL = LiteLlm(model="openai/gpt-5", api_key=OPENAI_API_KEY)
+BIGQUERY_AGENT_MODEL = "gemini-2.5-flash"
+# BIGQUERY_AGENT_MODEL = LiteLlm(model="openai/gpt-5", api_key=OPENAI_API_KEY)
 SEARCH_AGENT_MODEL = "gemini-2.5-flash-lite"
 CREATIVES_AGENT_MODEL = "gemini-2.5-flash"
 
