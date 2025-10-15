@@ -65,6 +65,7 @@ change_types = [
     "Rebate started",
     "Rebate finished",
     "LD",
+    "BD",
     "SMPC",
 ]
 markets_match: dict = {
