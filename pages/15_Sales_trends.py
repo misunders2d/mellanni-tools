@@ -17,6 +17,8 @@ if not st.user.email in sales_users:
     st.toast(f"User {st.user.email} does not have access to sales data. Contact Sergey for details")
     st.stop()
 
+collection_area, size_area, color_area = st.columns([2,1,1])
+events_checkbox, changes_checkbox = st.columns([1,1])
 
 GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
@@ -48,6 +50,16 @@ def get_sales_data() -> pd.DataFrame | None:
                 AND LOWER(country_code) = 'us'
             GROUP BY date, asin
             ),
+            inventory_by_date_asin AS (
+            SELECT
+                DATE(snapshot_date) AS date,
+                asin,
+                SUM(Inventory_Supply_at_FBA) AS inventory_supply_at_fba
+            FROM mellanni-project-da.reports.fba_inventory_planning
+            WHERE DATE(snapshot_date) >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL 360 DAY)
+                AND LOWER(marketplace) = 'us'
+            GROUP BY date, asin
+            ),
             deduped_dict AS (
             SELECT
                 sku,
@@ -60,7 +72,6 @@ def get_sales_data() -> pd.DataFrame | None:
             WHERE sku IS NOT NULL OR asin IS NOT NULL
             GROUP BY sku, asin
             ),
-            -- Map changelog.sku -> collection/size/color via SKU deduped dictionary
             changelog_mapped AS (
             SELECT
                 DATE(sc.date) AS date,
@@ -75,7 +86,6 @@ def get_sales_data() -> pd.DataFrame | None:
                 ON sc.sku = sd.sku
             WHERE DATE(sc.date) >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL 360 DAY)
             ),
-            -- Aggregate multiple changes per date+collection+size+color by concatenating distinct entries
             changelog_agg AS (
             SELECT
                 date,
@@ -88,7 +98,6 @@ def get_sales_data() -> pd.DataFrame | None:
             GROUP BY date, collection, size, color
             ),
             deduped_asin_dict AS (
-            -- one row per asin (reuse for joining sales -> collection/size/color)
             SELECT
                 asin,
                 ANY_VALUE(collection)  AS collection,
@@ -99,26 +108,30 @@ def get_sales_data() -> pd.DataFrame | None:
             GROUP BY asin
             )
             SELECT
-                s.date,
-                s.asin,
-                d.collection,
-                d.size,
-                d.color,
-                s.units,
-                s.net_sales,
-                sd.sessions,
-                ca.change_notes
+            s.date,
+            s.asin,
+            d.collection,
+            d.size,
+            d.color,
+            s.units,
+            s.net_sales,
+            sd.sessions,
+            inv.inventory_supply_at_fba,
+            ca.change_notes
             FROM sales s
             LEFT JOIN sessions_data sd
-                ON s.asin = sd.asin
-                AND s.date = sd.date
+            ON s.asin = sd.asin
+            AND s.date = sd.date
+            LEFT JOIN inventory_by_date_asin inv
+            ON s.asin = inv.asin
+            AND s.date = inv.date
             LEFT JOIN deduped_asin_dict d
-                ON s.asin = d.asin
+            ON s.asin = d.asin
             LEFT JOIN changelog_agg ca
-                ON s.date = ca.date
-                AND d.collection = ca.collection
-                AND d.size = ca.size
-                AND d.color = ca.color
+            ON s.date = ca.date
+            AND d.collection = ca.collection
+            AND d.size = ca.size
+            AND d.color = ca.color
             ORDER BY s.date ASC, s.units DESC
             """
     try:
@@ -140,6 +153,7 @@ def filtered_sales(sales: pd.DataFrame, sel_collection, sel_size, sel_color):
             'units' :'sum',
             'net_sales':'sum',
             'sessions':'sum',
+            'inventory_supply_at_fba':'sum',
             'change_notes':lambda x: ', '.join([note for note in x.unique() if note])
         }
         ).reset_index()
@@ -176,6 +190,13 @@ def create_plot(df, show_change_notes):
         yaxis="y3",
         line=dict(dash='longdash', color='orange')
     ))
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['inventory_supply_at_fba'],
+        name="amz inventory supply",
+        yaxis="y3",
+        line=dict(dash='dot', color='pink')
+    ))
 
     if show_change_notes:
         for index, row in df.iterrows():
@@ -195,12 +216,12 @@ def create_plot(df, show_change_notes):
         title_text="Sales, ASP and Sessions Over Time",
         xaxis=dict(domain=[0.1, 0.9]),
         yaxis=dict(
-            title="<b>Units</b> sold",
+            title="<b>Units</b> axis",
             side="left",
             rangemode='tozero'
         ),
         yaxis2=dict(
-            title="<b>Average selling price</b>, $",
+            title="<b>Dollar</b>, $",
             side="right",
             overlaying="y",
             anchor="x",
@@ -228,11 +249,11 @@ if sales is not None:
     sizes = sales['size'].unique()
     colors = sales['color'].unique()
 
-    include_events = st.checkbox("Include events?", value=True)
-    show_change_notes = st.checkbox("Show change notes?", value=True)
-    sel_collection = st.multiselect('Collections', collections)
-    sel_size = st.multiselect('Sizes', sizes)
-    sel_color = st.multiselect('Colors', colors)
+    include_events = events_checkbox.checkbox("Include events?", value=True)
+    show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
+    sel_collection = collection_area.multiselect('Collections', collections)
+    sel_size = size_area.multiselect('Sizes', sizes)
+    sel_color = color_area.multiselect('Colors', colors)
 
     combined = filtered_sales(sales, sel_collection, sel_size, sel_color)
 
