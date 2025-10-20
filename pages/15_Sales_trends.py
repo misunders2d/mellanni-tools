@@ -10,6 +10,11 @@ import plotly.graph_objects as go
 from login import require_login
 from modules.events import event_dates_list
 
+import os
+
+os.makedirs("temp", exist_ok=True)
+tempfile = os.path.join("temp", "sales.csv")
+
 st.set_page_config(
     page_title="Sales history", page_icon="media/logo.ico", layout="wide"
 )
@@ -40,7 +45,7 @@ GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
 
 
 @st.cache_data(ttl=3600)
-def get_sales_data(interval: str = "1 YEAR") -> pd.DataFrame | None:
+def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
     query = f"""
             WITH sales AS (
             SELECT
@@ -281,8 +286,24 @@ def create_plot(df, show_change_notes, show_lds):
     st.plotly_chart(fig)
 
 
-if "sales" not in st.session_state:
+if "sales" not in st.session_state and not os.path.exists(tempfile):
     st.session_state["sales"] = get_sales_data()
+    if isinstance(st.session_state["sales"], pd.DataFrame):
+        st.session_state["sales"].to_csv(tempfile, index=False)
+elif os.path.exists(tempfile):
+    st.session_state["sales"] = pd.read_csv(tempfile)
+
+st.session_state["sales"]["date"] = pd.to_datetime(st.session_state["sales"]["date"])
+st.session_state["sales"]["change_notes"] = st.session_state["sales"][
+    "change_notes"
+].fillna("")
+
+if (pd.to_datetime("today") - pd.Timedelta(days=1)).date() not in st.session_state[
+    "sales"
+]["date"].dt.date.unique().tolist():
+    st.session_state["sales"] = get_sales_data()
+    if isinstance(st.session_state["sales"], pd.DataFrame):
+        st.session_state["sales"].to_csv(tempfile, index=False)
 
 sales = st.session_state["sales"].copy()
 
