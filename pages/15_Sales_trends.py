@@ -32,7 +32,7 @@ if not st.user.email in sales_users:
     st.stop()
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
-events_checkbox, changes_checkbox = st.columns([1, 1])
+events_checkbox, changes_checkbox, lds_checkbox = st.columns([1, 1, 1])
 
 GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
@@ -184,7 +184,7 @@ def filtered_sales(sales: pd.DataFrame, sel_collection, sel_size, sel_color):
     return combined
 
 
-def create_plot(df, show_change_notes):
+def create_plot(df, show_change_notes, show_lds):
     fig = go.Figure()
 
     fig.add_trace(
@@ -235,7 +235,17 @@ def create_plot(df, show_change_notes):
 
     if show_change_notes:
         for index, row in df.iterrows():
-            if pd.notna(row["change_notes"]) and row["change_notes"] != "":
+            condition = pd.notna(row["change_notes"]) and row["change_notes"] != ""
+            if not show_lds:
+                condition = (
+                    pd.notna(row["change_notes"])
+                    and row["change_notes"] != ""
+                    and not (
+                        row["change_notes"].startswith("LD")
+                        or row["change_notes"].startswith("BD")
+                    )
+                )
+            if condition:
                 fig.add_annotation(
                     x=row["date"],
                     y=row["units"],
@@ -283,6 +293,7 @@ if sales is not None:
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
+    show_lds = lds_checkbox.checkbox("Show LDs/BDs?", value=False)
     sel_collection = collection_area.multiselect("Collections", collections)
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
@@ -295,6 +306,6 @@ if sales is not None:
     if not combined.empty:
         combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
         combined["average selling price"] = combined["net_sales"] / combined["units"]
-        create_plot(combined, show_change_notes)
+        create_plot(combined, show_change_notes, show_lds)
     else:
         st.warning("No data to display for the selected filters.")
