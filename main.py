@@ -257,7 +257,9 @@ if prompt := st.chat_input(
                 )
             )
 
-            prompt_text += f"\n\nbiguery_agent, I’ve uploaded `{file.name}` as an artifact."
+            prompt_text += (
+                f"\n\nbiguery_agent, I’ve uploaded `{file.name}` as an artifact."
+            )
 
     st.chat_message("user", avatar=user_picture).markdown(prompt.text)
     st.session_state.messages.append({"role": "user", "content": prompt.text})
