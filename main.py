@@ -5,11 +5,6 @@ from io import StringIO
 
 import asyncio
 
-from login import require_login
-
-st.set_page_config(
-    page_title="Mellanni Tools App", page_icon="media/logo.ico", layout="wide"
-)
 
 from google.adk.sessions import InMemorySessionService
 from google.adk.artifacts import InMemoryArtifactService
@@ -23,6 +18,12 @@ from data import table_data
 import logging
 import re
 from dotenv import load_dotenv
+
+from login import require_login
+
+st.set_page_config(
+    page_title="Mellanni Tools App", page_icon="media/logo.ico", layout="wide"
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
