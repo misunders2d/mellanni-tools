@@ -225,7 +225,7 @@ def create_plot(df, show_change_notes, show_lds):
             y=df["sessions"],
             name="sessions",
             yaxis="y3",
-            line=dict(dash="longdash", color="orange"),
+            line=dict(dash="dot", color="orange"),
         )
     )
     fig.add_trace(
@@ -233,7 +233,7 @@ def create_plot(df, show_change_notes, show_lds):
             x=df["date"],
             y=df["inventory_supply_at_fba"],
             name="amz inventory supply",
-            yaxis="y3",
+            yaxis="y4",
             line=dict(dash="dot", color="pink"),
         )
     )
@@ -265,9 +265,9 @@ def create_plot(df, show_change_notes, show_lds):
     fig.update_layout(
         title_text="Sales, ASP and Sessions Over Time",
         xaxis=dict(domain=[0.1, 0.9]),
-        yaxis=dict(title="<b>Units</b> axis", side="left", rangemode="tozero"),
+        yaxis=dict(title="<b>Unit sold</b>", side="left", rangemode="tozero"),
         yaxis2=dict(
-            title="<b>Dollar</b>, $",
+            title="<b>Price</b>, $",
             side="right",
             overlaying="y",
             anchor="x",
@@ -275,10 +275,18 @@ def create_plot(df, show_change_notes, show_lds):
         ),
         yaxis3=dict(
             title="<b>Sessions</b>",
-            side="right",
+            side="left",
             overlaying="y",
             anchor="free",
             position=1,
+            rangemode="tozero",
+        ),
+        yaxis4=dict(
+            title="<b>AMZ inventory supply</b>",
+            side="right",
+            overlaying="y",
+            anchor="free",
+            # position=-1,
             rangemode="tozero",
         ),
     )
