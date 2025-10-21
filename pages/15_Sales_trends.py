@@ -177,7 +177,9 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
         st.error(f"Error while pulling BQ data: {e}")
 
 
-def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color):
+def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, available=True):
+    inv_column = "available" if available else "inventory_supply_at_fba"
+
     if sel_collection:
         df = df[df["collection"].isin(sel_collection)]
     if sel_size:
@@ -197,7 +199,7 @@ def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color):
     df['asin_sales_share'] = (
         df['asin_30d_avg'] / df.groupby('date')['asin_30d_avg'].transform('sum')
         )
-    df['stockout'] = (1- (df['available'] / df['asin_30d_avg']).clip(upper=1)) *  df['asin_sales_share']
+    df['stockout'] = (1- (df[inv_column] / df['asin_30d_avg']).clip(upper=1)) *  df['asin_sales_share']
 
     df["change_notes"] = df["change_notes"].fillna("")
 
@@ -470,7 +472,7 @@ if sales is not None:
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
 
-    combined = filtered_sales(sales.copy(), sel_collection, sel_size, sel_color)
+    combined = filtered_sales(sales.copy(), sel_collection, sel_size, sel_color, available_inv)
 
     # if not include_events:
     #     combined = combined[~combined["date"].isin(event_dates_list)]
