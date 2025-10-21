@@ -36,7 +36,7 @@ if st.user.email not in sales_users:
     st.stop()
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
-events_checkbox, changes_checkbox, lds_checkbox = st.columns([1, 1, 1])
+events_checkbox, changes_checkbox, lds_checkbox, inv_checkbox = st.columns([1, 1, 1, 1])
 
 GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
@@ -222,7 +222,6 @@ def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color):
 
 
 def create_plot(df, show_change_notes, show_lds, available=True):
-
     # Defensive copy and basic normalization
     df = df.copy()
     if "date" in df.columns:
@@ -244,7 +243,7 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         vertical_spacing=0.05,
         specs=[[{"secondary_y": True}], [{"secondary_y": False}]],
     )
-    # Top row traces (primary left y for units, 30-day avg; secondary right y for price, sessions, inventory)
+    # Top row traces (primary left y for units, 30-day avg; secondary right y for price)
     fig.add_trace(
         go.Scatter(x=df["date"], y=df["units"], name="units", line=dict(color="blue")),
         row=1,
@@ -263,6 +262,7 @@ def create_plot(df, show_change_notes, show_lds, available=True):
             col=1,
             secondary_y=False,
         )
+    # Price — attach to the built-in secondary y (yaxis2)
     if "average selling price" in df.columns:
         fig.add_trace(
             go.Scatter(
@@ -276,6 +276,9 @@ def create_plot(df, show_change_notes, show_lds, available=True):
             col=1,
             secondary_y=True,
         )
+        # ensure last-added trace is mapped to yaxis2
+        fig.data[-1].update(yaxis="y2")
+    # Sessions — put on its own left-side axis (yaxis4) mapped to left but free-positioned
     if "sessions" in df.columns:
         fig.add_trace(
             go.Scatter(
@@ -286,8 +289,10 @@ def create_plot(df, show_change_notes, show_lds, available=True):
             ),
             row=1,
             col=1,
-            secondary_y=True,
+            secondary_y=False,
         )
+        fig.data[-1].update(yaxis="y4")
+    # Inventory — its own overlaying right axis (yaxis5)
     if inv_column in df.columns:
         fig.add_trace(
             go.Scatter(
@@ -298,8 +303,9 @@ def create_plot(df, show_change_notes, show_lds, available=True):
             ),
             row=1,
             col=1,
-            secondary_y=True,
+            secondary_y=False,
         )
+        fig.data[-1].update(yaxis="y5")
     # Bottom row: stockout as negative filled area to zero (isolated axis with negative ticks)
     fig.add_trace(
         go.Scatter(
@@ -335,36 +341,99 @@ def create_plot(df, show_change_notes, show_lds, available=True):
                     col=1,
                 )
     # Axis & layout configuration
-    # Row1 primary y (yaxis) for units
     y1_title = "<b>Units sold</b>"
-    # Row1 secondary y (yaxis2) for price/sessions/inventory
-    y2_title = "<b>Price / Sessions / Inventory (secondary)</b>"
-    # Row2 yaxis3 for stockout (negative percentage)
+    y2_title = "<b>Average selling price</b>"
+    y4_title = "<b>Sessions</b>"
+    y5_title = "<b>AMZ inventory supply</b>"
     y3_title = "<b>Stockout</b>"
+    # Compute safe ranges for axes to avoid squashing:
+    if "average selling price" in df.columns:
+        price_min = float(df["average selling price"].min())
+        price_max = float(df["average selling price"].max())
+        if price_min == price_max:
+            price_min -= max(1.0, abs(price_min) * 0.05)
+            price_max += max(1.0, abs(price_max) * 0.05)
+        price_range = [price_min * 0.98, price_max * 1.02]
+    else:
+        price_range = None
+    if "sessions" in df.columns:
+        sess_min = float(df["sessions"].min())
+        sess_max = float(df["sessions"].max())
+        if sess_min == sess_max:
+            sess_min = 0
+            sess_max = sess_max + max(1.0, abs(sess_max) * 0.05)
+        sess_range = [sess_min * 0.98, sess_max * 1.02]
+    else:
+        sess_range = None
+    if inv_column in df.columns:
+        inv_min = float(df[inv_column].min())
+        inv_max = float(df[inv_column].max())
+        if inv_min == inv_max:
+            inv_min = 0
+            inv_max = inv_max + max(1.0, abs(inv_max) * 0.05)
+        inv_range = [inv_min * 0.98, inv_max * 1.02]
+    else:
+        inv_range = None
     # Determine sensible stockout range
     min_stockout = float(stockout_y.min()) if len(stockout_y) > 0 else 0.0
     y3_min = min_stockout * 1.1 if min_stockout < 0 else -0.1
+    # Position main left axis inward so the sessions left axis has room outside it
+    layout_yaxis_main = dict(title=y1_title, position=0.12, zeroline=True)
+    # Sessions axis on left but positioned left of the main axis (anchor free)
+    layout_yaxis4 = dict(
+        title=y4_title,
+        overlaying="y",
+        side="left",
+        anchor="free",
+        position=0.02,  # slightly left of the main left axis
+        showgrid=False,
+        zeroline=False,
+        tickfont=dict(color="orange"),
+    )
+    if sess_range:
+        layout_yaxis4["range"] = sess_range #type: ignore
+    # Price axis on right (yaxis2)
+    layout_yaxis2 = dict(
+        title=y2_title,
+        overlaying="y",
+        side="right",
+        anchor="x",
+        position=0.88,
+        showgrid=False,
+        zeroline=False,
+    )
+    if price_range:
+        layout_yaxis2["range"] = price_range #type: ignore
+    # Inventory axis on far right (yaxis5)
+    layout_yaxis5 = dict(
+        title=y5_title,
+        overlaying="y",
+        side="right",
+        anchor="x",
+        position=0.985,
+        showgrid=False,
+        zeroline=False,
+    )
+    if inv_range:
+        layout_yaxis5["range"] = inv_range #type: ignore
     fig.update_layout(
         title_text="Sales, ASP and Sessions Over Time",
         legend=dict(orientation="v", x=1.02, y=1),
-        margin=dict(l=80, r=140, t=80, b=60),
+        margin=dict(l=180, r=180, t=80, b=60),  # increased left margin to avoid label clipping
         hovermode="x unified",
+        yaxis=layout_yaxis_main,
+        yaxis2=layout_yaxis2,
+        yaxis4=layout_yaxis4,
+        yaxis5=layout_yaxis5,
     )
     fig.update_yaxes(title_text=y1_title, row=1, col=1, zeroline=True)
-    fig.update_yaxes(title_text=y2_title, row=1, col=1, secondary_y=True, zeroline=False)
-    fig.update_yaxes(
-        title_text=y3_title,
-        row=2,
-        col=1,
-        zeroline=True,
-        showgrid=False,
-        tickformat=".0%",
-        range=[y3_min, 0],
-    )
+    fig.update_yaxes(title_text=y3_title, row=2, col=1, zeroline=True, showgrid=False, tickformat=".0%", range=[y3_min, 0])
     # Tweak x-axis appearance (shared)
     fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
     # Render
     st.plotly_chart(fig, use_container_width=True)
+
+
 
 
 if "sales" not in st.session_state and not os.path.exists(tempfile):
@@ -396,6 +465,7 @@ if sales is not None:
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
     show_lds = lds_checkbox.checkbox("Show LDs/BDs?", value=False)
+    available_inv = inv_checkbox.checkbox("Show only available inventory", value = True)
     sel_collection = collection_area.multiselect("Collections", collections)
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
@@ -408,6 +478,6 @@ if sales is not None:
     if not combined.empty:
         combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
         combined["average selling price"] = combined["net_sales"] / combined["units"]
-        create_plot(combined, show_change_notes, show_lds)
+        create_plot(combined, show_change_notes, show_lds, available_inv)
     else:
         st.warning("No data to display for the selected filters.")
