@@ -3,7 +3,6 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-# import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
@@ -30,7 +29,7 @@ sales_users = [
     "margarita@mellanni.com",
     "masao@mellanni.com",
 ]
-if not st.user.email in sales_users:
+if st.user.email not in sales_users:
     st.toast(
         f"User {st.user.email} does not have access to sales data. Contact Sergey for details"
     )
@@ -60,6 +59,15 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
                 AND LOWER(sales_channel) = 'amazon.com'
             GROUP BY date, asin
             ),
+            total_sales AS (
+            SELECT
+                DATE(purchase_date, "America/Los_Angeles") AS date,
+                SUM(quantity) AS total_units,
+            FROM mellanni-project-da.reports.all_orders
+            WHERE DATE(purchase_date, "America/Los_Angeles") >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
+                AND LOWER(sales_channel) = 'amazon.com'
+            GROUP BY date
+            ),
             sessions_data AS (
             SELECT
                 DATE(date) AS date,
@@ -74,7 +82,8 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
             SELECT
                 DATE(snapshot_date) AS date,
                 asin,
-                SUM(Inventory_Supply_at_FBA) AS inventory_supply_at_fba
+                SUM(Inventory_Supply_at_FBA) AS inventory_supply_at_fba,
+                SUM(available) AS available
             FROM mellanni-project-da.reports.fba_inventory_planning
             WHERE DATE(snapshot_date) >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
                 AND LOWER(marketplace) = 'us'
@@ -135,10 +144,14 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
             d.color,
             s.units,
             s.net_sales,
+            ts.total_units,
             sd.sessions,
             inv.inventory_supply_at_fba,
+            inv.available,
             ca.change_notes
             FROM sales s
+            LEFT JOIN total_sales ts
+            ON s.date = ts.date
             LEFT JOIN sessions_data sd
             ON s.asin = sd.asin
             AND s.date = sd.date
@@ -164,21 +177,40 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
         st.error(f"Error while pulling BQ data: {e}")
 
 
-def filtered_sales(sales: pd.DataFrame, sel_collection, sel_size, sel_color):
+def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color):
     if sel_collection:
-        sales = sales[sales["collection"].isin(sel_collection)]
+        df = df[df["collection"].isin(sel_collection)]
     if sel_size:
-        sales = sales[sales["size"].isin(sel_size)]
+        df = df[df["size"].isin(sel_size)]
     if sel_color:
-        sales = sales[sales["color"].isin(sel_color)]
+        df = df[df["color"].isin(sel_color)]
+
+    df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+    
+    if not include_events:
+        df = df[~df["date"].isin(event_dates_list)]
+
+    df['asin_30d_avg'] = (
+        df.groupby('asin')['units']
+        .transform(lambda x: x.rolling(30, min_periods=1).mean())
+        )
+    df['asin_sales_share'] = (
+        df['asin_30d_avg'] / df.groupby('date')['asin_30d_avg'].transform('sum')
+        )
+    df['stockout'] = (1- (df['available'] / df['asin_30d_avg']).clip(upper=1)) *  df['asin_sales_share']
+
+    df["change_notes"] = df["change_notes"].fillna("")
+
     combined = (
-        sales.groupby("date")
+        df.groupby("date")
         .agg(
             {
                 "units": "sum",
                 "net_sales": "sum",
                 "sessions": "sum",
+                "available":"sum",
                 "inventory_supply_at_fba": "sum",
+                "stockout":"sum",
                 "change_notes": lambda x: ", ".join(
                     [note for note in x.unique() if note]
                 ),
@@ -189,109 +221,150 @@ def filtered_sales(sales: pd.DataFrame, sel_collection, sel_size, sel_color):
     return combined
 
 
-def create_plot(df, show_change_notes, show_lds):
-    fig = go.Figure()
+def create_plot(df, show_change_notes, show_lds, available=True):
 
+    # Defensive copy and basic normalization
+    df = df.copy()
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"])
+    else:
+        df = df.reset_index().rename(columns={"index": "date"})
+        df["date"] = pd.to_datetime(df["date"])
+    inv_column = "available" if available else "inventory_supply_at_fba"
+    # Prepare stockout values as fraction (0.15) and negate for plotting below zero
+    stockout_raw = pd.to_numeric(df.get("stockout", 0)).fillna(0)
+    stockout_frac = stockout_raw / 100.0 if stockout_raw.max() > 1 else stockout_raw
+    stockout_y = -stockout_frac
+    # Create two-row figure: top = main metrics, bottom = stockout (negative axis, isolated)
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        row_heights=[0.75, 0.25],
+        vertical_spacing=0.05,
+        specs=[[{"secondary_y": True}], [{"secondary_y": False}]],
+    )
+    # Top row traces (primary left y for units, 30-day avg; secondary right y for price, sessions, inventory)
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["units"], name="units", line=dict(color="blue")),
+        row=1,
+        col=1,
+        secondary_y=False,
+    )
+    if "30-day avg" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df["30-day avg"],
+                name="30-day avg",
+                line=dict(dash="dash", color="lightblue"),
+            ),
+            row=1,
+            col=1,
+            secondary_y=False,
+        )
+    if "average selling price" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df["average selling price"],
+                name="avg price",
+                line=dict(dash="dot", color="green"),
+                hovertemplate="%{y:$,.2f}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+            secondary_y=True,
+        )
+    if "sessions" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df["sessions"],
+                name="sessions",
+                line=dict(dash="dot", color="orange"),
+            ),
+            row=1,
+            col=1,
+            secondary_y=True,
+        )
+    if inv_column in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df[inv_column],
+                name="amz inventory",
+                line=dict(dash="dot", color="pink"),
+            ),
+            row=1,
+            col=1,
+            secondary_y=True,
+        )
+    # Bottom row: stockout as negative filled area to zero (isolated axis with negative ticks)
     fig.add_trace(
         go.Scatter(
             x=df["date"],
-            y=df["units"],
-            name="units",
-            yaxis="y1",
-            line=dict(color="blue"),
-        )
+            y=stockout_y,
+            name="stockout",
+            fill="tozeroy",
+            fillcolor="rgba(255,0,0,0.25)",
+            line=dict(width=0),
+            hovertemplate="%{y:.1%}<extra></extra>",
+            showlegend=True,
+        ),
+        row=2,
+        col=1,
     )
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["30-day avg"],
-            name="30-day avg",
-            yaxis="y1",
-            line=dict(dash="dash", color="lightblue"),
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["average selling price"],
-            name="average selling price",
-            yaxis="y2",
-            line=dict(dash="dot", color="green"),
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["sessions"],
-            name="sessions",
-            yaxis="y3",
-            line=dict(dash="dot", color="orange"),
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["inventory_supply_at_fba"],
-            name="amz inventory supply",
-            yaxis="y4",
-            line=dict(dash="dot", color="pink"),
-        )
-    )
-
-    if show_change_notes:
-        for index, row in df.iterrows():
-            condition = pd.notna(row["change_notes"]) and row["change_notes"] != ""
-            if not show_lds:
-                condition = (
-                    pd.notna(row["change_notes"])
-                    and row["change_notes"] != ""
-                    and not (
-                        row["change_notes"].startswith("LD")
-                        or row["change_notes"].startswith("BD")
-                    )
-                )
-            if condition:
+    # Optional annotations (kept in top row, anchored to units)
+    if show_change_notes and "change_notes" in df.columns:
+        for _, row in df.iterrows():
+            txt = row.get("change_notes")
+            if not pd.isna(txt) and txt != "":
+                if not show_lds and (str(txt).startswith("LD") or str(txt).startswith("BD")):
+                    continue
                 fig.add_annotation(
                     x=row["date"],
-                    y=row["units"],
+                    y=row.get("units", 0),
                     text="change",
-                    hovertext=row["change_notes"],
+                    hovertext=str(txt),
                     showarrow=True,
                     arrowhead=1,
                     ax=0,
                     ay=-40,
+                    row=1,
+                    col=1,
                 )
-
+    # Axis & layout configuration
+    # Row1 primary y (yaxis) for units
+    y1_title = "<b>Units sold</b>"
+    # Row1 secondary y (yaxis2) for price/sessions/inventory
+    y2_title = "<b>Price / Sessions / Inventory (secondary)</b>"
+    # Row2 yaxis3 for stockout (negative percentage)
+    y3_title = "<b>Stockout</b>"
+    # Determine sensible stockout range
+    min_stockout = float(stockout_y.min()) if len(stockout_y) > 0 else 0.0
+    y3_min = min_stockout * 1.1 if min_stockout < 0 else -0.1
     fig.update_layout(
         title_text="Sales, ASP and Sessions Over Time",
-        xaxis=dict(domain=[0.1, 0.9]),
-        yaxis=dict(title="<b>Unit sold</b>", side="left", rangemode="tozero"),
-        yaxis2=dict(
-            title="<b>Price</b>, $",
-            side="right",
-            overlaying="y",
-            anchor="x",
-            rangemode="tozero",
-        ),
-        yaxis3=dict(
-            title="<b>Sessions</b>",
-            side="left",
-            overlaying="y",
-            anchor="free",
-            position=1,
-            rangemode="tozero",
-        ),
-        yaxis4=dict(
-            title="<b>AMZ inventory supply</b>",
-            side="right",
-            overlaying="y",
-            anchor="free",
-            # position=-1,
-            rangemode="tozero",
-        ),
+        legend=dict(orientation="v", x=1.02, y=1),
+        margin=dict(l=80, r=140, t=80, b=60),
+        hovermode="x unified",
     )
-
-    st.plotly_chart(fig)
+    fig.update_yaxes(title_text=y1_title, row=1, col=1, zeroline=True)
+    fig.update_yaxes(title_text=y2_title, row=1, col=1, secondary_y=True, zeroline=False)
+    fig.update_yaxes(
+        title_text=y3_title,
+        row=2,
+        col=1,
+        zeroline=True,
+        showgrid=False,
+        tickformat=".0%",
+        range=[y3_min, 0],
+    )
+    # Tweak x-axis appearance (shared)
+    fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
+    # Render
+    st.plotly_chart(fig, use_container_width=True)
 
 
 if "sales" not in st.session_state and not os.path.exists(tempfile):
@@ -302,9 +375,9 @@ elif os.path.exists(tempfile):
     st.session_state["sales"] = pd.read_csv(tempfile)
 
 st.session_state["sales"]["date"] = pd.to_datetime(st.session_state["sales"]["date"])
-st.session_state["sales"]["change_notes"] = st.session_state["sales"][
-    "change_notes"
-].fillna("")
+# st.session_state["sales"]["change_notes"] = st.session_state["sales"][
+#     "change_notes"
+# ].fillna("")
 
 if (pd.to_datetime("today") - pd.Timedelta(days=1)).date() not in st.session_state[
     "sales"
@@ -327,10 +400,10 @@ if sales is not None:
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
 
-    combined = filtered_sales(sales, sel_collection, sel_size, sel_color)
+    combined = filtered_sales(sales.copy(), sel_collection, sel_size, sel_color)
 
-    if not include_events:
-        combined = combined[~combined["date"].isin(event_dates_list)]
+    # if not include_events:
+    #     combined = combined[~combined["date"].isin(event_dates_list)]
 
     if not combined.empty:
         combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
