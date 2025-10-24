@@ -533,45 +533,50 @@ if sales is not None:
 
     if not combined.empty:
         create_plot(combined, show_change_notes, show_lds, available_inv)
-        total_units_this_year = combined['units'].sum()
+        total_units_this_year = combined["units"].sum()
         total_units_last_year = combined_last_year["units"].sum()
-        total_dollars_this_year = combined['net_sales'].sum()
+        total_dollars_this_year = combined["net_sales"].sum()
         total_dollars_last_year = combined_last_year["net_sales"].sum()
         average_price_this_year = total_dollars_this_year / total_units_this_year
         average_price_last_year = total_dollars_last_year / total_units_last_year
-        sessions_this_year = combined['sessions'].sum()
-        sessions_last_year = combined_last_year['sessions'].sum()
-        conversion_this_year = total_units_this_year/sessions_this_year
-        conversion_last_year = total_units_last_year/sessions_last_year
+        sessions_this_year = combined["sessions"].sum()
+        sessions_last_year = combined_last_year["sessions"].sum()
+        conversion_this_year = total_units_this_year / sessions_this_year
+        conversion_last_year = total_units_last_year / sessions_last_year
         units_metric.metric(
             label="Total units sold",
             value=f"{total_units_this_year:,.0f}",
             delta=f"{total_units_this_year / total_units_last_year -1:.1%} YoY",
             chart_data=combined["units"],
+            help=f"Same period last year: {total_units_last_year:,.0f}",
         )
         dollar_metric.metric(
             label="Total sales",
             value=f"${total_dollars_this_year:,.0f}",
             delta=f"{total_dollars_this_year / total_dollars_last_year -1:.1%} YoY",
             chart_data=combined["net_sales"],
+            help=f"Same period last year: ${total_dollars_last_year:,.0f}",
         )
         price_metric.metric(
             label="Average price",
             value=f"${average_price_this_year:,.2f}",
-            delta = f"{average_price_this_year / average_price_last_year:.1%} YoY",
+            delta=f"{average_price_this_year / average_price_last_year:.1%} YoY",
             chart_data=combined["net_sales"] / combined["units"],
+            help=f"Same period last year: ${average_price_last_year:,.2f}",
         )
         sessions_metric.metric(
             label="Total sessions",
             value=f"{sessions_this_year:,.0f}",
-            delta = f"{sessions_this_year / sessions_last_year - 1:.1%} YoY",
+            delta=f"{sessions_this_year / sessions_last_year - 1:.1%} YoY",
             chart_data=combined["sessions"],
+            help=f"Same period last year: ${sessions_last_year:,.0f}",
         )
         conversion_metric.metric(
             label="Conversion %",
             value=f"{conversion_this_year:.1%}",
-            delta = f"{conversion_this_year / conversion_last_year - 1:.1%} YoY",
+            delta=f"{conversion_this_year / conversion_last_year - 1:.1%} YoY",
             chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
+            help=f"Same period last year: ${conversion_last_year:.1%}",
         )
     else:
         st.warning("No data to display for the selected filters.")
