@@ -472,7 +472,7 @@ if sales is not None:
     colors = sales["color"].unique()
     min_date = sales['date'].min().date()
     max_date = sales['date'].max().date()
-    date_range = st.slider(label="Selecte date range", min_value=min_date, max_value=max_date, value=(min_date,max_date))
+    date_range = st.slider(label="Selecte date range", min_value=min_date, max_value=max_date, value=((max_date- pd.Timedelta(days=90)),max_date))
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
