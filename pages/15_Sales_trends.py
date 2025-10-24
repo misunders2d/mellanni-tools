@@ -29,6 +29,11 @@ sales_users = [
     "margarita@mellanni.com",
     "masao@mellanni.com",
 ]
+
+GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"]
+)
+
 if st.user.email not in sales_users:
     st.toast(
         f"User {st.user.email} does not have access to sales data. Contact Sergey for details"
@@ -37,10 +42,7 @@ if st.user.email not in sales_users:
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
 events_checkbox, changes_checkbox, lds_checkbox, inv_checkbox = st.columns([1, 1, 1, 1])
-
-GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"]
-)
+date_range_area =  st.empty()
 
 
 @st.cache_data(ttl=3600)
@@ -177,8 +179,8 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
         st.error(f"Error while pulling BQ data: {e}")
 
 
-def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, available=True):
-    inv_column = "available" if available else "inventory_supply_at_fba"
+def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, available_inv, date_range):
+    inv_column = "available" if available_inv else "inventory_supply_at_fba"
 
     if sel_collection:
         df = df[df["collection"].isin(sel_collection)]
@@ -220,7 +222,15 @@ def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, availa
         )
         .reset_index()
     )
-    return combined
+
+    combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
+    combined["average selling price"] = combined["net_sales"] / combined["units"]
+
+    combined_visible = combined.copy()
+    combined_visible['date'] = pd.to_datetime(combined_visible['date']).dt.date
+    combined_visible = combined_visible[combined_visible['date'].between(date_range[0],date_range[1])]
+
+    return combined_visible
 
 
 def create_plot(df, show_change_notes, show_lds, available=True):
@@ -446,9 +456,6 @@ elif os.path.exists(tempfile):
     st.session_state["sales"] = pd.read_csv(tempfile)
 
 st.session_state["sales"]["date"] = pd.to_datetime(st.session_state["sales"]["date"])
-# st.session_state["sales"]["change_notes"] = st.session_state["sales"][
-#     "change_notes"
-# ].fillna("")
 
 if (pd.to_datetime("today") - pd.Timedelta(days=1)).date() not in st.session_state[
     "sales"
@@ -463,6 +470,9 @@ if sales is not None:
     collections = sales["collection"].unique()
     sizes = sales["size"].unique()
     colors = sales["color"].unique()
+    min_date = sales['date'].min().date()
+    max_date = sales['date'].max().date()
+    date_range = st.slider(label="Selecte date range", min_value=min_date, max_value=max_date, value=(min_date,max_date))
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
@@ -472,14 +482,9 @@ if sales is not None:
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
 
-    combined = filtered_sales(sales.copy(), sel_collection, sel_size, sel_color, available_inv)
-
-    # if not include_events:
-    #     combined = combined[~combined["date"].isin(event_dates_list)]
+    combined = filtered_sales(sales.copy(), sel_collection, sel_size, sel_color, available_inv, date_range)
 
     if not combined.empty:
-        combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
-        combined["average selling price"] = combined["net_sales"] / combined["units"]
         create_plot(combined, show_change_notes, show_lds, available_inv)
     else:
         st.warning("No data to display for the selected filters.")
