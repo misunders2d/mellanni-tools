@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
@@ -42,7 +43,11 @@ if st.user.email not in sales_users:
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
 events_checkbox, changes_checkbox, lds_checkbox, inv_checkbox = st.columns([1, 1, 1, 1])
-date_range_area =  st.empty()
+metrics_area = st.container()
+units_metric, dollar_metric, price_metric, sessions_metric, conversion_metric = (
+    metrics_area.columns([1, 1, 1, 1, 1])
+)
+date_range_area = st.empty()
 
 
 @st.cache_data(ttl=3600)
@@ -179,7 +184,9 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
         st.error(f"Error while pulling BQ data: {e}")
 
 
-def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, available_inv, date_range):
+def filtered_sales(
+    df: pd.DataFrame, sel_collection, sel_size, sel_color, available_inv, date_range
+):
     inv_column = "available" if available_inv else "inventory_supply_at_fba"
 
     if sel_collection:
@@ -190,18 +197,19 @@ def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, availa
         df = df[df["color"].isin(sel_color)]
 
     df["date"] = pd.to_datetime(df["date"]).dt.normalize()
-    
+
     if not include_events:
         df = df[~df["date"].isin(event_dates_list)]
 
-    df['asin_30d_avg'] = (
-        df.groupby('asin')['units']
-        .transform(lambda x: x.rolling(30, min_periods=1).mean())
-        )
-    df['asin_sales_share'] = (
-        df['asin_30d_avg'] / df.groupby('date')['asin_30d_avg'].transform('sum')
-        )
-    df['stockout'] = (1- (df[inv_column] / df['asin_30d_avg']).clip(upper=1)) *  df['asin_sales_share']
+    df["asin_30d_avg"] = df.groupby("asin")["units"].transform(
+        lambda x: x.rolling(30, min_periods=1).mean()
+    )
+    df["asin_sales_share"] = df["asin_30d_avg"] / df.groupby("date")[
+        "asin_30d_avg"
+    ].transform("sum")
+    df["stockout"] = (1 - (df[inv_column] / df["asin_30d_avg"]).clip(upper=1)) * df[
+        "asin_sales_share"
+    ]
 
     df["change_notes"] = df["change_notes"].fillna("")
 
@@ -212,9 +220,9 @@ def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, availa
                 "units": "sum",
                 "net_sales": "sum",
                 "sessions": "sum",
-                "available":"sum",
+                "available": "sum",
                 "inventory_supply_at_fba": "sum",
-                "stockout":"sum",
+                "stockout": "sum",
                 "change_notes": lambda x: ", ".join(
                     [note for note in x.unique() if note]
                 ),
@@ -227,10 +235,32 @@ def filtered_sales(df: pd.DataFrame, sel_collection, sel_size, sel_color, availa
     combined["average selling price"] = combined["net_sales"] / combined["units"]
 
     combined_visible = combined.copy()
-    combined_visible['date'] = pd.to_datetime(combined_visible['date']).dt.date
-    combined_visible = combined_visible[combined_visible['date'].between(date_range[0],date_range[1])]
+    combined_visible["date"] = pd.to_datetime(combined_visible["date"]).dt.date
+    year_ago_year_min, year_ago_month_min, year_ago_day_min = (
+        date_range[0].year - 1,
+        date_range[0].month,
+        date_range[0].day,
+    )
+    year_ago_year_max, year_ago_month_max, year_ago_day_max = (
+        date_range[1].year - 1,
+        date_range[1].month,
+        date_range[1].day,
+    )
+    combined_last_year = combined_visible[
+        combined_visible["date"].between(
+            datetime(
+                year=year_ago_year_min, month=year_ago_month_min, day=year_ago_day_min
+            ).date(),
+            datetime(
+                year=year_ago_year_max, month=year_ago_month_max, day=year_ago_day_max
+            ).date(),
+        )
+    ]
+    combined_visible = combined_visible[
+        combined_visible["date"].between(date_range[0], date_range[1])
+    ]
 
-    return combined_visible
+    return combined_visible, combined_last_year
 
 
 def create_plot(df, show_change_notes, show_lds, available=True):
@@ -338,7 +368,9 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         for _, row in df.iterrows():
             txt = row.get("change_notes")
             if not pd.isna(txt) and txt != "":
-                if not show_lds and (str(txt).startswith("LD") or str(txt).startswith("BD")):
+                if not show_lds and (
+                    str(txt).startswith("LD") or str(txt).startswith("BD")
+                ):
                     continue
                 fig.add_annotation(
                     x=row["date"],
@@ -403,7 +435,7 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         tickfont=dict(color="orange"),
     )
     if sess_range:
-        layout_yaxis4["range"] = sess_range #type: ignore
+        layout_yaxis4["range"] = sess_range  # type: ignore
     # Price axis on right (yaxis2)
     layout_yaxis2 = dict(
         title=y2_title,
@@ -415,7 +447,7 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         zeroline=False,
     )
     if price_range:
-        layout_yaxis2["range"] = price_range #type: ignore
+        layout_yaxis2["range"] = price_range  # type: ignore
     # Inventory axis on far right (yaxis5)
     layout_yaxis5 = dict(
         title=y5_title,
@@ -427,11 +459,13 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         zeroline=False,
     )
     if inv_range:
-        layout_yaxis5["range"] = inv_range #type: ignore
+        layout_yaxis5["range"] = inv_range  # type: ignore
     fig.update_layout(
         title_text="Sales, ASP and Sessions Over Time",
         legend=dict(orientation="v", x=1.02, y=1),
-        margin=dict(l=180, r=180, t=80, b=60),  # increased left margin to avoid label clipping
+        margin=dict(
+            l=180, r=180, t=80, b=60
+        ),  # increased left margin to avoid label clipping
         hovermode="x unified",
         yaxis=layout_yaxis_main,
         yaxis2=layout_yaxis2,
@@ -439,13 +473,19 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         yaxis5=layout_yaxis5,
     )
     fig.update_yaxes(title_text=y1_title, row=1, col=1, zeroline=True)
-    fig.update_yaxes(title_text=y3_title, row=2, col=1, zeroline=True, showgrid=False, tickformat=".0%", range=[y3_min, 0])
+    fig.update_yaxes(
+        title_text=y3_title,
+        row=2,
+        col=1,
+        zeroline=True,
+        showgrid=False,
+        tickformat=".0%",
+        range=[y3_min, 0],
+    )
     # Tweak x-axis appearance (shared)
     fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
     # Render
     st.plotly_chart(fig, use_container_width=True)
-
-
 
 
 if "sales" not in st.session_state and not os.path.exists(tempfile):
@@ -470,21 +510,68 @@ if sales is not None:
     collections = sales["collection"].unique()
     sizes = sales["size"].unique()
     colors = sales["color"].unique()
-    min_date = sales['date'].min().date()
-    max_date = sales['date'].max().date()
-    date_range = st.slider(label="Selecte date range", min_value=min_date, max_value=max_date, value=((max_date- pd.Timedelta(days=90)),max_date))
+    min_date = sales["date"].min().date()
+    max_date = sales["date"].max().date()
+    date_range = st.slider(
+        label="Selecte date range",
+        min_value=min_date,
+        max_value=max_date,
+        value=((max_date - pd.Timedelta(days=90)), max_date),
+    )
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
     show_lds = lds_checkbox.checkbox("Show LDs/BDs?", value=False)
-    available_inv = inv_checkbox.checkbox("Show only available inventory", value = True)
+    available_inv = inv_checkbox.checkbox("Show only available inventory", value=True)
     sel_collection = collection_area.multiselect("Collections", collections)
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
 
-    combined = filtered_sales(sales.copy(), sel_collection, sel_size, sel_color, available_inv, date_range)
+    combined, combined_last_year = filtered_sales(
+        sales.copy(), sel_collection, sel_size, sel_color, available_inv, date_range
+    )
 
     if not combined.empty:
         create_plot(combined, show_change_notes, show_lds, available_inv)
+        total_units_this_year = combined['units'].sum()
+        total_units_last_year = combined_last_year["units"].sum()
+        total_dollars_this_year = combined['net_sales'].sum()
+        total_dollars_last_year = combined_last_year["net_sales"].sum()
+        average_price_this_year = total_dollars_this_year / total_units_this_year
+        average_price_last_year = total_dollars_last_year / total_units_last_year
+        sessions_this_year = combined['sessions'].sum()
+        sessions_last_year = combined_last_year['sessions'].sum()
+        conversion_this_year = total_units_this_year/sessions_this_year
+        conversion_last_year = total_units_last_year/sessions_last_year
+        units_metric.metric(
+            label="Total units sold",
+            value=f"{total_units_this_year:,.0f}",
+            delta=f"{total_units_this_year / total_units_last_year -1:.1%} YoY",
+            chart_data=combined["units"],
+        )
+        dollar_metric.metric(
+            label="Total sales",
+            value=f"${total_dollars_this_year:,.0f}",
+            delta=f"{total_dollars_this_year / total_dollars_last_year -1:.1%} YoY",
+            chart_data=combined["net_sales"],
+        )
+        price_metric.metric(
+            label="Average price",
+            value=f"${average_price_this_year:,.2f}",
+            delta = f"{average_price_this_year / average_price_last_year:.1%} YoY",
+            chart_data=combined["net_sales"] / combined["units"],
+        )
+        sessions_metric.metric(
+            label="Total sessions",
+            value=f"{sessions_this_year:,.0f}",
+            delta = f"{sessions_this_year / sessions_last_year - 1:.1%} YoY",
+            chart_data=combined["sessions"],
+        )
+        conversion_metric.metric(
+            label="Conversion %",
+            value=f"{conversion_this_year:.1%}",
+            delta = f"{conversion_this_year / conversion_last_year - 1:.1%} YoY",
+            chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
+        )
     else:
         st.warning("No data to display for the selected filters.")
