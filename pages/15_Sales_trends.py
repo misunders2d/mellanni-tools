@@ -260,6 +260,17 @@ def filtered_sales(
         combined_visible["date"].between(date_range[0], date_range[1])
     ]
 
+    # Create a full date range from the selected date_range
+    full_date_range = pd.date_range(start=date_range[0], end=date_range[1], freq="D")
+
+    # Set 'date' as the index, reindex to the full date range, and then reset index
+    combined_visible = (
+        combined_visible.set_index("date")
+        .reindex(full_date_range.date)
+        .reset_index()
+        .rename(columns={"index": "date"})
+    )
+
     return combined_visible, combined_last_year
 
 
