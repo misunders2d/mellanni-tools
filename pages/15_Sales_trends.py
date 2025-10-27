@@ -571,7 +571,7 @@ if sales is not None:
         price_metric.metric(
             label="Average price",
             value=f"${average_price_this_year:,.2f}",
-            delta=f"{average_price_this_year / average_price_last_year:.1%} YoY",
+            delta=f"{average_price_this_year / average_price_last_year - 1:.1%} YoY",
             chart_data=combined["net_sales"] / combined["units"],
             help=f"Same period last year: ${average_price_last_year:,.2f}",
         )
