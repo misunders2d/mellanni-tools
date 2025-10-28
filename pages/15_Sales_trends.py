@@ -625,7 +625,7 @@ if sales is not None:
             help=f"Same period last year: ${conversion_last_year:.1%}",
         )
         num_top_sellers = df_top_sellers.number_input(
-            "Select top n sellers", min_value=2, max_value=100, value=10, width=150
+            "Select top n sellers", min_value=2, max_value=10000, value=10, width=150
         )
         df_text.text(f"Top {num_top_sellers} sellers")
         asin_sales_top = _top_n_sellers(asin_sales, num_top_sellers)
