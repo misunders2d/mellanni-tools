@@ -629,6 +629,7 @@ if sales is not None:
         )
         df_text.text(f"Top {num_top_sellers} sellers")
         asin_sales_top = _top_n_sellers(asin_sales, num_top_sellers)
+        asin_sales_top['asin'] = "https://www.amazon.com/dp/" + asin_sales_top['asin']
         df_area_container.data_editor(
             asin_sales_top,
             num_rows="fixed",
@@ -647,7 +648,7 @@ if sales is not None:
             ],
             column_config={
                 "asin": st.column_config.LinkColumn(
-                    display_text="https://www.amazon.com/dp/(.*?)"
+                    display_text="https://www\\.amazon\\.com/dp/(.*)"
                 ),
                 "units": st.column_config.NumberColumn(format="localized"),
                 "net_sales": st.column_config.NumberColumn(format="dollar"),
