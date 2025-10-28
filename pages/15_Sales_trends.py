@@ -43,11 +43,14 @@ if st.user.email not in sales_users:
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
 events_checkbox, changes_checkbox, lds_checkbox, inv_checkbox = st.columns([1, 1, 1, 1])
+date_range_area = st.empty()
 metrics_area = st.container()
 units_metric, dollar_metric, price_metric, sessions_metric, conversion_metric = (
     metrics_area.columns([1, 1, 1, 1, 1])
 )
-date_range_area = st.empty()
+plot_area = st.container()
+df_area_container = st.container()
+df_text, df_top_sellers = df_area_container.columns([1, 10])
 
 
 @st.cache_data(ttl=3600)
@@ -212,6 +215,31 @@ def filtered_sales(
     ]
 
     df["change_notes"] = df["change_notes"].fillna("")
+    df = df.sort_values("date", ascending=True)
+
+    asin_sales = df.copy()
+    asin_sales["date"] = pd.to_datetime(asin_sales["date"]).dt.date
+    asin_sales = asin_sales[asin_sales["date"].between(date_range[0], date_range[1])]
+
+    asin_sales = (
+        asin_sales.groupby("asin")
+        .agg(
+            {
+                "collection": "first",
+                "size": "first",
+                "color": "first",
+                "units": "sum",
+                "net_sales": "sum",
+                "sessions": "sum",
+                "available": "last",
+                "inventory_supply_at_fba": "last",
+            }
+        )
+        .reset_index()
+        .sort_values("net_sales", ascending=False)
+    )
+
+    asin_sales["sales_share"] = asin_sales["net_sales"] / asin_sales["net_sales"].sum()
 
     combined = (
         df.groupby("date")
@@ -271,7 +299,14 @@ def filtered_sales(
         .rename(columns={"index": "date"})
     )
 
-    return combined_visible, combined_last_year
+    return combined_visible, combined_last_year, asin_sales
+
+
+def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
+    asin_sales = asin_sales.head(num_top_sellers)
+    totals_asins = asin_sales.sum(numeric_only=True, axis=0)
+    asin_sales = pd.concat([asin_sales, pd.DataFrame(totals_asins).T])
+    return asin_sales
 
 
 def create_plot(df, show_change_notes, show_lds, available=True):
@@ -496,7 +531,7 @@ def create_plot(df, show_change_notes, show_lds, available=True):
     # Tweak x-axis appearance (shared)
     fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
     # Render
-    st.plotly_chart(fig, use_container_width=True)
+    plot_area.plotly_chart(fig, use_container_width=True)
 
 
 if "sales" not in st.session_state and not os.path.exists(tempfile):
@@ -523,7 +558,7 @@ if sales is not None:
     colors = sales["color"].unique()
     min_date = sales["date"].min().date()
     max_date = sales["date"].max().date()
-    date_range = st.slider(
+    date_range = date_range_area.slider(
         label="Selecte date range",
         min_value=min_date,
         max_value=max_date,
@@ -538,7 +573,7 @@ if sales is not None:
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
 
-    combined, combined_last_year = filtered_sales(
+    combined, combined_last_year, asin_sales = filtered_sales(
         sales.copy(), sel_collection, sel_size, sel_color, available_inv, date_range
     )
 
@@ -589,5 +624,54 @@ if sales is not None:
             chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
             help=f"Same period last year: ${conversion_last_year:.1%}",
         )
+        num_top_sellers = df_top_sellers.number_input(
+            "Select top n sellers", min_value=2, max_value=100, value=10, width=150
+        )
+        df_text.text(f"Top {num_top_sellers} sellers")
+        asin_sales_top = _top_n_sellers(asin_sales, num_top_sellers)
+        df_area_container.data_editor(
+            asin_sales_top,
+            num_rows="fixed",
+            hide_index=True,
+            column_order=[
+                "asin",
+                "collection",
+                "size",
+                "color",
+                "units",
+                "net_sales",
+                "sales_share",
+                "sessions",
+                "available",
+                "inventory_supply_at_fba",
+            ],
+            column_config={
+                "asin": st.column_config.LinkColumn(
+                    display_text="https://www.amazon.com/dp/(.*?)"
+                ),
+                "units": st.column_config.NumberColumn(format="localized"),
+                "net_sales": st.column_config.NumberColumn(format="dollar"),
+                "sales_share": st.column_config.NumberColumn(format="percent"),
+                "sessions": st.column_config.NumberColumn(format="localized"),
+                "available": st.column_config.NumberColumn(format="localized"),
+                "inventory_supply_at_fba": st.column_config.NumberColumn(
+                    format="localized"
+                ),
+            },
+        )
     else:
         st.warning("No data to display for the selected filters.")
+
+
+# column_config={
+# >>>         "command": "Streamlit Command",
+# >>>         "rating": st.column_config.NumberColumn(
+# >>>             "Your rating",
+# >>>             help="How much do you like this command (1-5)?",
+# >>>             min_value=1,
+# >>>             max_value=5,
+# >>>             step=1,
+# >>>             format="%d ⭐",
+# >>>         ),
+# >>>         "is_widget": "Widget ?",
+# >>>     },
