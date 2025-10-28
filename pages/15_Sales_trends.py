@@ -351,7 +351,7 @@ def create_plot(df, show_change_notes, show_lds, available=True):
             go.Scatter(
                 x=df["date"],
                 y=df[inv_column],
-                name="amz inventory",
+                name="amz inventory available" if available else "amz inventory total",
                 line=dict(dash="dot", color="pink"),
             ),
             row=1,
