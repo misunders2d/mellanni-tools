@@ -7,6 +7,8 @@ from google.oauth2 import service_account
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+from dateutil.relativedelta import relativedelta
+
 from login import require_login
 from modules.events import event_dates_list
 
@@ -42,7 +44,7 @@ if st.user.email not in sales_users:
     st.stop()
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
-events_checkbox, changes_checkbox, lds_checkbox, inv_checkbox = st.columns([1, 1, 1, 1])
+date_from_picker, date_to_picker, events_checkbox, changes_checkbox, lds_checkbox, inv_checkbox  = st.columns([2,2, 1, 1,1,1])
 date_range_area = st.empty()
 metrics_area = st.container()
 units_metric, dollar_metric, price_metric, sessions_metric, conversion_metric = (
@@ -188,7 +190,7 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
 
 
 def filtered_sales(
-    df: pd.DataFrame, sel_collection, sel_size, sel_color, available_inv, date_range
+    df: pd.DataFrame, sel_collection, sel_size, sel_color, available_inv, date_range, periods
 ):
     inv_column = "available" if available_inv else "inventory_supply_at_fba"
 
@@ -264,25 +266,17 @@ def filtered_sales(
 
     combined_visible = combined.copy()
     combined_visible["date"] = pd.to_datetime(combined_visible["date"]).dt.date
-    year_ago_year_min, year_ago_month_min, year_ago_day_min = (
-        date_range[0].year - 1,
-        date_range[0].month,
-        date_range[0].day,
-    )
-    year_ago_year_max, year_ago_month_max, year_ago_day_max = (
-        date_range[1].year - 1,
-        date_range[1].month,
-        date_range[1].day,
-    )
-    combined_last_year = combined_visible[
-        combined_visible["date"].between(
-            datetime(
-                year=year_ago_year_min, month=year_ago_month_min, day=year_ago_day_min
-            ).date(),
-            datetime(
-                year=year_ago_year_max, month=year_ago_month_max, day=year_ago_day_max
-            ).date(),
-        )
+    
+    match periods:
+        case "custom":
+            prev_start, prev_end = min_period, max_period
+
+        case _ :
+            prev_start = date_range[0] - relativedelta(years=1)
+            prev_end = date_range[1] - relativedelta(years=1)
+
+    combined_previous = combined_visible[
+        combined_visible["date"].between(prev_start,prev_end)
     ]
     combined_visible = combined_visible[
         combined_visible["date"].between(date_range[0], date_range[1])
@@ -299,7 +293,7 @@ def filtered_sales(
         .rename(columns={"index": "date"})
     )
 
-    return combined_visible, combined_last_year, asin_sales
+    return combined_visible, combined_previous, asin_sales
 
 
 def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
@@ -558,12 +552,26 @@ if sales is not None:
     colors = sales["color"].unique()
     min_date = sales["date"].min().date()
     max_date = sales["date"].max().date()
-    date_range = date_range_area.slider(
-        label="Selecte date range",
+    date_range = (date_from_picker.date_input(
+        "Start date",
+        value=max_date - pd.Timedelta(days=90),
         min_value=min_date,
         max_value=max_date,
-        value=((max_date - pd.Timedelta(days=90)), max_date),
-    )
+        width = 150
+    ),date_to_picker.date_input(
+        "End date",
+        value=max_date,
+        min_value=min_date,
+        max_value=max_date,
+        width = 150
+))
+    
+    with st.sidebar:
+        periods = st.radio('Compare periods', options = ["last year", "custom"])
+        min_period, max_period = max_date- relativedelta(years=1, days=90), max_date- relativedelta(years=1)
+        if periods == "custom":
+            min_period = st.date_input("Date from", value= max_date- relativedelta(years=1, days=90))
+            max_period = st.date_input("Date to", value=max_date- relativedelta(years=1))
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
@@ -573,63 +581,65 @@ if sales is not None:
     sel_size = size_area.multiselect("Sizes", sizes)
     sel_color = color_area.multiselect("Colors", colors)
 
-    combined, combined_last_year, asin_sales = filtered_sales(
-        sales.copy(), sel_collection, sel_size, sel_color, available_inv, date_range
+    combined, combined_previous, asin_sales = filtered_sales(
+        sales.copy(), sel_collection, sel_size, sel_color, available_inv, date_range, periods
     )
 
     if not combined.empty:
         create_plot(combined, show_change_notes, show_lds, available_inv)
         total_units_this_year = combined["units"].sum()
-        total_units_last_year = combined_last_year["units"].sum()
+        total_units_last_year = combined_previous["units"].sum()
         total_dollars_this_year = combined["net_sales"].sum()
-        total_dollars_last_year = combined_last_year["net_sales"].sum()
+        total_dollars_last_year = combined_previous["net_sales"].sum()
         average_price_this_year = total_dollars_this_year / total_units_this_year
         average_price_last_year = total_dollars_last_year / total_units_last_year
         sessions_this_year = combined["sessions"].sum()
-        sessions_last_year = combined_last_year["sessions"].sum()
+        sessions_last_year = combined_previous["sessions"].sum()
         conversion_this_year = total_units_this_year / sessions_this_year
         conversion_last_year = total_units_last_year / sessions_last_year
+        
+        metric_text = f"{min_period} - {max_period}" if periods == "custom" else "Same period last year"
         units_metric.metric(
             label="Total units sold",
             value=f"{total_units_this_year:,.0f}",
             delta=f"{total_units_this_year / total_units_last_year -1:.1%} YoY",
             chart_data=combined["units"],
-            help=f"Same period last year: {total_units_last_year:,.0f}",
+            help=f"{metric_text}: {total_units_last_year:,.0f}",
         )
         dollar_metric.metric(
             label="Total sales",
             value=f"${total_dollars_this_year:,.0f}",
             delta=f"{total_dollars_this_year / total_dollars_last_year -1:.1%} YoY",
             chart_data=combined["net_sales"],
-            help=f"Same period last year: ${total_dollars_last_year:,.0f}",
+            help=f"{metric_text}: ${total_dollars_last_year:,.0f}",
         )
         price_metric.metric(
             label="Average price",
             value=f"${average_price_this_year:,.2f}",
             delta=f"{average_price_this_year / average_price_last_year - 1:.1%} YoY",
             chart_data=combined["net_sales"] / combined["units"],
-            help=f"Same period last year: ${average_price_last_year:,.2f}",
+            help=f"{metric_text}: ${average_price_last_year:,.2f}",
         )
         sessions_metric.metric(
             label="Total sessions",
             value=f"{sessions_this_year:,.0f}",
             delta=f"{sessions_this_year / sessions_last_year - 1:.1%} YoY",
             chart_data=combined["sessions"],
-            help=f"Same period last year: ${sessions_last_year:,.0f}",
+            help=f"{metric_text}: ${sessions_last_year:,.0f}",
         )
         conversion_metric.metric(
             label="Conversion %",
             value=f"{conversion_this_year:.1%}",
             delta=f"{conversion_this_year / conversion_last_year - 1:.1%} YoY",
             chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
-            help=f"Same period last year: ${conversion_last_year:.1%}",
+            help=f"{metric_text}: ${conversion_last_year:.1%}",
         )
         num_top_sellers = df_top_sellers.number_input(
             "Select top n sellers", min_value=2, max_value=10000, value=10, width=150
         )
         df_text.text(f"Top {num_top_sellers} sellers")
         asin_sales_top = _top_n_sellers(asin_sales, num_top_sellers)
-        asin_sales_top['asin'] = "https://www.amazon.com/dp/" + asin_sales_top['asin']
+        asin_sales_top["asin"] = "https://www.amazon.com/dp/" + asin_sales_top["asin"]
         df_area_container.data_editor(
             asin_sales_top,
             num_rows="fixed",

@@ -8,6 +8,7 @@ from modules import gcloud_modules as gc
 from openai import OpenAI
 import time
 import pyotp
+from login import require_login
 
 key = st.secrets["OPENAI_SUMMARIZER_KEY"]
 # openai.api_key = key
@@ -25,7 +26,6 @@ st.set_page_config(
 name_area = st.empty()
 col1, col2 = st.columns([10, 3])
 
-from login import require_login
 
 require_login()
 
