@@ -14,7 +14,8 @@ from modules.events import event_dates_list
 import os
 
 os.makedirs("temp", exist_ok=True)
-tempfile = os.path.join("temp", "sales.csv")
+sales_tempfile = os.path.join("temp", "sales.csv")
+sessions_tempfile = os.path.join("temp", "sessions.csv")
 
 st.set_page_config(
     page_title="Sales history", page_icon="media/logo.ico", layout="wide"
@@ -43,7 +44,14 @@ if st.user.email not in sales_users:
     st.stop()
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
-date_from_picker, date_to_picker, events_checkbox, changes_checkbox, lds_checkbox, inv_checkbox  = st.columns([2,2, 1, 1,1,1])
+(
+    date_from_picker,
+    date_to_picker,
+    events_checkbox,
+    changes_checkbox,
+    lds_checkbox,
+    inv_checkbox,
+) = st.columns([2, 2, 1, 1, 1, 1])
 date_range_area = st.empty()
 metrics_area = st.container()
 units_metric, dollar_metric, price_metric, sessions_metric, conversion_metric = (
@@ -55,8 +63,10 @@ df_text, df_top_sellers = df_area_container.columns([1, 10])
 
 
 @st.cache_data(ttl=3600)
-def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
-    query = f"""
+def get_sales_data(
+    interval: str = "2 YEAR",
+) -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
+    sales_query = f"""
             WITH sales AS (
             SELECT
                 DATE(purchase_date, "America/Los_Angeles") AS date,
@@ -78,16 +88,6 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
             WHERE DATE(purchase_date, "America/Los_Angeles") >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
                 AND LOWER(sales_channel) = 'amazon.com'
             GROUP BY date
-            ),
-            sessions_data AS (
-            SELECT
-                DATE(date) AS date,
-                childAsin AS asin,
-                SUM(sessions) AS sessions
-            FROM mellanni-project-da.reports.business_report_asin
-            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
-                AND LOWER(country_code) = 'us'
-            GROUP BY date, asin
             ),
             inventory_by_date_asin AS (
             SELECT
@@ -156,16 +156,12 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
             s.units,
             s.net_sales,
             ts.total_units,
-            sd.sessions,
             inv.inventory_supply_at_fba,
             inv.available,
             ca.change_notes
             FROM sales s
             LEFT JOIN total_sales ts
             ON s.date = ts.date
-            LEFT JOIN sessions_data sd
-            ON s.asin = sd.asin
-            AND s.date = sd.date
             LEFT JOIN inventory_by_date_asin inv
             ON s.asin = inv.asin
             AND s.date = inv.date
@@ -178,19 +174,45 @@ def get_sales_data(interval: str = "2 YEAR") -> pd.DataFrame | None:
             AND d.color = ca.color
             ORDER BY s.date ASC, s.units DESC
             """
+
+    sessions_query = f"""
+            SELECT
+                DATE(date) AS date,
+                childAsin AS asin,
+                SUM(sessions) AS sessions
+            FROM mellanni-project-da.reports.business_report_asin
+            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE(), INTERVAL {interval})
+                AND LOWER(country_code) = 'us'
+            GROUP BY date, asin
+            """
+
     try:
         with bigquery.Client(
             credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id
         ) as client:
-            result = client.query(query).to_dataframe()
-        return result
+            sales_job = client.query(sales_query)
+            session_job = client.query(sessions_query)
+
+            sales_df = sales_job.result().to_dataframe()
+            sessions_df = session_job.result().to_dataframe()
+        return sales_df, sessions_df
     except Exception as e:
         st.error(f"Error while pulling BQ data: {e}")
+        return (None, None)
 
 
 def filtered_sales(
-    df: pd.DataFrame, sel_collection, sel_size, sel_color, available_inv, date_range, periods
+    df: pd.DataFrame,
+    asin_sessions: pd.DataFrame,
+    date_sessions: pd.DataFrame,
+    sel_collection,
+    sel_size,
+    sel_color,
+    available_inv,
+    date_range,
+    periods,
 ):
+
     inv_column = "available" if available_inv else "inventory_supply_at_fba"
 
     if sel_collection:
@@ -199,8 +221,6 @@ def filtered_sales(
         df = df[df["size"].isin(sel_size)]
     if sel_color:
         df = df[df["color"].isin(sel_color)]
-
-    df["date"] = pd.to_datetime(df["date"]).dt.normalize()
 
     if not include_events:
         df = df[~df["date"].isin(event_dates_list)]
@@ -231,7 +251,6 @@ def filtered_sales(
                 "color": "first",
                 "units": "sum",
                 "net_sales": "sum",
-                "sessions": "sum",
                 "available": "last",
                 "inventory_supply_at_fba": "last",
             }
@@ -239,16 +258,19 @@ def filtered_sales(
         .reset_index()
         .sort_values("net_sales", ascending=False)
     )
+    asin_sales = pd.merge(
+        asin_sales, asin_sessions, how="left", on="asin", validate="1:1"
+    ).fillna(0)
 
     asin_sales["sales_share"] = asin_sales["net_sales"] / asin_sales["net_sales"].sum()
 
+    date_sessions["date"] = pd.to_datetime(date_sessions["date"]).dt.date
     combined = (
         df.groupby("date")
         .agg(
             {
                 "units": "sum",
                 "net_sales": "sum",
-                "sessions": "sum",
                 "available": "sum",
                 "inventory_supply_at_fba": "sum",
                 "stockout": "sum",
@@ -259,23 +281,27 @@ def filtered_sales(
         )
         .reset_index()
     )
+    combined["date"] = pd.to_datetime(combined["date"]).dt.date
+    combined = pd.merge(
+        combined, date_sessions, how="left", on="date", validate="1:1"
+    ).fillna(0)
 
     combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
     combined["average selling price"] = combined["net_sales"] / combined["units"]
 
     combined_visible = combined.copy()
     combined_visible["date"] = pd.to_datetime(combined_visible["date"]).dt.date
-    
+
     match periods:
         case "custom":
             prev_start, prev_end = min_period, max_period
 
-        case _ :
+        case _:
             prev_start = date_range[0] - relativedelta(years=1)
             prev_end = date_range[1] - relativedelta(years=1)
 
     combined_previous = combined_visible[
-        combined_visible["date"].between(prev_start,prev_end)
+        combined_visible["date"].between(prev_start, prev_end)
     ]
     combined_visible = combined_visible[
         combined_visible["date"].between(date_range[0], date_range[1])
@@ -284,6 +310,31 @@ def filtered_sales(
     # Create a full date range from the selected date_range
     full_date_range = pd.date_range(start=date_range[0], end=date_range[1], freq="D")
 
+    combined_visible[
+        [
+            "units",
+            "net_sales",
+            "available",
+            "inventory_supply_at_fba",
+            "stockout",
+            "sessions",
+            "30-day avg",
+            "average selling price",
+        ]
+    ] = combined_visible[
+        [
+            "units",
+            "net_sales",
+            "available",
+            "inventory_supply_at_fba",
+            "stockout",
+            "sessions",
+            "30-day avg",
+            "average selling price",
+        ]
+    ].astype(
+        float
+    )
     # Set 'date' as the index, reindex to the full date range, and then reset index
     combined_visible = (
         combined_visible.set_index("date")
@@ -527,50 +578,75 @@ def create_plot(df, show_change_notes, show_lds, available=True):
     plot_area.plotly_chart(fig, use_container_width=True)
 
 
-if "sales" not in st.session_state and not os.path.exists(tempfile):
+if "sales" not in st.session_state or "sessions" not in st.session_state:
+    if os.path.exists(sales_tempfile) and os.path.exists(sessions_tempfile):
+        st.session_state["sales"] = pd.read_csv(sales_tempfile, parse_dates=["date"])
+        st.session_state["sales"]["date"] = pd.to_datetime(
+            st.session_state["sales"]["date"]
+        ).dt.date
+        st.session_state["sessions"] = pd.read_csv(
+            sessions_tempfile, parse_dates=["date"]
+        )
+        st.session_state["sessions"]["date"] = pd.to_datetime(
+            st.session_state["sessions"]["date"]
+        ).dt.date
+    else:
+        st.session_state["sales"], st.session_state["sessions"] = get_sales_data()
+        if isinstance(st.session_state["sales"], pd.DataFrame):
+            st.session_state["sales"].to_csv(sales_tempfile, index=False)
+        if isinstance(st.session_state["sessions"], pd.DataFrame):
+            st.session_state["sessions"].to_csv(sessions_tempfile, index=False)
+
+
+if (
+    st.session_state["sales"]["date"].max()
+    < (pd.to_datetime("today") - pd.Timedelta(days=1)).date()
+):
     st.session_state["sales"] = get_sales_data()
     if isinstance(st.session_state["sales"], pd.DataFrame):
-        st.session_state["sales"].to_csv(tempfile, index=False)
-elif os.path.exists(tempfile):
-    st.session_state["sales"] = pd.read_csv(tempfile)
-
-st.session_state["sales"]["date"] = pd.to_datetime(st.session_state["sales"]["date"])
-
-if (pd.to_datetime("today") - pd.Timedelta(days=1)).date() not in st.session_state[
-    "sales"
-]["date"].dt.date.unique().tolist():
-    st.session_state["sales"] = get_sales_data()
-    if isinstance(st.session_state["sales"], pd.DataFrame):
-        st.session_state["sales"].to_csv(tempfile, index=False)
+        st.session_state["sales"].to_csv(sales_tempfile, index=False)
 
 sales = st.session_state["sales"].copy()
+sessions = st.session_state["sessions"].copy()
+asin_sessions = sessions.groupby("asin").agg({"sessions": "sum"}).reset_index()
+date_sessions = sessions.groupby("date").agg({"sessions": "sum"}).reset_index()
+
 
 if sales is not None:
     collections = sales["collection"].unique()
     sizes = sales["size"].unique()
     colors = sales["color"].unique()
-    min_date = sales["date"].min().date()
-    max_date = sales["date"].max().date()
-    date_range = (date_from_picker.date_input(
-        "Start date",
-        value=max_date - pd.Timedelta(days=90),
-        min_value=min_date,
-        max_value=max_date,
-        width = 150
-    ),date_to_picker.date_input(
-        "End date",
-        value=max_date,
-        min_value=min_date,
-        max_value=max_date,
-        width = 150
-))
-    
+    min_date = sales["date"].min()
+    max_date = sales["date"].max()
+    date_range = (
+        date_from_picker.date_input(
+            "Start date",
+            value=max_date - pd.Timedelta(days=90),
+            min_value=min_date,
+            max_value=max_date,
+            width=150,
+        ),
+        date_to_picker.date_input(
+            "End date",
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date,
+            width=150,
+        ),
+    )
+
     with st.sidebar:
-        periods = st.radio('Compare periods', options = ["last year", "custom"])
-        min_period, max_period = max_date- relativedelta(years=1, days=90), max_date- relativedelta(years=1)
+        periods = st.radio("Compare periods", options=["last year", "custom"])
+        min_period, max_period = max_date - relativedelta(
+            years=1, days=90
+        ), max_date - relativedelta(years=1)
         if periods == "custom":
-            min_period = st.date_input("Date from", value= max_date- relativedelta(years=1, days=90))
-            max_period = st.date_input("Date to", value=max_date- relativedelta(years=1))
+            min_period = st.date_input(
+                "Date from", value=max_date - relativedelta(years=1, days=90)
+            )
+            max_period = st.date_input(
+                "Date to", value=max_date - relativedelta(years=1)
+            )
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
@@ -581,7 +657,15 @@ if sales is not None:
     sel_color = color_area.multiselect("Colors", colors)
 
     combined, combined_previous, asin_sales = filtered_sales(
-        sales.copy(), sel_collection, sel_size, sel_color, available_inv, date_range, periods
+        sales.copy(),
+        asin_sessions,
+        date_sessions,
+        sel_collection,
+        sel_size,
+        sel_color,
+        available_inv,
+        date_range,
+        periods,
     )
 
     if not combined.empty:
@@ -596,8 +680,12 @@ if sales is not None:
         sessions_last_year = combined_previous["sessions"].sum()
         conversion_this_year = total_units_this_year / sessions_this_year
         conversion_last_year = total_units_last_year / sessions_last_year
-        
-        metric_text = f"{min_period} - {max_period}" if periods == "custom" else "Same period last year"
+
+        metric_text = (
+            f"{min_period} - {max_period}"
+            if periods == "custom"
+            else "Same period last year"
+        )
         units_metric.metric(
             label="Total units sold",
             value=f"{total_units_this_year:,.0f}",
