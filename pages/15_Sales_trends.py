@@ -624,14 +624,14 @@ if sales is not None:
             value=f"{sessions_this_year:,.0f}",
             delta=f"{sessions_this_year / sessions_last_year - 1:.1%} YoY",
             chart_data=combined["sessions"],
-            help=f"{metric_text}: ${sessions_last_year:,.0f}",
+            help=f"{metric_text}: {sessions_last_year:,.0f}",
         )
         conversion_metric.metric(
             label="Conversion %",
             value=f"{conversion_this_year:.1%}",
             delta=f"{conversion_this_year / conversion_last_year - 1:.1%} YoY",
             chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
-            help=f"{metric_text}: ${conversion_last_year:.1%}",
+            help=f"{metric_text}: {conversion_last_year:.1%}",
         )
         num_top_sellers = df_top_sellers.number_input(
             "Select top n sellers", min_value=2, max_value=10000, value=10, width=150
