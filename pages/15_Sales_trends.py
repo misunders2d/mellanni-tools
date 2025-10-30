@@ -635,6 +635,8 @@ if "sales" not in st.session_state or "sessions" not in st.session_state:
 #     st.session_state["sales"], st.session_state["sessions"] = get_sales_data()
 #     if isinstance(st.session_state["sales"], pd.DataFrame):
 #         st.session_state["sales"].to_csv(sales_tempfile, index=False)
+#     if isinstance(st.session_state["sessions"], pd.DataFrame):
+#         st.session_state["sessions"].to_csv(sessions_tempfile, index=False)
 
 sales = st.session_state["sales"].copy()
 sessions = st.session_state["sessions"].copy()
