@@ -54,8 +54,8 @@ collection_area, size_area, color_area = st.columns([2, 1, 1])
 ) = st.columns([2, 2, 1, 1, 1, 1])
 date_range_area = st.empty()
 metrics_area = st.container()
-units_metric, dollar_metric, price_metric, sessions_metric, conversion_metric = (
-    metrics_area.columns([1, 1, 1, 1, 1])
+units_metric, dollar_metric, price_metric, sessions_metric, conversion_metric, avg_units_metric, avg_dollar_metric = (
+    metrics_area.columns([1, 1, 1, 1, 1,1,1])
 )
 plot_area = st.container()
 df_area_container = st.container()
@@ -107,7 +107,6 @@ def get_sales_data(
                 ANY_VALUE(collection)  AS collection,
                 ANY_VALUE(size)        AS size,
                 ANY_VALUE(color)       AS color,
-                ANY_VALUE(short_title) AS short_title
             FROM mellanni-project-da.auxillary_development.dictionary
             WHERE sku IS NOT NULL OR asin IS NOT NULL
             GROUP BY sku, asin
@@ -176,6 +175,7 @@ def get_sales_data(
             """
 
     sessions_query = f"""
+            WITH sessions as (
             SELECT
                 DATE(date) AS date,
                 childAsin AS asin,
@@ -184,6 +184,29 @@ def get_sales_data(
             WHERE DATE(date) >= DATE_SUB(CURRENT_DATE(), INTERVAL {interval})
                 AND LOWER(country_code) = 'us'
             GROUP BY date, asin
+            ),
+            deduped_dict AS (
+            SELECT
+                asin,
+                ANY_VALUE(collection)  AS collection,
+                ANY_VALUE(size)        AS size,
+                ANY_VALUE(color)       AS color,
+            FROM mellanni-project-da.auxillary_development.dictionary
+            WHERE asin IS NOT NULL
+            GROUP BY asin
+            )
+            SELECT
+            s.date,
+            s.asin,
+            s.sessions,
+            d.collection,
+            d.size,
+            d.color,
+            FROM sessions s
+            LEFT JOIN deduped_dict d
+            ON s.asin = d.asin
+            ORDER BY s.date ASC, s.sessions DESC
+
             """
 
     try:
@@ -203,8 +226,7 @@ def get_sales_data(
 
 def filtered_sales(
     df: pd.DataFrame,
-    asin_sessions: pd.DataFrame,
-    date_sessions: pd.DataFrame,
+    sessions: pd.DataFrame,
     sel_collection,
     sel_size,
     sel_color,
@@ -217,13 +239,21 @@ def filtered_sales(
 
     if sel_collection:
         df = df[df["collection"].isin(sel_collection)]
+        sessions = sessions[sessions["collection"].isin(sel_collection)]
     if sel_size:
         df = df[df["size"].isin(sel_size)]
+        sessions = sessions[sessions["size"].isin(sel_size)]
     if sel_color:
         df = df[df["color"].isin(sel_color)]
+        sessions = sessions[sessions["color"].isin(sel_color)]
 
     if not include_events:
         df = df[~df["date"].isin(event_dates_list)]
+        sessions = sessions[~sessions["date"].isin(event_dates_list)]
+
+    asin_sessions = sessions.groupby("asin").agg({"sessions": "sum"}).reset_index()
+    date_sessions = sessions.groupby("date").agg({"sessions": "sum"}).reset_index()
+
 
     df["asin_30d_avg"] = df.groupby("asin")["units"].transform(
         lambda x: x.rolling(30, min_periods=1).mean()
@@ -608,9 +638,6 @@ if (
 
 sales = st.session_state["sales"].copy()
 sessions = st.session_state["sessions"].copy()
-asin_sessions = sessions.groupby("asin").agg({"sessions": "sum"}).reset_index()
-date_sessions = sessions.groupby("date").agg({"sessions": "sum"}).reset_index()
-
 
 if sales is not None:
     collections = sales["collection"].unique()
@@ -658,8 +685,7 @@ if sales is not None:
 
     combined, combined_previous, asin_sales = filtered_sales(
         sales.copy(),
-        asin_sessions,
-        date_sessions,
+        sessions,
         sel_collection,
         sel_size,
         sel_color,
@@ -670,6 +696,7 @@ if sales is not None:
 
     if not combined.empty:
         create_plot(combined, show_change_notes, show_lds, available_inv)
+        # absolute numbers metrics
         total_units_this_year = combined["units"].sum()
         total_units_last_year = combined_previous["units"].sum()
         total_dollars_this_year = combined["net_sales"].sum()
@@ -681,6 +708,12 @@ if sales is not None:
         conversion_this_year = total_units_this_year / sessions_this_year
         conversion_last_year = total_units_last_year / sessions_last_year
 
+        # average numbers metrics
+        average_units_this_year = combined["units"].mean()
+        average_units_last_year = combined_previous["units"].mean()
+        average_dollars_this_year = combined["net_sales"].mean()
+        average_dollars_last_year = combined_previous["net_sales"].mean()
+        
         metric_text = (
             f"{min_period} - {max_period}"
             if periods == "custom"
@@ -721,6 +754,20 @@ if sales is not None:
             chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
             help=f"{metric_text}: {conversion_last_year:.1%}",
         )
+
+        avg_units_metric.metric(
+            label="Avg units/day",
+            value=f"{average_units_this_year:,.0f}",
+            delta=f"{average_units_this_year / average_units_last_year -1:.1%} YoY",
+            help=f"{metric_text}: {average_units_last_year:,.0f}",
+        )
+        avg_dollar_metric.metric(
+            label="Avg sales/day",
+            value=f"${average_dollars_this_year:,.0f}",
+            delta=f"{average_dollars_this_year / average_dollars_last_year -1:.1%} YoY",
+            help=f"{metric_text}: ${average_dollars_last_year:,.0f}",
+        )
+
         num_top_sellers = df_top_sellers.number_input(
             "Select top n sellers", min_value=2, max_value=10000, value=10, width=150
         )
