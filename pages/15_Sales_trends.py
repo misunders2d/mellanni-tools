@@ -602,7 +602,7 @@ if (
     st.session_state["sales"]["date"].max()
     < (pd.to_datetime("today") - pd.Timedelta(days=1)).date()
 ):
-    st.session_state["sales"] = get_sales_data()
+    st.session_state["sales"], st.session_state["sessions"] = get_sales_data()
     if isinstance(st.session_state["sales"], pd.DataFrame):
         st.session_state["sales"].to_csv(sales_tempfile, index=False)
 
