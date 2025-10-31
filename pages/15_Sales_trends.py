@@ -722,38 +722,40 @@ if sales is not None:
             if periods == "custom"
             else "Same period last year"
         )
+        yoy_text = "YoY" if periods == "last year" else "vs Period"
+
         units_metric.metric(
             label="Total units sold",
             value=f"{total_units_this_year:,.0f}",
-            delta=f"{total_units_this_year / total_units_last_year -1:.1%} YoY",
+            delta=f"{total_units_this_year / total_units_last_year -1:.1%} {yoy_text}",
             chart_data=combined["units"],
             help=f"{metric_text}: {total_units_last_year:,.0f}",
         )
         dollar_metric.metric(
             label="Total sales",
             value=f"${total_dollars_this_year:,.0f}",
-            delta=f"{total_dollars_this_year / total_dollars_last_year -1:.1%} YoY",
+            delta=f"{total_dollars_this_year / total_dollars_last_year -1:.1%} {yoy_text}",
             chart_data=combined["net_sales"],
             help=f"{metric_text}: ${total_dollars_last_year:,.0f}",
         )
         price_metric.metric(
             label="Average price",
             value=f"${average_price_this_year:,.2f}",
-            delta=f"{average_price_this_year / average_price_last_year - 1:.1%} YoY",
+            delta=f"{average_price_this_year / average_price_last_year - 1:.1%} {yoy_text}",
             chart_data=combined["net_sales"] / combined["units"],
             help=f"{metric_text}: ${average_price_last_year:,.2f}",
         )
         sessions_metric.metric(
             label="Total sessions",
             value=f"{sessions_this_year:,.0f}",
-            delta=f"{sessions_this_year / sessions_last_year - 1:.1%} YoY",
+            delta=f"{sessions_this_year / sessions_last_year - 1:.1%} {yoy_text}",
             chart_data=combined["sessions"],
             help=f"{metric_text}: {sessions_last_year:,.0f}",
         )
         conversion_metric.metric(
             label="Conversion %",
             value=f"{conversion_this_year:.1%}",
-            delta=f"{conversion_this_year / conversion_last_year - 1:.1%} YoY",
+            delta=f"{conversion_this_year / conversion_last_year - 1:.1%} {yoy_text}",
             chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
             help=f"{metric_text}: {conversion_last_year:.1%}",
         )
@@ -761,13 +763,13 @@ if sales is not None:
         avg_units_metric.metric(
             label="Avg units/day",
             value=f"{average_units_this_year:,.0f}",
-            delta=f"{average_units_this_year / average_units_last_year -1:.1%} YoY",
+            delta=f"{average_units_this_year / average_units_last_year -1:.1%} {yoy_text}",
             help=f"{metric_text}: {average_units_last_year:,.0f}",
         )
         avg_dollar_metric.metric(
             label="Avg sales/day",
             value=f"${average_dollars_this_year:,.0f}",
-            delta=f"{average_dollars_this_year / average_dollars_last_year -1:.1%} YoY",
+            delta=f"{average_dollars_this_year / average_dollars_last_year -1:.1%} {yoy_text}",
             help=f"{metric_text}: ${average_dollars_last_year:,.0f}",
         )
 
