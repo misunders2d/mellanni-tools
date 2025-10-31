@@ -31,6 +31,7 @@ sales_users = [
     "igor@mellanni.com",
     "margarita@mellanni.com",
     "masao@mellanni.com",
+    "valerii@mellann.com"
 ]
 
 GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
