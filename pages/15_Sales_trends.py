@@ -719,7 +719,14 @@ if sales is not None:
 
         # average numbers metrics
         days_this_year = (date_range[1] - date_range[0]).days + 1
+        if not include_events:
+            event_days = len([x for x in event_dates_list if date_range[0] <= x <= date_range[1]])
+            days_this_year -= event_days
         days_last_year = (max_period - min_period).days + 1
+        if not include_events:
+            event_days_last_year = len([x for x in event_dates_list if min_period <= x <= max_period])
+            days_last_year -= event_days_last_year
+        
         average_units_this_year = combined["units"].sum() / days_this_year
         average_units_last_year = combined_previous["units"].sum() / days_last_year
         average_dollars_this_year = combined["net_sales"].sum() / days_this_year
