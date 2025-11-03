@@ -688,9 +688,9 @@ if sales is not None:
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
     show_lds = lds_checkbox.checkbox("Show LDs/BDs?", value=False)
     available_inv = inv_checkbox.checkbox("Show only available inventory", value=True)
-    sel_collection = collection_area.multiselect("Collections", collections)
-    sel_size = size_area.multiselect("Sizes", sizes)
-    sel_color = color_area.multiselect("Colors", colors)
+    sel_collection = collection_area.multiselect(label = "Collections", options = collections, placeholder="Select product(s)")
+    sel_size = size_area.multiselect(label = "Sizes", options = sizes, placeholder="Select size(s)")
+    sel_color = color_area.multiselect(label = "Colors", options = colors, placeholder="Select color(s)")
 
     combined, combined_previous, asin_sales = filtered_sales(
         sales.copy(),
