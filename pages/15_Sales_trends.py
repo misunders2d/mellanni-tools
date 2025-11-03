@@ -31,7 +31,7 @@ sales_users = [
     "igor@mellanni.com",
     "margarita@mellanni.com",
     "masao@mellanni.com",
-    "valerii@mellanni.com"
+    "valerii@mellanni.com",
 ]
 
 GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
@@ -55,9 +55,16 @@ collection_area, size_area, color_area = st.columns([2, 1, 1])
 ) = st.columns([2, 2, 1, 1, 1, 1])
 date_range_area = st.empty()
 metrics_area = st.container()
-units_metric, dollar_metric, price_metric, sessions_metric, conversion_metric, avg_units_metric, avg_dollar_metric = (
-    metrics_area.columns([1, 1, 1, 1, 1,1,1])
-)
+(
+    units_metric,
+    dollar_metric,
+    price_metric,
+    sessions_metric,
+    conversion_metric,
+    avg_units_metric,
+    avg_dollar_metric,
+    avg_sessions_metric,
+) = metrics_area.columns([1, 1, 1, 1, 1, 1, 1, 1])
 plot_area = st.container()
 df_area_container = st.container()
 df_text, df_top_sellers = df_area_container.columns([1, 10])
@@ -254,7 +261,6 @@ def filtered_sales(
 
     asin_sessions = sessions.groupby("asin").agg({"sessions": "sum"}).reset_index()
     date_sessions = sessions.groupby("date").agg({"sessions": "sum"}).reset_index()
-
 
     df["asin_30d_avg"] = df.groupby("asin")["units"].transform(
         lambda x: x.rolling(30, min_periods=1).mean()
@@ -712,11 +718,15 @@ if sales is not None:
         conversion_last_year = total_units_last_year / sessions_last_year
 
         # average numbers metrics
-        average_units_this_year = combined["units"].mean()
-        average_units_last_year = combined_previous["units"].mean()
-        average_dollars_this_year = combined["net_sales"].mean()
-        average_dollars_last_year = combined_previous["net_sales"].mean()
-        
+        days_this_year = (date_range[1] - date_range[0]).days + 1
+        days_last_year = (max_period - min_period).days + 1
+        average_units_this_year = combined["units"].sum() / days_this_year
+        average_units_last_year = combined_previous["units"].sum() / days_last_year
+        average_dollars_this_year = combined["net_sales"].sum() / days_this_year
+        average_dollars_last_year = combined_previous["net_sales"].sum() / days_last_year
+        average_sessions_this_year = combined["sessions"].sum() / days_this_year
+        average_sessions_last_year = combined_previous["sessions"].sum() / days_last_year
+
         metric_text = (
             f"{min_period} - {max_period}"
             if periods == "custom"
@@ -762,15 +772,21 @@ if sales is not None:
 
         avg_units_metric.metric(
             label="Avg units/day",
-            value=f"{average_units_this_year:,.0f}",
+            value=f"{average_units_this_year:,.1f}" if average_units_this_year > 1 else f"{average_units_this_year:.3f}",
             delta=f"{average_units_this_year / average_units_last_year -1:.1%} {yoy_text}",
-            help=f"{metric_text}: {average_units_last_year:,.0f}",
+            help=f"{metric_text}: {average_units_last_year:,.1f}" if average_units_last_year > 1 else f"{metric_text}: {average_units_last_year:,.3f}",
         )
         avg_dollar_metric.metric(
             label="Avg sales/day",
             value=f"${average_dollars_this_year:,.0f}",
             delta=f"{average_dollars_this_year / average_dollars_last_year -1:.1%} {yoy_text}",
             help=f"{metric_text}: ${average_dollars_last_year:,.0f}",
+        )
+        avg_sessions_metric.metric(
+            label="Avg sessions/day",
+            value=f"{average_sessions_this_year:,.0f}",
+            delta=f"{average_sessions_this_year / average_sessions_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: {average_sessions_last_year:,.0f}",
         )
 
         num_top_sellers = df_top_sellers.number_input(
