@@ -673,9 +673,9 @@ if sales is not None:
 
     with st.sidebar:
         periods = st.radio("Compare periods", options=["last year", "custom"])
-        min_period, max_period = max_date - relativedelta(
-            years=1, days=90
-        ), max_date - relativedelta(years=1)
+        min_period, max_period = date_range[0] - relativedelta(years=1), date_range[
+            1
+        ] - relativedelta(years=1)
         if periods == "custom":
             min_period = st.date_input(
                 "Date from", value=max_date - relativedelta(years=1, days=90)
@@ -688,9 +688,15 @@ if sales is not None:
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
     show_lds = lds_checkbox.checkbox("Show LDs/BDs?", value=False)
     available_inv = inv_checkbox.checkbox("Show only available inventory", value=True)
-    sel_collection = collection_area.multiselect(label = "Collections", options = collections, placeholder="Select product(s)")
-    sel_size = size_area.multiselect(label = "Sizes", options = sizes, placeholder="Select size(s)")
-    sel_color = color_area.multiselect(label = "Colors", options = colors, placeholder="Select color(s)")
+    sel_collection = collection_area.multiselect(
+        label="Collections", options=collections, placeholder="Select product(s)"
+    )
+    sel_size = size_area.multiselect(
+        label="Sizes", options=sizes, placeholder="Select size(s)"
+    )
+    sel_color = color_area.multiselect(
+        label="Colors", options=colors, placeholder="Select color(s)"
+    )
 
     combined, combined_previous, asin_sales = filtered_sales(
         sales.copy(),
@@ -720,19 +726,27 @@ if sales is not None:
         # average numbers metrics
         days_this_year = (date_range[1] - date_range[0]).days + 1
         if not include_events:
-            event_days = len([x for x in event_dates_list if date_range[0] <= x <= date_range[1]])
+            event_days = len(
+                [x for x in event_dates_list if date_range[0] <= x <= date_range[1]]
+            )
             days_this_year -= event_days
         days_last_year = (max_period - min_period).days + 1
         if not include_events:
-            event_days_last_year = len([x for x in event_dates_list if min_period <= x <= max_period])
+            event_days_last_year = len(
+                [x for x in event_dates_list if min_period <= x <= max_period]
+            )
             days_last_year -= event_days_last_year
-        
+
         average_units_this_year = combined["units"].sum() / days_this_year
         average_units_last_year = combined_previous["units"].sum() / days_last_year
         average_dollars_this_year = combined["net_sales"].sum() / days_this_year
-        average_dollars_last_year = combined_previous["net_sales"].sum() / days_last_year
+        average_dollars_last_year = (
+            combined_previous["net_sales"].sum() / days_last_year
+        )
         average_sessions_this_year = combined["sessions"].sum() / days_this_year
-        average_sessions_last_year = combined_previous["sessions"].sum() / days_last_year
+        average_sessions_last_year = (
+            combined_previous["sessions"].sum() / days_last_year
+        )
 
         metric_text = (
             f"{min_period} - {max_period}"
@@ -779,9 +793,17 @@ if sales is not None:
 
         avg_units_metric.metric(
             label="Avg units/day",
-            value=f"{average_units_this_year:,.1f}" if average_units_this_year > 1 else f"{average_units_this_year:.3f}",
+            value=(
+                f"{average_units_this_year:,.1f}"
+                if average_units_this_year > 1
+                else f"{average_units_this_year:.3f}"
+            ),
             delta=f"{average_units_this_year / average_units_last_year -1:.1%} {yoy_text}",
-            help=f"{metric_text}: {average_units_last_year:,.1f}" if average_units_last_year > 1 else f"{metric_text}: {average_units_last_year:,.3f}",
+            help=(
+                f"{metric_text}: {average_units_last_year:,.1f}"
+                if average_units_last_year > 1
+                else f"{metric_text}: {average_units_last_year:,.3f}"
+            ),
         )
         avg_dollar_metric.metric(
             label="Avg sales/day",
