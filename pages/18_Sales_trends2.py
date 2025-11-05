@@ -291,6 +291,7 @@ def get_sales_data(
         return (None, None, None)
 
 
+@st.cache_data(show_spinner=False)
 def filtered_sales(
     sales_df: pd.DataFrame,
     sessions_df: pd.DataFrame,
@@ -486,12 +487,12 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
 
     inv_column = "available" if available else "inventory_supply_at_fba"
-    # Prepare stockout values as fraction (0.15) and negate for plotting below zero
+
     stockout_raw = pd.to_numeric(df.get("stockout", 0)).fillna(0)
     stockout_frac = stockout_raw / 100.0 if stockout_raw.max() > 1 else stockout_raw
     stockout_y = -stockout_frac
 
-    # Create two-row figure: top = main metrics, bottom = stockout (negative axis, isolated)
+    # 3 subplots: sales, stockout, ads
     fig = make_subplots(
         rows=3,
         cols=1,
@@ -505,7 +506,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         ],
     )
 
-    # Top row traces (primary left y for units, 30-day avg; secondary right y for price)
+    # --- ROW 1: Sales, ASP, Sessions, Inventory ---
     fig.add_trace(
         go.Scatter(x=df["date"], y=df["units"], name="units", line=dict(color="blue")),
         row=1,
@@ -524,7 +525,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             col=1,
             secondary_y=False,
         )
-    # Price — attach to the built-in secondary y (yaxis2)
+
     if "average selling price" in df.columns:
         fig.add_trace(
             go.Scatter(
@@ -539,7 +540,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             secondary_y=True,
         )
         fig.data[-1].update(yaxis="y2")
-    # Sessions — put on its own left-side axis (yaxis4) mapped to left but free-positioned
+
     if "sessions" in df.columns:
         fig.add_trace(
             go.Scatter(
@@ -553,13 +554,13 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             secondary_y=False,
         )
         fig.data[-1].update(yaxis="y4")
-    # Inventory — its own overlaying right axis (yaxis5)
+
     if inv_column in df.columns:
         fig.add_trace(
             go.Scatter(
                 x=df["date"],
                 y=df[inv_column],
-                name="amz inventory available" if available else "amz inventory total",
+                name="inventory" if available else "total inventory",
                 line=dict(dash="dot", color="pink"),
             ),
             row=1,
@@ -567,7 +568,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             secondary_y=False,
         )
         fig.data[-1].update(yaxis="y5")
-    # Bottom row: stockout as negative filled area to zero (isolated axis with negative ticks)
+    # --- ROW 2: Stockout ---
     fig.add_trace(
         go.Scatter(
             x=df["date"],
@@ -583,30 +584,44 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         col=1,
     )
 
-    # Ads spend row
+    # --- ROW 3: Ads spend & clicks ---
+    fig.add_trace(
+        go.Scatter(
+            x=ads_filtered["date"],
+            y=ads_filtered["ad_spend"],
+            name="Ad Spend",
+            line=dict(color="red"),
+            hovertemplate="%{y:$,.2f}<extra></extra>",
+        ),
+        row=3,
+        col=1,
+        secondary_y=False,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=ads_filtered["date"],
+            y=ads_filtered["clicks"],
+            name="Clicks",
+            line=dict(dash="dot", color="purple"),
+            hovertemplate="%{y:,.0f}<extra></extra>",
+        ),
+        row=3,
+        col=1,
+        secondary_y=True,
+    )
 
-    fig.add_trace(go.Scatter(
-        x=ads_filtered["date"], y=ads_filtered["ad_spend"],
-        name="Ad Spend", line=dict(color="red")
-    ), row=3, col=1, secondary_y=False)
-
-    fig.add_trace(go.Scatter(
-        x=ads_filtered["date"], y=ads_filtered["clicks"],
-        name="Clicks", line=dict(dash="dot", color="purple")
-    ), row=3, col=1, secondary_y=True)
-
-    # Optional annotations (kept in top row, anchored to units)
+    # --- Optional annotations ---
     if show_change_notes and "change_notes" in df.columns:
-        for _, row in df.iterrows():
-            txt = row.get("change_notes")
+        for _, row_data in df.iterrows():
+            txt = row_data.get("change_notes")
             if not pd.isna(txt) and txt != "":
                 if not show_lds and (
                     str(txt).startswith("LD") or str(txt).startswith("BD")
                 ):
                     continue
                 fig.add_annotation(
-                    x=row["date"],
-                    y=row.get("units", 0),
+                    x=row_data["date"],
+                    y=row_data.get("units", 0),
                     text="change",
                     hovertext=str(txt),
                     showarrow=True,
@@ -616,6 +631,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                     row=1,
                     col=1,
                 )
+
     # --- AXES & LAYOUT ---
     fig.update_yaxes(title_text="Units sold", row=1, col=1, secondary_y=False)
     fig.update_yaxes(title_text="Avg price ($)", row=1, col=1, secondary_y=True)
