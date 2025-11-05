@@ -291,6 +291,7 @@ def get_sales_data(
         return (None, None, None)
 
 
+@st.cache_data
 def filtered_sales(
     sales_df: pd.DataFrame,
     sessions_df: pd.DataFrame,
@@ -474,7 +475,6 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
     return asin_sales
 
 
-# The function signature now accepts ads_filtered
 def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     # Defensive copy and basic normalization
     df = df.copy()
@@ -484,13 +484,11 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         df = df.reset_index().rename(columns={"index": "date"})
         df["date"] = pd.to_datetime(df["date"])
     
-    # --- ADDED: Normalize ads_filtered date ---
     if "date" in ads_filtered.columns:
         ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
     else:
         ads_filtered = ads_filtered.reset_index().rename(columns={"index": "date"})
         ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
-    # --- END ADDITION ---
 
     inv_column = "available" if available else "inventory_supply_at_fba"
     # Prepare stockout values as fraction (0.15) and negate for plotting below zero
@@ -498,20 +496,19 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     stockout_frac = stockout_raw / 100.0 if stockout_raw.max() > 1 else stockout_raw
     stockout_y = -stockout_frac
     
-    # --- MODIFIED: Changed to 3 rows ---
+    # Create 3-row figure
     fig = make_subplots(
-        rows=3, # <-- CHANGED
+        rows=3,
         cols=1,
         shared_xaxes=True,
-        row_heights=[0.6, 0.2, 0.2], # <-- CHANGED
+        row_heights=[0.6, 0.2, 0.2],
         vertical_spacing=0.05,
         specs=[
             [{"secondary_y": True}], 
             [{"secondary_y": False}],
-            [{"secondary_y": True}] # <-- ADDED for row 3
+            [{"secondary_y": True}]
         ],
     )
-    # --- END MODIFICATION ---
 
     # Top row traces (primary left y for units, 30-day avg; secondary right y for price)
     fig.add_trace(
@@ -546,10 +543,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             col=1,
             secondary_y=True,
         )
-        # ensure last-added trace is mapped to yaxis2
         fig.data[-1].update(yaxis="y2")
-
-    # --- MODIFIED: Renamed manual axes to avoid conflict ---
     # Sessions — put on its own left-side axis (yaxis10)
     if "sessions" in df.columns:
         fig.add_trace(
@@ -563,7 +557,8 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             col=1,
             secondary_y=False,
         )
-        fig.data[-1].update(yaxis="y10") # <-- CHANGED from y4 to y10
+        fig.data[-1].update(yaxis="y10")
+        
     # Inventory — its own overlaying right axis (yaxis11)
     if inv_column in df.columns:
         fig.add_trace(
@@ -577,8 +572,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             col=1,
             secondary_y=False,
         )
-        fig.data[-1].update(yaxis="y11") # <-- CHANGED from y5 to y11
-    # --- END MODIFICATION ---
+        fig.data[-1].update(yaxis="y11")
 
     # Bottom row: stockout as negative filled area to zero (isolated axis with negative ticks)
     fig.add_trace(
@@ -596,18 +590,29 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         col=1,
     )
 
-    # --- ADDED: Row 3 traces for Ads ---
-    # These will automatically target y4 (primary) and y5 (secondary)
+    # Row 3 traces for Ads
     fig.add_trace(go.Scatter(
         x=ads_filtered["date"], y=ads_filtered["ad_spend"],
         name="Ad Spend", line=dict(color="red")
-    ), row=3, col=1, secondary_y=False)
+    ), row=3, col=1, secondary_y=False) # y4
 
     fig.add_trace(go.Scatter(
         x=ads_filtered["date"], y=ads_filtered["clicks"],
         name="Clicks", line=dict(dash="dot", color="purple")
-    ), row=3, col=1, secondary_y=True)
-    # --- END ADDITION ---
+    ), row=3, col=1, secondary_y=True) # y5
+    
+    fig.add_trace(go.Scatter(
+        x=ads_filtered["date"], y=ads_filtered["total_units"],
+        name="Ad Units", line=dict(dash="dot", color="brown")
+    ), row=3, col=1, secondary_y=False) # y13
+    fig.data[-1].update(yaxis="y13")
+    
+    fig.add_trace(go.Scatter(
+        x=ads_filtered["date"], y=ads_filtered["impressions"],
+        name="Impressions", line=dict(dash="dot", color="gray")
+    ), row=3, col=1, secondary_y=False) # y12
+    fig.data[-1].update(yaxis="y12")
+
 
     # Optional annotations (kept in top row, anchored to units)
     if show_change_notes and "change_notes" in df.columns:
@@ -630,15 +635,6 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                     row=1,
                     col=1,
                 )
-    
-    # --- MODIFIED: Renamed layout variables ---
-    # Axis & layout configuration
-    y1_title = "<b>Units sold</b>"
-    y2_title = "<b>Average selling price</b>"
-    y10_title = "<b>Sessions</b>" # <-- Renamed
-    y11_title = "<b>AMZ inventory supply</b>" # <-- Renamed
-    y3_title = "<b>Stockout</b>"
-    # --- END MODIFICATION ---
 
     # Compute safe ranges for axes to avoid squashing:
     if "average selling price" in df.columns:
@@ -671,99 +667,136 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     # Determine sensible stockout range
     min_stockout = float(stockout_y.min()) if len(stockout_y) > 0 else 0.0
     y3_min = min_stockout * 1.1 if min_stockout < 0 else -0.1
-    # Position main left axis inward so the sessions left axis has room outside it
-    layout_yaxis_main = dict(title=y1_title, position=0.12, zeroline=True)
     
-    # --- MODIFIED: Renamed layout definitions ---
-    # Sessions axis on left but positioned left of the main axis (anchor free)
-    layout_yaxis10 = dict( # <-- Renamed
-        title=y10_title, # <-- Renamed
+    # --- Top Plot Axes ---
+    layout_yaxis_main = dict(
+        title=None, 
+        position=0.12, 
+        zeroline=True,
+        tickfont=dict(color="blue", size=10)
+    )
+    
+    layout_yaxis10 = dict( # Sessions
+        title=None, 
         overlaying="y",
         side="left",
         anchor="free",
-        position=0.02,  # slightly left of the main left axis
+        position=0.02,
         showgrid=False,
         zeroline=False,
-        tickfont=dict(color="orange"),
+        tickfont=dict(color="orange", size=10), 
     )
     if sess_range:
-        layout_yaxis10["range"] = sess_range  # type: ignore
-    # Price axis on right (yaxis2)
-    layout_yaxis2 = dict(
-        title=y2_title,
+        layout_yaxis10["range"] = sess_range
+        
+    layout_yaxis2 = dict( # Price
+        title=None, 
         overlaying="y",
         side="right",
         anchor="x",
         position=0.88,
         showgrid=False,
         zeroline=False,
+        tickfont=dict(color="green", size=10)
     )
     if price_range:
-        layout_yaxis2["range"] = price_range  # type: ignore
-    # Inventory axis on far right (yaxis11)
-    layout_yaxis11 = dict( # <-- Renamed
-        title=y11_title, # <-- Renamed
+        layout_yaxis2["range"] = price_range
+        
+    layout_yaxis11 = dict( # Inventory
+        title=None, 
         overlaying="y",
         side="right",
         anchor="x",
         position=0.985,
         showgrid=False,
         zeroline=False,
+        tickfont=dict(color="pink", size=10) 
     )
     if inv_range:
-        layout_yaxis11["range"] = inv_range  # type: ignore
-    # --- END MODIFICATION ---
+        layout_yaxis11["range"] = inv_range
+        
+    # --- MODIFIED: Bottom Plot Axes ---
+    layout_yaxis12 = dict( # Impressions
+        title=None, 
+        overlaying="y4",
+        side="right",
+        anchor="x", # <-- CHANGED
+        position=0.985, # <-- CHANGED
+        showgrid=False,
+        zeroline=False,
+        tickfont=dict(color="gray", size=10), 
+        domain=[0, 0.2]
+    )
     
-    # --- MODIFIED: Added new layout definitions ---
-    fig.update_layout(
-        title_text="Sales, Stockout, and Ads Trends", # <-- CHANGED Title
-        legend=dict(orientation="v", x=1.02, y=1),
-        margin=dict(
-            l=180, r=180, t=80, b=60
-        ),  # increased left margin to avoid label clipping
-        hovermode="x unified",
-        yaxis=layout_yaxis_main,
-        yaxis2=layout_yaxis2,
-        yaxis10=layout_yaxis10, # <-- Renamed
-        yaxis11=layout_yaxis11, # <-- Renamed
+    layout_yaxis13 = dict( # Ad Units
+        title=None, 
+        overlaying="y4",
+        side="left", # <-- CHANGED
+        anchor="free", # <-- CHANGED
+        position=0.02, # <-- CHANGED
+        showgrid=False,
+        zeroline=False,
+        tickfont=dict(color="brown", size=10), 
+        domain=[0, 0.2]
     )
     # --- END MODIFICATION ---
 
-    fig.update_yaxes(title_text=y1_title, row=1, col=1, zeroline=True)
+    fig.update_layout(
+        title_text="Sales, Stockout, and Ads Trends",
+        legend=dict(orientation="v", x=1.02, y=1),
+        margin=dict(
+            l=180, r=180, t=80, b=60 # <-- Increased L/R margins
+        ),
+        hovermode="x unified",
+        yaxis=layout_yaxis_main,
+        yaxis2=layout_yaxis2,
+        yaxis10=layout_yaxis10,
+        yaxis11=layout_yaxis11,
+        yaxis12=layout_yaxis12,
+        yaxis13=layout_yaxis13
+    )
+    
+    # --- Removed titles, colored ticks for rows 2 & 3 ---
     fig.update_yaxes(
-        title_text=y3_title,
+        title_text=None, 
+        row=1, col=1, 
+        zeroline=True
+    )
+    fig.update_yaxes(
+        title_text=None, 
         row=2,
         col=1,
         zeroline=True,
         showgrid=False,
         tickformat=".0%",
         range=[y3_min, 0],
+        tickfont=dict(color="red", size=10)
     )
 
-    # --- ADDED: Axis titles for Row 3 ---
-    # These target y4 and y5
+    # --- MODIFIED: Added position to Row 3 axes ---
     fig.update_yaxes(
-        title_text="Ad Spend ($)", 
+        title_text=None, 
         row=3, col=1, 
         secondary_y=False, 
         linecolor='red', 
-        tickfont=dict(color='red')
+        tickfont=dict(color='red', size=10),
+        position=0.12 # <-- ADDED
     )
     fig.update_yaxes(
-        title_text="Clicks", 
+        title_text=None, 
         row=3, col=1, 
         secondary_y=True, 
         linecolor='purple', 
-        tickfont=dict(color='purple'), 
-        showgrid=False
+        tickfont=dict(color='purple', size=10),
+        showgrid=False,
+        position=0.88 # <-- ADDED
     )
-    # --- END ADDITION ---
+    # --- END MODIFICATION ---
 
     # Tweak x-axis appearance (shared)
     fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
     # Render
     plot_area.plotly_chart(fig, use_container_width=True)
-
 
 if (
     "sales" not in st.session_state
