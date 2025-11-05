@@ -522,7 +522,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             ),
             row=1,
             col=1,
-            secondary_y=False,
+            secondary_y=True,
         )
     # Price — attach to the built-in secondary y (yaxis2)
     if "average selling price" in df.columns:
@@ -538,7 +538,6 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             col=1,
             secondary_y=True,
         )
-        fig.data[-1].update(yaxis="y2")
     # Sessions — put on its own left-side axis (yaxis4) mapped to left but free-positioned
     if "sessions" in df.columns:
         fig.add_trace(
@@ -550,9 +549,8 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             ),
             row=1,
             col=1,
-            secondary_y=False,
+            secondary_y=True,
         )
-        fig.data[-1].update(yaxis="y4")
     # Inventory — its own overlaying right axis (yaxis5)
     if inv_column in df.columns:
         fig.add_trace(
@@ -564,9 +562,9 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             ),
             row=1,
             col=1,
-            secondary_y=False,
+            secondary_y=True,
         )
-        fig.data[-1].update(yaxis="y5")
+
     # Bottom row: stockout as negative filled area to zero (isolated axis with negative ticks)
     fig.add_trace(
         go.Scatter(
@@ -617,8 +615,10 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                     col=1,
                 )
     # --- AXES & LAYOUT ---
-    fig.update_yaxes(title_text="Units sold", row=1, col=1, secondary_y=False)
-    fig.update_yaxes(title_text="Avg price ($)", row=1, col=1, secondary_y=True)
+    # fig.update_yaxes(title_text="Units sold", row=1, col=1, secondary_y=False)
+    # fig.update_yaxes(title_text="30-day avg", row=1, col=1, secondary_y=False)
+    # fig.update_yaxes(title_text="Avg price ($)", row=1, col=1, secondary_y=True)
+    # fig.update_yaxes(title_text="Sessions", row=1, col=1, secondary_y=True)
     fig.update_yaxes(
         title_text="Stockout rate",
         row=2,
