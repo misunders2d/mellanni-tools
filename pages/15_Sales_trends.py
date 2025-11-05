@@ -461,7 +461,7 @@ def filtered_sales(
         .reindex(full_date_range.date)
         .reset_index()
         .rename(columns={"index": "date"})
-        .fillna(0)
+        # .fillna(0)
     )
 
     return combined_visible, combined_previous, asin_sales, ads_visible, ads_previous
@@ -507,10 +507,9 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
 
     # Top row traces (primary left y for units, 30-day avg; secondary right y for price)
     fig.add_trace(
-        go.Scatter(x=df["date"], y=df["units"], name="units", line=dict(color="blue")),
+        go.Scatter(x=df["date"], y=df["units"], name="units", line=dict(color="blue"), yaxis="y1"),
         row=1,
         col=1,
-        secondary_y=False,
     )
     if "30-day avg" in df.columns:
         fig.add_trace(
@@ -519,10 +518,10 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                 y=df["30-day avg"],
                 name="30-day avg",
                 line=dict(dash="dash", color="lightblue"),
+                yaxis="y2",
             ),
             row=1,
             col=1,
-            secondary_y=True,
         )
     # Price — attach to the built-in secondary y (yaxis2)
     if "average selling price" in df.columns:
@@ -533,10 +532,10 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                 name="avg price",
                 line=dict(dash="dot", color="green"),
                 hovertemplate="%{y:$,.2f}<extra></extra>",
+                yaxis="y6",
             ),
             row=1,
             col=1,
-            secondary_y=True,
         )
     # Sessions — put on its own left-side axis (yaxis4) mapped to left but free-positioned
     if "sessions" in df.columns:
@@ -546,10 +545,10 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                 y=df["sessions"],
                 name="sessions",
                 line=dict(dash="dot", color="orange"),
+                yaxis="y7",
             ),
             row=1,
             col=1,
-            secondary_y=True,
         )
     # Inventory — its own overlaying right axis (yaxis5)
     if inv_column in df.columns:
@@ -559,10 +558,10 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                 y=df[inv_column],
                 name="amz inventory available" if available else "amz inventory total",
                 line=dict(dash="dot", color="pink"),
+                yaxis="y8",
             ),
             row=1,
             col=1,
-            secondary_y=True,
         )
 
     # Bottom row: stockout as negative filled area to zero (isolated axis with negative ticks)
@@ -615,10 +614,42 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
                     col=1,
                 )
     # --- AXES & LAYOUT ---
-    # fig.update_yaxes(title_text="Units sold", row=1, col=1, secondary_y=False)
-    # fig.update_yaxes(title_text="30-day avg", row=1, col=1, secondary_y=False)
-    # fig.update_yaxes(title_text="Avg price ($)", row=1, col=1, secondary_y=True)
-    # fig.update_yaxes(title_text="Sessions", row=1, col=1, secondary_y=True)
+    fig.update_layout(
+        yaxis1=dict(title=dict(text="Units sold", font=dict(color="blue")), tickfont=dict(color="blue")),
+        yaxis2=dict( # yaxis2 for 30-day avg
+            title=dict(text="30-day avg", font=dict(color="lightblue")),
+            overlaying="y",
+            side="right",
+            anchor="free",
+            autoshift=True,
+            tickfont=dict(color="lightblue"),
+        ),
+        yaxis6=dict(
+            title=dict(text="Avg price ($)", font=dict(color="green")),
+            overlaying="y",
+            side="right",
+            anchor="free",
+            autoshift=True,
+            tickfont=dict(color="green"),
+        ),
+        yaxis7=dict(
+            title=dict(text="Sessions", font=dict(color="orange")),
+            overlaying="y",
+            side="right",
+            anchor="free",
+            autoshift=True,
+            tickfont=dict(color="orange"),
+        ),
+        yaxis8=dict(
+            title=dict(text="Inventory", font=dict(color="pink")),
+            overlaying="y",
+            side="right",
+            anchor="free",
+            autoshift=True,
+            tickfont=dict(color="pink"),
+        ),
+    )
+
     fig.update_yaxes(
         title_text="Stockout rate",
         row=2,
