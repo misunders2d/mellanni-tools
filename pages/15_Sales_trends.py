@@ -583,30 +583,16 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
 
     ## Ads spend row
 
-    fig.add_trace(
-        go.Scatter(
-            x=ads_filtered["date"],
-            y=ads_filtered["ad_spend"],
-            name="Spend",
-            line=dict(color="red"),
-            hovertemplate="%{y:$,.2f}<extra></extra>",
-        ),
-        row=3,
-        col=1,
-        secondary_y=False,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=ads_filtered["date"],
-            y=ads_filtered["clicks"],
-            name="Clicks",
-            line=dict(dash="dot", color="purple"),
-            hovertemplate="%{y:,.0f}<extra></extra>",
-        ),
-        row=3,
-        col=1,
-        secondary_y=True,
-    )
+    # fig.add_trace(go.Scatter(
+    #     x=ads_filtered["date"], y=ads_filtered["ad_spend"],
+    #     name="Ad Spend", line=dict(color="red")
+    # ), row=3, col=1, secondary_y=False)
+
+    # fig.add_trace(go.Scatter(
+    #     x=ads_filtered["date"], y=ads_filtered["clicks"],
+    #     name="Clicks", line=dict(dash="dot", color="purple")
+    # ), row=3, col=1, secondary_y=True)
+
 
     # Optional annotations (kept in top row, anchored to units)
     if show_change_notes and "change_notes" in df.columns:
