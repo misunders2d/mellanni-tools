@@ -67,6 +67,18 @@ metrics_area = st.container()
     avg_sessions_metric,
 ) = metrics_area.columns([1, 1, 1, 1, 1, 1, 1, 1])
 plot_area = st.container()
+ad_metrics_area1 = st.container()
+ad_metrics_area2 = st.container()
+(
+    ad_units_metric,
+    ad_sales_metric,
+    ad_spend_metric,
+    ad_impressions_metric,
+    ad_clicks_metric,
+    ad_conversion_metric,
+    ad_cpc_metric,
+    ad_acos_metric,
+) = ad_metrics_area1.columns([1, 1, 1, 1, 1, 1, 1, 1])
 df_area_container = st.container()
 df_text, df_top_sellers = df_area_container.columns([1, 10])
 
@@ -291,7 +303,6 @@ def get_sales_data(
         return (None, None, None)
 
 
-@st.cache_data
 def filtered_sales(
     sales_df: pd.DataFrame,
     sessions_df: pd.DataFrame,
@@ -501,13 +512,14 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         rows=3,
         cols=1,
         shared_xaxes=True,
-        row_heights=[0.6, 0.2, 0.2],
+        row_heights=[0.55, 0.2, 0.25],
         vertical_spacing=0.05,
         specs=[
             [{"secondary_y": True}], 
             [{"secondary_y": False}],
             [{"secondary_y": True}]
         ],
+        # row_titles=["Sales Trends", "Stockout Trends", "Ad Campaigns"],
     )
 
     # Top row traces (primary left y for units, 30-day avg; secondary right y for price)
@@ -591,9 +603,9 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     )
 
     # Row 3 traces for Ads
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Bar(
         x=ads_filtered["date"], y=ads_filtered["ad_spend"],
-        name="Ad Spend", line=dict(color="red")
+        name="Ad Spend", marker=dict(color="red", opacity = 0.5)
     ), row=3, col=1, secondary_y=False) # y4
 
     fig.add_trace(go.Scatter(
@@ -603,7 +615,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     
     fig.add_trace(go.Scatter(
         x=ads_filtered["date"], y=ads_filtered["total_units"],
-        name="Ad Units", line=dict(dash="dot", color="brown")
+        name="Ad Units", line=dict(color="blue")
     ), row=3, col=1, secondary_y=False) # y13
     fig.data[-1].update(yaxis="y13")
     
@@ -684,10 +696,9 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         position=0.02,
         showgrid=False,
         zeroline=False,
-        tickfont=dict(color="orange", size=10), 
+        tickfont=dict(color="orange", size=10),
+        range=sess_range # <-- MOVED INSIDE
     )
-    if sess_range:
-        layout_yaxis10["range"] = sess_range
         
     layout_yaxis2 = dict( # Price
         title=None, 
@@ -697,10 +708,9 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         position=0.88,
         showgrid=False,
         zeroline=False,
-        tickfont=dict(color="green", size=10)
+        tickfont=dict(color="green", size=10),
+        range=price_range # <-- MOVED INSIDE
     )
-    if price_range:
-        layout_yaxis2["range"] = price_range
         
     layout_yaxis11 = dict( # Inventory
         title=None, 
@@ -710,18 +720,18 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         position=0.985,
         showgrid=False,
         zeroline=False,
-        tickfont=dict(color="pink", size=10) 
+        tickfont=dict(color="pink", size=10),
+        range=inv_range # <-- MOVED INSIDE
     )
-    if inv_range:
-        layout_yaxis11["range"] = inv_range
+    # --- END MODIFICATION ---
         
-    # --- MODIFIED: Bottom Plot Axes ---
+    # --- Bottom Plot Axes ---
     layout_yaxis12 = dict( # Impressions
         title=None, 
         overlaying="y4",
         side="right",
-        anchor="x", # <-- CHANGED
-        position=0.985, # <-- CHANGED
+        anchor="x",
+        position=0.985,
         showgrid=False,
         zeroline=False,
         tickfont=dict(color="gray", size=10), 
@@ -731,21 +741,20 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     layout_yaxis13 = dict( # Ad Units
         title=None, 
         overlaying="y4",
-        side="left", # <-- CHANGED
-        anchor="free", # <-- CHANGED
-        position=0.02, # <-- CHANGED
+        side="left",
+        anchor="free",
+        position=0.02,
         showgrid=False,
         zeroline=False,
-        tickfont=dict(color="brown", size=10), 
+        tickfont=dict(color="blue", size=10), 
         domain=[0, 0.2]
     )
-    # --- END MODIFICATION ---
 
     fig.update_layout(
         title_text="Sales, Stockout, and Ads Trends",
         legend=dict(orientation="v", x=1.02, y=1),
         margin=dict(
-            l=180, r=180, t=80, b=60 # <-- Increased L/R margins
+            l=180, r=180, t=80, b=60
         ),
         hovermode="x unified",
         yaxis=layout_yaxis_main,
@@ -756,7 +765,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         yaxis13=layout_yaxis13
     )
     
-    # --- Removed titles, colored ticks for rows 2 & 3 ---
+    # --- Update Y-Axes for Rows 1, 2, 3 ---
     fig.update_yaxes(
         title_text=None, 
         row=1, col=1, 
@@ -773,14 +782,13 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         tickfont=dict(color="red", size=10)
     )
 
-    # --- MODIFIED: Added position to Row 3 axes ---
     fig.update_yaxes(
         title_text=None, 
         row=3, col=1, 
         secondary_y=False, 
         linecolor='red', 
         tickfont=dict(color='red', size=10),
-        position=0.12 # <-- ADDED
+        position=0.12
     )
     fig.update_yaxes(
         title_text=None, 
@@ -789,14 +797,14 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         linecolor='purple', 
         tickfont=dict(color='purple', size=10),
         showgrid=False,
-        position=0.88 # <-- ADDED
+        position=0.88
     )
-    # --- END MODIFICATION ---
 
     # Tweak x-axis appearance (shared)
     fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
     # Render
     plot_area.plotly_chart(fig, use_container_width=True)
+
 
 if (
     "sales" not in st.session_state
@@ -957,6 +965,27 @@ if sales is not None and sessions is not None and ads is not None:
             combined_previous["sessions"].sum() / days_last_year
         )
 
+        # ads metrics
+        total_ad_units_this_year = ads_visible["total_units"].sum()
+        total_ad_units_last_year = ads_previous["total_units"].sum()
+        total_ad_dollars_this_year = ads_visible["total_sales"].sum()
+        total_ad_dollars_last_year = ads_previous["total_sales"].sum()
+
+        total_spend_this_year = ads_visible["ad_spend"].sum()
+        total_spend_last_year = ads_previous["ad_spend"].sum()
+        total_impressions_this_year = ads_visible["impressions"].sum()
+        total_impressions_last_year = ads_previous["impressions"].sum()
+        total_clicks_this_year = ads_visible["clicks"].sum()
+        total_clicks_last_year = ads_previous["clicks"].sum()
+
+        avg_conversion_this_year = total_ad_units_this_year / total_clicks_this_year if total_clicks_this_year > 0 else 0
+        avg_conversion_last_year = total_ad_units_last_year / total_clicks_last_year if total_clicks_last_year > 0 else 0
+        avg_cpc_this_year = total_spend_this_year / total_clicks_this_year if total_clicks_this_year > 0 else 0
+        avg_cpc_last_year = total_spend_last_year / total_clicks_last_year if total_clicks_last_year > 0 else 0
+        avg_acos_this_year = total_spend_this_year / total_ad_dollars_this_year if total_ad_dollars_this_year > 0 else 0
+        avg_acos_last_year = total_spend_last_year / total_ad_dollars_last_year if total_ad_dollars_last_year > 0 else 0
+
+
         metric_text = (
             f"{min_period} - {max_period}"
             if periods == "custom"
@@ -1026,6 +1055,56 @@ if sales is not None and sessions is not None and ads is not None:
             delta=f"{average_sessions_this_year / average_sessions_last_year -1:.1%} {yoy_text}",
             help=f"{metric_text}: {average_sessions_last_year:,.0f}",
         )
+
+        ad_units_metric.metric(
+            label="Total ad units sold",
+            value=f"{total_ad_units_this_year:,.0f}",
+            delta=f"{total_ad_units_this_year / total_ad_units_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: {total_ad_units_last_year:,.0f}",
+        )
+        ad_sales_metric.metric(
+            label="Total ad sales",
+            value=f"${total_ad_dollars_this_year:,.0f}",
+            delta=f"{total_ad_dollars_this_year / total_ad_dollars_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: ${total_ad_dollars_last_year:,.0f}",
+        )
+        ad_spend_metric.metric(
+            label="Total ad spend",
+            value=f"${total_spend_this_year:,.0f}",
+            delta=f"{total_spend_this_year / total_spend_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: ${total_spend_last_year:,.0f}",
+        )
+        ad_impressions_metric.metric(
+            label="Total ad impressions",
+            value=f"{total_impressions_this_year:,.0f}",
+            delta=f"{total_impressions_this_year / total_impressions_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: {total_impressions_last_year:,.0f}",
+        )
+        ad_clicks_metric.metric(
+            label="Total ad clicks",
+            value=f"{total_clicks_this_year:,.0f}",
+            delta=f"{total_clicks_this_year / total_clicks_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: {total_clicks_last_year:,.0f}",
+        )
+        ad_conversion_metric.metric(
+            label="Avg ad conversion %",
+            value=f"{avg_conversion_this_year:.1%}",
+            delta=f"{avg_conversion_this_year / avg_conversion_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: {avg_conversion_last_year:.1%}",
+        )
+        ad_cpc_metric.metric(
+            label="Avg CPC",
+            value=f"${avg_cpc_this_year:.2f}",
+            delta=f"{avg_cpc_this_year / avg_cpc_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: ${avg_cpc_last_year:.2f}",
+        )
+        ad_acos_metric.metric(
+            label="Avg ACoS",
+            value=f"{avg_acos_this_year:.1%}",
+            delta=f"{avg_acos_this_year / avg_acos_last_year -1:.1%} {yoy_text}",
+            help=f"{metric_text}: {avg_acos_last_year:.1%}",
+        )
+
 
         num_top_sellers = df_top_sellers.number_input(
             "Select top n sellers", min_value=2, max_value=10000, value=10, width=150
