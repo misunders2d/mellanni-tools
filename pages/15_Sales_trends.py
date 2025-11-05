@@ -16,6 +16,7 @@ import os
 os.makedirs("temp", exist_ok=True)
 sales_tempfile = os.path.join("temp", "sales.csv")
 sessions_tempfile = os.path.join("temp", "sessions.csv")
+ads_tempfile = os.path.join("temp", "ads.csv")
 
 st.set_page_config(
     page_title="Sales history", page_icon="media/logo.ico", layout="wide"
@@ -73,7 +74,7 @@ df_text, df_top_sellers = df_area_container.columns([1, 10])
 @st.cache_data(ttl=3600)
 def get_sales_data(
     interval: str = "2 YEAR",
-) -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
+) -> tuple[pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
     sales_query = f"""
             WITH sales AS (
             SELECT
@@ -217,24 +218,83 @@ def get_sales_data(
 
             """
 
+    ads_query = f"""
+            WITH advertised AS (
+            SELECT
+                DATE(date) AS date,
+                advertisedAsin AS asin,
+                SUM(spend) AS ad_spend,  -- Switched to 'spend' (total ad cost per schema); revert to 'cost' if intended
+                SUM(impressions) AS impressions,
+                SUM(clicks) AS clicks,
+                SUM(unitsSoldSameSku14d) AS same_units,
+                SUM(attributedSalesSameSku14d) AS same_sales
+            FROM mellanni-project-da.reports.AdvertisedProduct
+            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE(), INTERVAL {interval})
+                AND LOWER(country_code) = 'us'
+            GROUP BY date, asin
+            ),
+            purchased AS (
+            SELECT
+                DATE(date) AS date,
+                purchasedAsin AS asin,
+                SUM(unitsSoldOtherSku14d) AS other_units,
+                SUM(salesOtherSku14d) AS other_sales
+            FROM mellanni-project-da.reports.PurchasedProduct
+            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE(), INTERVAL {interval})
+                AND LOWER(country_code) = 'us'
+            GROUP BY date, asin
+            ),
+            deduped_dict AS (
+            SELECT
+                asin,
+                ANY_VALUE(collection) AS collection,
+                ANY_VALUE(size) AS size,
+                ANY_VALUE(color) AS color
+            FROM mellanni-project-da.auxillary_development.dictionary
+            WHERE asin IS NOT NULL
+            GROUP BY asin
+            )
+            SELECT
+            COALESCE(a.date, p.date) AS date,
+            COALESCE(a.asin, p.asin) AS asin,
+            a.ad_spend,
+            a.impressions,
+            a.clicks,
+            COALESCE(a.same_units, 0) + COALESCE(p.other_units, 0) AS total_units,
+            COALESCE(a.same_sales, 0) + COALESCE(p.other_sales, 0) AS total_sales,
+            d.collection,
+            d.size,
+            d.color
+            FROM advertised a
+            FULL OUTER JOIN purchased p
+            ON a.date = p.date AND a.asin = p.asin
+            LEFT JOIN deduped_dict d
+            ON COALESCE(a.asin, p.asin) = d.asin
+            ORDER BY date ASC, asin;    
+
+    """
+
     try:
         with bigquery.Client(
             credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id
         ) as client:
             sales_job = client.query(sales_query)
             session_job = client.query(sessions_query)
+            ads_job = client.query(ads_query)
 
             sales_df = sales_job.result().to_dataframe()
             sessions_df = session_job.result().to_dataframe()
-        return sales_df, sessions_df
+            ads_df = ads_job.result().to_dataframe()
+        return sales_df, sessions_df, ads_df
     except Exception as e:
         st.error(f"Error while pulling BQ data: {e}")
-        return (None, None)
+        return (None, None, None)
 
 
 def filtered_sales(
-    df: pd.DataFrame,
-    sessions: pd.DataFrame,
+    sales_df: pd.DataFrame,
+    sessions_df: pd.DataFrame,
+    ads_df: pd.DataFrame,
     sel_collection,
     sel_size,
     sel_color,
@@ -242,40 +302,64 @@ def filtered_sales(
     date_range,
     periods,
 ):
+    match periods:
+        case "custom":
+            prev_start, prev_end = min_period, max_period
+
+        case _:
+            prev_start = date_range[0] - relativedelta(years=1)
+            prev_end = date_range[1] - relativedelta(years=1)
 
     inv_column = "available" if available_inv else "inventory_supply_at_fba"
 
     if sel_collection:
-        df = df[df["collection"].isin(sel_collection)]
-        sessions = sessions[sessions["collection"].isin(sel_collection)]
+        sales_df = sales_df[sales_df["collection"].isin(sel_collection)]
+        sessions_df = sessions_df[sessions_df["collection"].isin(sel_collection)]
+        ads_df = ads_df[ads_df["collection"].isin(sel_collection)]
     if sel_size:
-        df = df[df["size"].isin(sel_size)]
-        sessions = sessions[sessions["size"].isin(sel_size)]
+        sales_df = sales_df[sales_df["size"].isin(sel_size)]
+        sessions_df = sessions_df[sessions_df["size"].isin(sel_size)]
+        ads_df = ads_df[ads_df["size"].isin(sel_size)]
     if sel_color:
-        df = df[df["color"].isin(sel_color)]
-        sessions = sessions[sessions["color"].isin(sel_color)]
+        sales_df = sales_df[sales_df["color"].isin(sel_color)]
+        sessions_df = sessions_df[sessions_df["color"].isin(sel_color)]
+        ads_df = ads_df[ads_df["color"].isin(sel_color)]
 
     if not include_events:
-        df = df[~df["date"].isin(event_dates_list)]
-        sessions = sessions[~sessions["date"].isin(event_dates_list)]
+        sales_df = sales_df[~sales_df["date"].isin(event_dates_list)]
+        sessions_df = sessions_df[~sessions_df["date"].isin(event_dates_list)]
+        ads_df = ads_df[~ads_df["date"].isin(event_dates_list)]
 
-    asin_sessions = sessions.groupby("asin").agg({"sessions": "sum"}).reset_index()
-    date_sessions = sessions.groupby("date").agg({"sessions": "sum"}).reset_index()
+    asin_sessions = sessions_df.groupby("asin").agg({"sessions": "sum"}).reset_index()
+    date_sessions = sessions_df.groupby("date").agg({"sessions": "sum"}).reset_index()
 
-    df["asin_30d_avg"] = df.groupby("asin")["units"].transform(
+    # asin_ads = ads_df.groupby("asin")[['ad_spend', 'impressions', 'clicks', 'total_units',
+    #    'total_sales']].agg('sum').reset_index()
+    date_ads = (
+        ads_df.groupby("date")[
+            ["ad_spend", "impressions", "clicks", "total_units", "total_sales"]
+        ]
+        .agg("sum")
+        .reset_index()
+    )
+
+    ads_previous = date_ads[date_ads["date"].between(prev_start, prev_end)]
+    ads_visible = date_ads[date_ads["date"].between(date_range[0], date_range[1])]
+
+    sales_df["asin_30d_avg"] = sales_df.groupby("asin")["units"].transform(
         lambda x: x.rolling(30, min_periods=1).mean()
     )
-    df["asin_sales_share"] = df["asin_30d_avg"] / df.groupby("date")[
+    sales_df["asin_sales_share"] = sales_df["asin_30d_avg"] / sales_df.groupby("date")[
         "asin_30d_avg"
     ].transform("sum")
-    df["stockout"] = (1 - (df[inv_column] / df["asin_30d_avg"]).clip(upper=1)) * df[
-        "asin_sales_share"
-    ]
+    sales_df["stockout"] = (
+        1 - (sales_df[inv_column] / sales_df["asin_30d_avg"]).clip(upper=1)
+    ) * sales_df["asin_sales_share"]
 
-    df["change_notes"] = df["change_notes"].fillna("")
-    df = df.sort_values("date", ascending=True)
+    sales_df["change_notes"] = sales_df["change_notes"].fillna("")
+    sales_df = sales_df.sort_values("date", ascending=True)
 
-    asin_sales = df.copy()
+    asin_sales = sales_df.copy()
     asin_sales["date"] = pd.to_datetime(asin_sales["date"]).dt.date
     asin_sales = asin_sales[asin_sales["date"].between(date_range[0], date_range[1])]
 
@@ -303,7 +387,7 @@ def filtered_sales(
 
     date_sessions["date"] = pd.to_datetime(date_sessions["date"]).dt.date
     combined = (
-        df.groupby("date")
+        sales_df.groupby("date")
         .agg(
             {
                 "units": "sum",
@@ -328,14 +412,6 @@ def filtered_sales(
 
     combined_visible = combined.copy()
     combined_visible["date"] = pd.to_datetime(combined_visible["date"]).dt.date
-
-    match periods:
-        case "custom":
-            prev_start, prev_end = min_period, max_period
-
-        case _:
-            prev_start = date_range[0] - relativedelta(years=1)
-            prev_end = date_range[1] - relativedelta(years=1)
 
     combined_previous = combined_visible[
         combined_visible["date"].between(prev_start, prev_end)
@@ -380,7 +456,15 @@ def filtered_sales(
         .rename(columns={"index": "date"})
     )
 
-    return combined_visible, combined_previous, asin_sales
+    ads_visible = (
+        ads_visible.set_index("date")
+        .reindex(full_date_range.date)
+        .reset_index()
+        .rename(columns={"index": "date"})
+        .fillna(0)
+    )
+
+    return combined_visible, combined_previous, asin_sales, ads_visible, ads_previous
 
 
 def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
@@ -390,14 +474,16 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
     return asin_sales
 
 
-def create_plot(df, show_change_notes, show_lds, available=True):
+def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     # Defensive copy and basic normalization
-    df = df.copy()
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"])
+        ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
     else:
         df = df.reset_index().rename(columns={"index": "date"})
         df["date"] = pd.to_datetime(df["date"])
+        ads_filtered = ads_filtered.reset_index().rename(columns={"index": "date"})
+        ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
     inv_column = "available" if available else "inventory_supply_at_fba"
     # Prepare stockout values as fraction (0.15) and negate for plotting below zero
     stockout_raw = pd.to_numeric(df.get("stockout", 0)).fillna(0)
@@ -405,12 +491,16 @@ def create_plot(df, show_change_notes, show_lds, available=True):
     stockout_y = -stockout_frac
     # Create two-row figure: top = main metrics, bottom = stockout (negative axis, isolated)
     fig = make_subplots(
-        rows=2,
+        rows=3,
         cols=1,
         shared_xaxes=True,
-        row_heights=[0.75, 0.25],
+        row_heights=[0.6, 0.2, 0.2],
         vertical_spacing=0.05,
-        specs=[[{"secondary_y": True}], [{"secondary_y": False}]],
+        specs=[
+            [{"secondary_y": True}],
+            [{"secondary_y": False}],
+            [{"secondary_y": True}],
+        ],
     )
     # Top row traces (primary left y for units, 30-day avg; secondary right y for price)
     fig.add_trace(
@@ -490,6 +580,34 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         row=2,
         col=1,
     )
+
+    ## Ads spend row
+
+    fig.add_trace(
+        go.Scatter(
+            x=ads_filtered["date"],
+            y=ads_filtered["ad_spend"],
+            name="Spend",
+            line=dict(color="red"),
+            hovertemplate="%{y:$,.2f}<extra></extra>",
+        ),
+        row=3,
+        col=1,
+        secondary_y=False,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=ads_filtered["date"],
+            y=ads_filtered["clicks"],
+            name="Clicks",
+            line=dict(dash="dot", color="purple"),
+            hovertemplate="%{y:,.0f}<extra></extra>",
+        ),
+        row=3,
+        col=1,
+        secondary_y=True,
+    )
+
     # Optional annotations (kept in top row, anchored to units)
     if show_change_notes and "change_notes" in df.columns:
         for _, row in df.iterrows():
@@ -517,6 +635,8 @@ def create_plot(df, show_change_notes, show_lds, available=True):
     y4_title = "<b>Sessions</b>"
     y5_title = "<b>AMZ inventory supply</b>"
     y3_title = "<b>Stockout</b>"
+    y_ads_title = "<b>Ad Spend</b>"
+    y_clicks_title = "<b>Ad Clicks</b>"
     # Compute safe ranges for axes to avoid squashing:
     if "average selling price" in df.columns:
         price_min = float(df["average selling price"].min())
@@ -609,14 +729,33 @@ def create_plot(df, show_change_notes, show_lds, available=True):
         tickformat=".0%",
         range=[y3_min, 0],
     )
+    fig.update_yaxes(
+        title_text=y_ads_title, row=3, col=1, secondary_y=False, zeroline=True
+    )
+    fig.update_yaxes(
+        title_text=y_clicks_title,
+        row=3,
+        col=1,
+        secondary_y=True,
+        showgrid=False,
+        zeroline=False,
+    )
     # Tweak x-axis appearance (shared)
     fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
     # Render
     plot_area.plotly_chart(fig, use_container_width=True)
 
 
-if "sales" not in st.session_state or "sessions" not in st.session_state:
-    if os.path.exists(sales_tempfile) and os.path.exists(sessions_tempfile):
+if (
+    "sales" not in st.session_state
+    or "sessions" not in st.session_state
+    or "ads" not in st.session_state
+):
+    if (
+        os.path.exists(sales_tempfile)
+        and os.path.exists(sessions_tempfile)
+        and os.path.exists(ads_tempfile)
+    ):
         st.session_state["sales"] = pd.read_csv(sales_tempfile, parse_dates=["date"])
         st.session_state["sales"]["date"] = pd.to_datetime(
             st.session_state["sales"]["date"]
@@ -627,12 +766,22 @@ if "sales" not in st.session_state or "sessions" not in st.session_state:
         st.session_state["sessions"]["date"] = pd.to_datetime(
             st.session_state["sessions"]["date"]
         ).dt.date
+        st.session_state["ads"] = pd.read_csv(ads_tempfile, parse_dates=["date"])
+        st.session_state["ads"]["date"] = pd.to_datetime(
+            st.session_state["ads"]["date"]
+        ).dt.date
     else:
-        st.session_state["sales"], st.session_state["sessions"] = get_sales_data()
+        (
+            st.session_state["sales"],
+            st.session_state["sessions"],
+            st.session_state["ads"],
+        ) = get_sales_data()
         if isinstance(st.session_state["sales"], pd.DataFrame):
             st.session_state["sales"].to_csv(sales_tempfile, index=False)
         if isinstance(st.session_state["sessions"], pd.DataFrame):
             st.session_state["sessions"].to_csv(sessions_tempfile, index=False)
+        if isinstance(st.session_state["ads"], pd.DataFrame):
+            st.session_state["ads"].to_csv(ads_tempfile, index=False)
 
 
 # if (
@@ -647,8 +796,9 @@ if "sales" not in st.session_state or "sessions" not in st.session_state:
 
 sales = st.session_state["sales"].copy()
 sessions = st.session_state["sessions"].copy()
+ads = st.session_state["ads"].copy()
 
-if sales is not None:
+if sales is not None and sessions is not None and ads is not None:
     collections = sales["collection"].unique()
     sizes = sales["size"].unique()
     colors = sales["color"].unique()
@@ -698,9 +848,10 @@ if sales is not None:
         label="Colors", options=colors, placeholder="Select color(s)"
     )
 
-    combined, combined_previous, asin_sales = filtered_sales(
+    combined, combined_previous, asin_sales, ads_visible, ads_previous = filtered_sales(
         sales.copy(),
-        sessions,
+        sessions.copy(),
+        ads.copy(),
         sel_collection,
         sel_size,
         sel_color,
@@ -710,7 +861,13 @@ if sales is not None:
     )
 
     if not combined.empty:
-        create_plot(combined, show_change_notes, show_lds, available_inv)
+        create_plot(
+            combined.copy(),
+            ads_visible.copy(),
+            show_change_notes,
+            show_lds,
+            available_inv,
+        )
         # absolute numbers metrics
         total_units_this_year = combined["units"].sum()
         total_units_last_year = combined_previous["units"].sum()
@@ -858,6 +1015,8 @@ if sales is not None:
         st.warning("No data to display for the selected filters.")
 
 
+else:
+    st.warning("No data available.")
 # column_config={
 # >>>         "command": "Streamlit Command",
 # >>>         "rating": st.column_config.NumberColumn(
