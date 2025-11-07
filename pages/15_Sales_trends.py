@@ -420,6 +420,8 @@ def filtered_sales(
     ).fillna(0)
 
     combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
+    combined["30-day sales avg"] = combined["net_sales"].rolling(window=30).mean().round(1)
+    combined["30-day sessions avg"] = combined["sessions"].rolling(window=30).mean().round(1)
     combined["average selling price"] = combined["net_sales"] / combined["units"]
 
     combined_visible = combined.copy()
@@ -444,6 +446,8 @@ def filtered_sales(
             "stockout",
             "sessions",
             "30-day avg",
+            "30-day sales avg",
+            "30-day sessions avg",
             "average selling price",
         ]
     ] = combined_visible[
@@ -455,6 +459,8 @@ def filtered_sales(
             "stockout",
             "sessions",
             "30-day avg",
+            "30-day sales avg",
+            "30-day sessions avg",
             "average selling price",
         ]
     ].astype(
@@ -1037,6 +1043,7 @@ if sales is not None and sessions is not None and ads is not None:
                 else f"{average_units_this_year:.3f}"
             ),
             delta=f"{average_units_this_year / average_units_last_year -1:.1%} {yoy_text}",
+            chart_data = combined['30-day avg'],
             help=(
                 f"{metric_text}: {average_units_last_year:,.1f}"
                 if average_units_last_year > 1
@@ -1047,12 +1054,14 @@ if sales is not None and sessions is not None and ads is not None:
             label="Avg sales/day",
             value=f"${average_dollars_this_year:,.0f}",
             delta=f"{average_dollars_this_year / average_dollars_last_year -1:.1%} {yoy_text}",
+            chart_data = combined['30-day sales avg'],
             help=f"{metric_text}: ${average_dollars_last_year:,.0f}",
         )
         avg_sessions_metric.metric(
             label="Avg sessions/day",
             value=f"{average_sessions_this_year:,.0f}",
             delta=f"{average_sessions_this_year / average_sessions_last_year -1:.1%} {yoy_text}",
+            chart_data = combined['30-day sessions avg'],
             help=f"{metric_text}: {average_sessions_last_year:,.0f}",
         )
 
