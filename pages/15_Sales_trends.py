@@ -894,7 +894,7 @@ if sales is not None and sessions is not None and ads is not None:
     with st.sidebar:
         options = ["last year", "custom"]
         if (date_range[1] - date_range[0]).days == 6:
-            options.append("last week")
+            options = ["last week", "last year", "custom"]
         periods = st.radio("Compare periods", options=options)
         min_period, max_period = date_range[0] - relativedelta(years=1), date_range[
             1
