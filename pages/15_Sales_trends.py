@@ -318,6 +318,10 @@ def filtered_sales(
         case "custom":
             prev_start, prev_end = min_period, max_period
 
+        case "last week":
+            prev_start = date_range[0] - relativedelta(weeks=1)
+            prev_end = date_range[1] - relativedelta(weeks=1)
+
         case _:
             prev_start = date_range[0] - relativedelta(years=1)
             prev_end = date_range[1] - relativedelta(years=1)
@@ -888,7 +892,10 @@ if sales is not None and sessions is not None and ads is not None:
     )
 
     with st.sidebar:
-        periods = st.radio("Compare periods", options=["last year", "custom"])
+        options = ["last year", "custom"]
+        if (date_range[1] - date_range[0]).days == 6:
+            options.append("last week")
+        periods = st.radio("Compare periods", options=options)
         min_period, max_period = date_range[0] - relativedelta(years=1), date_range[
             1
         ] - relativedelta(years=1)
@@ -995,7 +1002,7 @@ if sales is not None and sessions is not None and ads is not None:
         metric_text = (
             f"{min_period} - {max_period}"
             if periods == "custom"
-            else "Same period last year"
+            else f"compared to {periods}"
         )
         yoy_text = "YoY" if periods == "last year" else "vs Period"
 
