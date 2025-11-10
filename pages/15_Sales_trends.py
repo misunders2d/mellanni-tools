@@ -1004,7 +1004,7 @@ if sales is not None and sessions is not None and ads is not None:
             if periods == "custom"
             else f"compared to {periods}"
         )
-        yoy_text = "YoY" if periods == "last year" else "vs Period"
+        yoy_text = f"vs {periods}" if periods != "custom" else "vs period"
 
         units_metric.metric(
             label="Total units sold",
