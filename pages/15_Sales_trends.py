@@ -14,9 +14,9 @@ from modules.events import event_dates_list
 import os
 
 os.makedirs("temp", exist_ok=True)
-sales_tempfile = os.path.join("temp", "sales.csv")
-sessions_tempfile = os.path.join("temp", "sessions.csv")
-ads_tempfile = os.path.join("temp", "ads.csv")
+sales_tempfile = os.path.join("temp", "sales.parquet")
+sessions_tempfile = os.path.join("temp", "sessions.parquet")
+ads_tempfile = os.path.join("temp", "ads.parquet")
 
 st.set_page_config(
     page_title="Sales history", page_icon="media/logo.ico", layout="wide"
@@ -294,9 +294,20 @@ def get_sales_data(
             session_job = client.query(sessions_query)
             ads_job = client.query(ads_query)
 
-            sales_df = sales_job.result().to_dataframe()
-            sessions_df = session_job.result().to_dataframe()
-            ads_df = ads_job.result().to_dataframe()
+            sales_df = sales_job.to_dataframe()
+            sessions_df = session_job.to_dataframe()
+            ads_df = ads_job.to_dataframe()
+
+            sales_df[["collection", "size", "color"]] = sales_df[
+                ["collection", "size", "color"]
+            ].astype("category")
+            sessions_df[["collection", "size", "color"]] = sales_df[
+                ["collection", "size", "color"]
+            ].astype("category")
+            ads_df[["collection", "size", "color"]] = sales_df[
+                ["collection", "size", "color"]
+            ].astype("category")
+
         return sales_df, sessions_df, ads_df
     except Exception as e:
         st.error(f"Error while pulling BQ data: {e}")
@@ -376,7 +387,7 @@ def filtered_sales(
     sales_df = sales_df.sort_values("date", ascending=True)
 
     asin_sales = sales_df.copy()
-    asin_sales["date"] = pd.to_datetime(asin_sales["date"]).dt.date
+    # asin_sales["date"] = pd.to_datetime(asin_sales["date"]).dt.date
     asin_sales = asin_sales[asin_sales["date"].between(date_range[0], date_range[1])]
 
     asin_sales = (
@@ -395,9 +406,10 @@ def filtered_sales(
         .reset_index()
         .sort_values("net_sales", ascending=False)
     )
+
     asin_sales = pd.merge(
         asin_sales, asin_sessions, how="left", on="asin", validate="1:1"
-    ).fillna(0)
+    )#.fillna(0)
 
     asin_sales["sales_share"] = asin_sales["net_sales"] / asin_sales["net_sales"].sum()
 
@@ -424,8 +436,12 @@ def filtered_sales(
     ).fillna(0)
 
     combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
-    combined["30-day sales avg"] = combined["net_sales"].rolling(window=30).mean().round(1)
-    combined["30-day sessions avg"] = combined["sessions"].rolling(window=30).mean().round(1)
+    combined["30-day sales avg"] = (
+        combined["net_sales"].rolling(window=30).mean().round(1)
+    )
+    combined["30-day sessions avg"] = (
+        combined["sessions"].rolling(window=30).mean().round(1)
+    )
     combined["average selling price"] = combined["net_sales"] / combined["units"]
 
     combined_visible = combined.copy()
@@ -504,7 +520,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     else:
         df = df.reset_index().rename(columns={"index": "date"})
         df["date"] = pd.to_datetime(df["date"])
-    
+
     if "date" in ads_filtered.columns:
         ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
     else:
@@ -516,7 +532,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     stockout_raw = pd.to_numeric(df.get("stockout", 0)).fillna(0)
     stockout_frac = stockout_raw / 100.0 if stockout_raw.max() > 1 else stockout_raw
     stockout_y = -stockout_frac
-    
+
     # Create 3-row figure
     fig = make_subplots(
         rows=3,
@@ -525,9 +541,9 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         row_heights=[0.55, 0.2, 0.25],
         vertical_spacing=0.05,
         specs=[
-            [{"secondary_y": True}], 
+            [{"secondary_y": True}],
             [{"secondary_y": False}],
-            [{"secondary_y": True}]
+            [{"secondary_y": True}],
         ],
         # row_titles=["Sales Trends", "Stockout Trends", "Ad Campaigns"],
     )
@@ -580,7 +596,7 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
             secondary_y=False,
         )
         fig.data[-1].update(yaxis="y10")
-        
+
     # Inventory — its own overlaying right axis (yaxis11)
     if inv_column in df.columns:
         fig.add_trace(
@@ -613,28 +629,55 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     )
 
     # Row 3 traces for Ads
-    fig.add_trace(go.Bar(
-        x=ads_filtered["date"], y=ads_filtered["ad_spend"],
-        name="Ad Spend", marker=dict(color="red", opacity = 0.5)
-    ), row=3, col=1, secondary_y=False) # y4
+    fig.add_trace(
+        go.Bar(
+            x=ads_filtered["date"],
+            y=ads_filtered["ad_spend"],
+            name="Ad Spend",
+            marker=dict(color="red", opacity=0.5),
+        ),
+        row=3,
+        col=1,
+        secondary_y=False,
+    )  # y4
 
-    fig.add_trace(go.Scatter(
-        x=ads_filtered["date"], y=ads_filtered["clicks"],
-        name="Clicks", line=dict(dash="dot", color="purple")
-    ), row=3, col=1, secondary_y=True) # y5
-    
-    fig.add_trace(go.Scatter(
-        x=ads_filtered["date"], y=ads_filtered["total_units"],
-        name="Ad Units", line=dict(color="blue")
-    ), row=3, col=1, secondary_y=False) # y13
+    fig.add_trace(
+        go.Scatter(
+            x=ads_filtered["date"],
+            y=ads_filtered["clicks"],
+            name="Clicks",
+            line=dict(dash="dot", color="purple"),
+        ),
+        row=3,
+        col=1,
+        secondary_y=True,
+    )  # y5
+
+    fig.add_trace(
+        go.Scatter(
+            x=ads_filtered["date"],
+            y=ads_filtered["total_units"],
+            name="Ad Units",
+            line=dict(color="blue"),
+        ),
+        row=3,
+        col=1,
+        secondary_y=False,
+    )  # y13
     fig.data[-1].update(yaxis="y13")
-    
-    fig.add_trace(go.Scatter(
-        x=ads_filtered["date"], y=ads_filtered["impressions"],
-        name="Impressions", line=dict(dash="dot", color="gray")
-    ), row=3, col=1, secondary_y=False) # y12
-    fig.data[-1].update(yaxis="y12")
 
+    fig.add_trace(
+        go.Scatter(
+            x=ads_filtered["date"],
+            y=ads_filtered["impressions"],
+            name="Impressions",
+            line=dict(dash="dot", color="gray"),
+        ),
+        row=3,
+        col=1,
+        secondary_y=False,
+    )  # y12
+    fig.data[-1].update(yaxis="y12")
 
     # Optional annotations (kept in top row, anchored to units)
     if show_change_notes and "change_notes" in df.columns:
@@ -689,17 +732,14 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
     # Determine sensible stockout range
     min_stockout = float(stockout_y.min()) if len(stockout_y) > 0 else 0.0
     y3_min = min_stockout * 1.1 if min_stockout < 0 else -0.1
-    
+
     # --- Top Plot Axes ---
     layout_yaxis_main = dict(
-        title=None, 
-        position=0.12, 
-        zeroline=True,
-        tickfont=dict(color="blue", size=10)
+        title=None, position=0.12, zeroline=True, tickfont=dict(color="blue", size=10)
     )
-    
-    layout_yaxis10 = dict( # Sessions
-        title=None, 
+
+    layout_yaxis10 = dict(  # Sessions
+        title=None,
         overlaying="y",
         side="left",
         anchor="free",
@@ -707,11 +747,11 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         showgrid=False,
         zeroline=False,
         tickfont=dict(color="orange", size=10),
-        range=sess_range # <-- MOVED INSIDE
+        range=sess_range,  # <-- MOVED INSIDE
     )
-        
-    layout_yaxis2 = dict( # Price
-        title=None, 
+
+    layout_yaxis2 = dict(  # Price
+        title=None,
         overlaying="y",
         side="right",
         anchor="x",
@@ -719,11 +759,11 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         showgrid=False,
         zeroline=False,
         tickfont=dict(color="green", size=10),
-        range=price_range # <-- MOVED INSIDE
+        range=price_range,  # <-- MOVED INSIDE
     )
-        
-    layout_yaxis11 = dict( # Inventory
-        title=None, 
+
+    layout_yaxis11 = dict(  # Inventory
+        title=None,
         overlaying="y",
         side="right",
         anchor="x",
@@ -731,83 +771,79 @@ def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
         showgrid=False,
         zeroline=False,
         tickfont=dict(color="pink", size=10),
-        range=inv_range # <-- MOVED INSIDE
+        range=inv_range,  # <-- MOVED INSIDE
     )
     # --- END MODIFICATION ---
-        
+
     # --- Bottom Plot Axes ---
-    layout_yaxis12 = dict( # Impressions
-        title=None, 
+    layout_yaxis12 = dict(  # Impressions
+        title=None,
         overlaying="y4",
         side="right",
         anchor="x",
         position=0.985,
         showgrid=False,
         zeroline=False,
-        tickfont=dict(color="gray", size=10), 
-        domain=[0, 0.2]
+        tickfont=dict(color="gray", size=10),
+        domain=[0, 0.2],
     )
-    
-    layout_yaxis13 = dict( # Ad Units
-        title=None, 
+
+    layout_yaxis13 = dict(  # Ad Units
+        title=None,
         overlaying="y4",
         side="left",
         anchor="free",
         position=0.02,
         showgrid=False,
         zeroline=False,
-        tickfont=dict(color="blue", size=10), 
-        domain=[0, 0.2]
+        tickfont=dict(color="blue", size=10),
+        domain=[0, 0.2],
     )
 
     fig.update_layout(
         title_text="Sales, Stockout, and Ads Trends",
         legend=dict(orientation="v", x=1.02, y=1),
-        margin=dict(
-            l=180, r=180, t=80, b=60
-        ),
+        margin=dict(l=180, r=180, t=80, b=60),
         hovermode="x unified",
         yaxis=layout_yaxis_main,
         yaxis2=layout_yaxis2,
         yaxis10=layout_yaxis10,
         yaxis11=layout_yaxis11,
         yaxis12=layout_yaxis12,
-        yaxis13=layout_yaxis13
+        yaxis13=layout_yaxis13,
     )
-    
+
     # --- Update Y-Axes for Rows 1, 2, 3 ---
+    fig.update_yaxes(title_text=None, row=1, col=1, zeroline=True)
     fig.update_yaxes(
-        title_text=None, 
-        row=1, col=1, 
-        zeroline=True
-    )
-    fig.update_yaxes(
-        title_text=None, 
+        title_text=None,
         row=2,
         col=1,
         zeroline=True,
         showgrid=False,
         tickformat=".0%",
         range=[y3_min, 0],
-        tickfont=dict(color="red", size=10)
+        tickfont=dict(color="red", size=10),
     )
 
     fig.update_yaxes(
-        title_text=None, 
-        row=3, col=1, 
-        secondary_y=False, 
-        linecolor='red', 
-        tickfont=dict(color='red', size=10),
-        position=0.12
+        title_text=None,
+        row=3,
+        col=1,
+        secondary_y=False,
+        linecolor="red",
+        tickfont=dict(color="red", size=10),
+        position=0.12,
     )
     fig.update_yaxes(
-        title_text=None, 
-        row=3, col=1, 
-        secondary_y=True, 
-        linecolor='purple', 
-        tickfont=dict(color='purple', size=10),
+        title_text=None,
+        row=3,
+        col=1,
+        secondary_y=True,
+        linecolor="purple",
+        tickfont=dict(color="purple", size=10),
         showgrid=False,
-        position=0.88
+        position=0.88,
     )
 
     # Tweak x-axis appearance (shared)
@@ -826,20 +862,9 @@ if (
         and os.path.exists(sessions_tempfile)
         and os.path.exists(ads_tempfile)
     ):
-        st.session_state["sales"] = pd.read_csv(sales_tempfile, parse_dates=["date"])
-        st.session_state["sales"]["date"] = pd.to_datetime(
-            st.session_state["sales"]["date"]
-        ).dt.date
-        st.session_state["sessions"] = pd.read_csv(
-            sessions_tempfile, parse_dates=["date"]
-        )
-        st.session_state["sessions"]["date"] = pd.to_datetime(
-            st.session_state["sessions"]["date"]
-        ).dt.date
-        st.session_state["ads"] = pd.read_csv(ads_tempfile, parse_dates=["date"])
-        st.session_state["ads"]["date"] = pd.to_datetime(
-            st.session_state["ads"]["date"]
-        ).dt.date
+        st.session_state["sales"] = pd.read_parquet(sales_tempfile)
+        st.session_state["sessions"] = pd.read_parquet(sessions_tempfile)
+        st.session_state["ads"] = pd.read_parquet(ads_tempfile)
     else:
         (
             st.session_state["sales"],
@@ -847,11 +872,11 @@ if (
             st.session_state["ads"],
         ) = get_sales_data()
         if isinstance(st.session_state["sales"], pd.DataFrame):
-            st.session_state["sales"].to_csv(sales_tempfile, index=False)
+            st.session_state["sales"].to_parquet(sales_tempfile, index=False)
         if isinstance(st.session_state["sessions"], pd.DataFrame):
-            st.session_state["sessions"].to_csv(sessions_tempfile, index=False)
+            st.session_state["sessions"].to_parquet(sessions_tempfile, index=False)
         if isinstance(st.session_state["ads"], pd.DataFrame):
-            st.session_state["ads"].to_csv(ads_tempfile, index=False)
+            st.session_state["ads"].to_parquet(ads_tempfile, index=False)
 
 
 # if (
@@ -863,6 +888,8 @@ if (
 #         st.session_state["sales"].to_csv(sales_tempfile, index=False)
 #     if isinstance(st.session_state["sessions"], pd.DataFrame):
 #         st.session_state["sessions"].to_csv(sessions_tempfile, index=False)
+#     if isinstance(st.session_state["ads"], pd.DataFrame):
+#         st.session_state["sessions"].to_csv(ads_tempfile, index=False)
 
 sales = st.session_state["sales"].copy()
 sessions = st.session_state["sessions"].copy()
@@ -941,6 +968,7 @@ if sales is not None and sessions is not None and ads is not None:
             show_lds,
             available_inv,
         )
+
         # absolute numbers metrics
         total_units_this_year = combined["units"].sum()
         total_units_last_year = combined_previous["units"].sum()
@@ -991,13 +1019,36 @@ if sales is not None and sessions is not None and ads is not None:
         total_clicks_this_year = ads_visible["clicks"].sum()
         total_clicks_last_year = ads_previous["clicks"].sum()
 
-        avg_conversion_this_year = total_ad_units_this_year / total_clicks_this_year if total_clicks_this_year > 0 else 0
-        avg_conversion_last_year = total_ad_units_last_year / total_clicks_last_year if total_clicks_last_year > 0 else 0
-        avg_cpc_this_year = total_spend_this_year / total_clicks_this_year if total_clicks_this_year > 0 else 0
-        avg_cpc_last_year = total_spend_last_year / total_clicks_last_year if total_clicks_last_year > 0 else 0
-        avg_acos_this_year = total_spend_this_year / total_ad_dollars_this_year if total_ad_dollars_this_year > 0 else 0
-        avg_acos_last_year = total_spend_last_year / total_ad_dollars_last_year if total_ad_dollars_last_year > 0 else 0
-
+        avg_conversion_this_year = (
+            total_ad_units_this_year / total_clicks_this_year
+            if total_clicks_this_year > 0
+            else 0
+        )
+        avg_conversion_last_year = (
+            total_ad_units_last_year / total_clicks_last_year
+            if total_clicks_last_year > 0
+            else 0
+        )
+        avg_cpc_this_year = (
+            total_spend_this_year / total_clicks_this_year
+            if total_clicks_this_year > 0
+            else 0
+        )
+        avg_cpc_last_year = (
+            total_spend_last_year / total_clicks_last_year
+            if total_clicks_last_year > 0
+            else 0
+        )
+        avg_acos_this_year = (
+            total_spend_this_year / total_ad_dollars_this_year
+            if total_ad_dollars_this_year > 0
+            else 0
+        )
+        avg_acos_last_year = (
+            total_spend_last_year / total_ad_dollars_last_year
+            if total_ad_dollars_last_year > 0
+            else 0
+        )
 
         metric_text = (
             f"{min_period} - {max_period}"
@@ -1050,7 +1101,7 @@ if sales is not None and sessions is not None and ads is not None:
                 else f"{average_units_this_year:.3f}"
             ),
             delta=f"{average_units_this_year / average_units_last_year -1:.1%} {yoy_text}",
-            chart_data = combined['30-day avg'],
+            chart_data=combined["30-day avg"],
             help=(
                 f"{metric_text}: {average_units_last_year:,.1f}"
                 if average_units_last_year > 1
@@ -1061,14 +1112,14 @@ if sales is not None and sessions is not None and ads is not None:
             label="Avg sales/day",
             value=f"${average_dollars_this_year:,.0f}",
             delta=f"{average_dollars_this_year / average_dollars_last_year -1:.1%} {yoy_text}",
-            chart_data = combined['30-day sales avg'],
+            chart_data=combined["30-day sales avg"],
             help=f"{metric_text}: ${average_dollars_last_year:,.0f}",
         )
         avg_sessions_metric.metric(
             label="Avg sessions/day",
             value=f"{average_sessions_this_year:,.0f}",
             delta=f"{average_sessions_this_year / average_sessions_last_year -1:.1%} {yoy_text}",
-            chart_data = combined['30-day sessions avg'],
+            chart_data=combined["30-day sessions avg"],
             help=f"{metric_text}: {average_sessions_last_year:,.0f}",
         )
 
@@ -1121,7 +1172,6 @@ if sales is not None and sessions is not None and ads is not None:
             help=f"{metric_text}: {avg_acos_last_year:.1%}",
         )
 
-
         num_top_sellers = df_top_sellers.number_input(
             "Select top n sellers", min_value=2, max_value=10000, value=10, width=150
         )
@@ -1164,15 +1214,3 @@ if sales is not None and sessions is not None and ads is not None:
 
 else:
     st.warning("No data available.")
-# column_config={
-# >>>         "command": "Streamlit Command",
-# >>>         "rating": st.column_config.NumberColumn(
-# >>>             "Your rating",
-# >>>             help="How much do you like this command (1-5)?",
-# >>>             min_value=1,
-# >>>             max_value=5,
-# >>>             step=1,
-# >>>             format="%d ⭐",
-# >>>         ),
-# >>>         "is_widget": "Widget ?",
-# >>>     },
