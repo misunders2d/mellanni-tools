@@ -1167,12 +1167,14 @@ if sales is not None and sessions is not None and ads is not None:
             label="Avg CPC",
             value=f"${avg_cpc_this_year:.2f}",
             delta=f"{avg_cpc_this_year / avg_cpc_last_year -1:.1%} {yoy_text}",
+            delta_color="inverse",
             help=f"{metric_text}: ${avg_cpc_last_year:.2f}",
         )
         ad_acos_metric.metric(
             label="Avg ACoS",
             value=f"{avg_acos_this_year:.1%}",
             delta=f"{avg_acos_this_year / avg_acos_last_year -1:.1%} {yoy_text}",
+            delta_color="inverse",
             help=f"{metric_text}: {avg_acos_last_year:.1%}",
         )
 
