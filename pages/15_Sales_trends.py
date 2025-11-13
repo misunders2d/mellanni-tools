@@ -298,15 +298,15 @@ def get_sales_data(
             sessions_df = session_job.to_dataframe()
             ads_df = ads_job.to_dataframe()
 
-            sales_df[["collection", "size", "color"]] = sales_df[
-                ["collection", "size", "color"]
-            ].astype("category")
-            sessions_df[["collection", "size", "color"]] = sales_df[
-                ["collection", "size", "color"]
-            ].astype("category")
-            ads_df[["collection", "size", "color"]] = sales_df[
-                ["collection", "size", "color"]
-            ].astype("category")
+            # sales_df[["collection", "size", "color"]] = sales_df[
+            #     ["collection", "size", "color"]
+            # ].astype("category")
+            # sessions_df[["collection", "size", "color"]] = sales_df[
+            #     ["collection", "size", "color"]
+            # ].astype("category")
+            # ads_df[["collection", "size", "color"]] = sales_df[
+            #     ["collection", "size", "color"]
+            # ].astype("category")
 
         return sales_df, sessions_df, ads_df
     except Exception as e:
@@ -409,7 +409,8 @@ def filtered_sales(
 
     asin_sales = pd.merge(
         asin_sales, asin_sessions, how="left", on="asin", validate="1:1"
-    )#.fillna(0)
+    )
+    # asin_sales['sessions'] = asin_sales['sessions'].fillna(0)
 
     asin_sales["sales_share"] = asin_sales["net_sales"] / asin_sales["net_sales"].sum()
 
@@ -892,8 +893,11 @@ if (
 #         st.session_state["sessions"].to_csv(ads_tempfile, index=False)
 
 sales = st.session_state["sales"].copy()
+# sales['date'] = pd.to_datetime(sales['date']).dt.date
 sessions = st.session_state["sessions"].copy()
+# sessions['date'] = pd.to_datetime(sessions['date']).dt.date
 ads = st.session_state["ads"].copy()
+# ads['date'] = pd.to_datetime(ads['date']).dt.date
 
 if sales is not None and sessions is not None and ads is not None:
     collections = sales["collection"].unique()
@@ -1214,3 +1218,23 @@ if sales is not None and sessions is not None and ads is not None:
 
 else:
     st.warning("No data available.")
+
+
+def clear_data():
+    if "sales" in st.session_state:
+        del st.session_state["sales"]
+    if "sessions" in st.session_state:
+        del st.session_state["sessions"]
+    if "ads" in st.session_state:
+        del st.session_state["ads"]
+    if os.path.exists(sales_tempfile):
+        os.remove(sales_tempfile)
+    if os.path.exists(sessions_tempfile):
+        os.remove(sessions_tempfile)
+    if os.path.exists(ads_tempfile):
+        os.remove(ads_tempfile)
+    st.cache_data.clear()
+
+if st.button("Refresh data", help = "Clears cached data and pulls fresh data from source. Takes longer to load."):
+    clear_data()
+    st.rerun()
