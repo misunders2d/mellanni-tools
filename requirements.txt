@@ -44,3 +44,4 @@ streamlit
 streamlit-oauth
 urllib3
 XlsxWriter
+streamlit-echarts

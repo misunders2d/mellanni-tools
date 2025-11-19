@@ -3,13 +3,13 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
+
 
 from dateutil.relativedelta import relativedelta
 
 from login import require_login
 from modules.events import event_dates_list
+from modules.sales_charts import render_sales_chart
 
 import os
 
@@ -314,6 +314,7 @@ def get_sales_data(
         return (None, None, None)
 
 
+# @st.cache_data(ttl=3600, show_spinner="Filtering data...")
 def filtered_sales(
     sales_df: pd.DataFrame,
     sessions_df: pd.DataFrame,
@@ -322,6 +323,7 @@ def filtered_sales(
     sel_size,
     sel_color,
     available_inv,
+    include_events,
     date_range,
     periods,
 ):
@@ -487,6 +489,22 @@ def filtered_sales(
     ].astype(
         float
     )
+
+    # Apply event filtering as NULLs (gaps) instead of removing rows
+    # Logic reverted: filtered_sales now removes rows for correct metrics.
+    # Gaps are created by reindexing below.
+    # if not include_events:
+    #     mask = combined_visible["date"].isin(event_dates_list)
+    #     cols_to_null = ["units", "sessions", "net_sales", "stockout", "available", "inventory_supply_at_fba"]
+    #     combined_visible.loc[mask, cols_to_null] = None
+        
+    #     # Also apply to ads_visible
+    #     mask_ads = ads_visible["date"].isin(event_dates_list)
+    #     cols_to_null_ads = ["ad_spend", "total_sales", "impressions", "clicks"]
+    #     # Ensure columns exist before assigning
+    #     cols_existing = [c for c in cols_to_null_ads if c in ads_visible.columns]
+    #     if cols_existing:
+    #         ads_visible.loc[mask_ads, cols_existing] = None
     # Set 'date' as the index, reindex to the full date range, and then reset index
     combined_visible = (
         combined_visible.set_index("date")
@@ -513,344 +531,7 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
     return asin_sales
 
 
-def create_plot(df, ads_filtered, show_change_notes, show_lds, available=True):
-    # Defensive copy and basic normalization
-    df = df.copy()
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"])
-    else:
-        df = df.reset_index().rename(columns={"index": "date"})
-        df["date"] = pd.to_datetime(df["date"])
 
-    if "date" in ads_filtered.columns:
-        ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
-    else:
-        ads_filtered = ads_filtered.reset_index().rename(columns={"index": "date"})
-        ads_filtered["date"] = pd.to_datetime(ads_filtered["date"])
-
-    inv_column = "available" if available else "inventory_supply_at_fba"
-    # Prepare stockout values as fraction (0.15) and negate for plotting below zero
-    stockout_raw = pd.to_numeric(df.get("stockout", 0)).fillna(0)
-    stockout_frac = stockout_raw / 100.0 if stockout_raw.max() > 1 else stockout_raw
-    stockout_y = -stockout_frac
-
-    # Create 3-row figure
-    fig = make_subplots(
-        rows=3,
-        cols=1,
-        shared_xaxes=True,
-        row_heights=[0.55, 0.2, 0.25],
-        vertical_spacing=0.05,
-        specs=[
-            [{"secondary_y": True}],
-            [{"secondary_y": False}],
-            [{"secondary_y": True}],
-        ],
-        # row_titles=["Sales Trends", "Stockout Trends", "Ad Campaigns"],
-    )
-
-    # Top row traces (primary left y for units, 30-day avg; secondary right y for price)
-    fig.add_trace(
-        go.Scatter(x=df["date"], y=df["units"], name="units", line=dict(color="blue")),
-        row=1,
-        col=1,
-        secondary_y=False,
-    )
-    if "30-day avg" in df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df["30-day avg"],
-                name="30-day avg",
-                line=dict(dash="dash", color="lightblue"),
-            ),
-            row=1,
-            col=1,
-            secondary_y=False,
-        )
-    # Price — attach to the built-in secondary y (yaxis2)
-    if "average selling price" in df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df["average selling price"],
-                name="avg price",
-                line=dict(dash="dot", color="green"),
-                hovertemplate="%{y:$,.2f}<extra></extra>",
-            ),
-            row=1,
-            col=1,
-            secondary_y=True,
-        )
-        fig.data[-1].update(yaxis="y2")
-    # Sessions — put on its own left-side axis (yaxis10)
-    if "sessions" in df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df["sessions"],
-                name="sessions",
-                line=dict(dash="dot", color="orange"),
-            ),
-            row=1,
-            col=1,
-            secondary_y=False,
-        )
-        fig.data[-1].update(yaxis="y10")
-
-    # Inventory — its own overlaying right axis (yaxis11)
-    if inv_column in df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df[inv_column],
-                name="amz inventory available" if available else "amz inventory total",
-                line=dict(dash="dot", color="pink"),
-            ),
-            row=1,
-            col=1,
-            secondary_y=False,
-        )
-        fig.data[-1].update(yaxis="y11")
-
-    # Bottom row: stockout as negative filled area to zero (isolated axis with negative ticks)
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=stockout_y,
-            name="stockout",
-            fill="tozeroy",
-            fillcolor="rgba(255,0,0,0.25)",
-            line=dict(width=0),
-            hovertemplate="%{y:.1%}<extra></extra>",
-            showlegend=True,
-        ),
-        row=2,
-        col=1,
-    )
-
-    # Row 3 traces for Ads
-    fig.add_trace(
-        go.Bar(
-            x=ads_filtered["date"],
-            y=ads_filtered["ad_spend"],
-            name="Ad Spend",
-            marker=dict(color="red", opacity=0.5),
-        ),
-        row=3,
-        col=1,
-        secondary_y=False,
-    )  # y4
-
-    fig.add_trace(
-        go.Scatter(
-            x=ads_filtered["date"],
-            y=ads_filtered["clicks"],
-            name="Clicks",
-            line=dict(dash="dot", color="purple"),
-        ),
-        row=3,
-        col=1,
-        secondary_y=True,
-    )  # y5
-
-    fig.add_trace(
-        go.Scatter(
-            x=ads_filtered["date"],
-            y=ads_filtered["total_units"],
-            name="Ad Units",
-            line=dict(color="blue"),
-        ),
-        row=3,
-        col=1,
-        secondary_y=False,
-    )  # y13
-    fig.data[-1].update(yaxis="y13")
-
-    fig.add_trace(
-        go.Scatter(
-            x=ads_filtered["date"],
-            y=ads_filtered["impressions"],
-            name="Impressions",
-            line=dict(dash="dot", color="gray"),
-        ),
-        row=3,
-        col=1,
-        secondary_y=False,
-    )  # y12
-    fig.data[-1].update(yaxis="y12")
-
-    # Optional annotations (kept in top row, anchored to units)
-    if show_change_notes and "change_notes" in df.columns:
-        for _, row in df.iterrows():
-            txt = row.get("change_notes")
-            if not pd.isna(txt) and txt != "":
-                if not show_lds and (
-                    str(txt).startswith("LD") or str(txt).startswith("BD")
-                ):
-                    continue
-                fig.add_annotation(
-                    x=row["date"],
-                    y=row.get("units", 0),
-                    text="change",
-                    hovertext=str(txt),
-                    showarrow=True,
-                    arrowhead=1,
-                    ax=0,
-                    ay=-40,
-                    row=1,
-                    col=1,
-                )
-
-    # Compute safe ranges for axes to avoid squashing:
-    if "average selling price" in df.columns:
-        price_min = float(df["average selling price"].min())
-        price_max = float(df["average selling price"].max())
-        if price_min == price_max:
-            price_min -= max(1.0, abs(price_min) * 0.05)
-            price_max += max(1.0, abs(price_max) * 0.05)
-        price_range = [price_min * 0.98, price_max * 1.02]
-    else:
-        price_range = None
-    if "sessions" in df.columns:
-        sess_min = float(df["sessions"].min())
-        sess_max = float(df["sessions"].max())
-        if sess_min == sess_max:
-            sess_min = 0
-            sess_max = sess_max + max(1.0, abs(sess_max) * 0.05)
-        sess_range = [sess_min * 0.98, sess_max * 1.02]
-    else:
-        sess_range = None
-    if inv_column in df.columns:
-        inv_min = float(df[inv_column].min())
-        inv_max = float(df[inv_column].max())
-        if inv_min == inv_max:
-            inv_min = 0
-            inv_max = inv_max + max(1.0, abs(inv_max) * 0.05)
-        inv_range = [inv_min * 0.98, inv_max * 1.02]
-    else:
-        inv_range = None
-    # Determine sensible stockout range
-    min_stockout = float(stockout_y.min()) if len(stockout_y) > 0 else 0.0
-    y3_min = min_stockout * 1.1 if min_stockout < 0 else -0.1
-
-    # --- Top Plot Axes ---
-    layout_yaxis_main = dict(
-        title=None, position=0.12, zeroline=True, tickfont=dict(color="blue", size=10)
-    )
-
-    layout_yaxis10 = dict(  # Sessions
-        title=None,
-        overlaying="y",
-        side="left",
-        anchor="free",
-        position=0.02,
-        showgrid=False,
-        zeroline=False,
-        tickfont=dict(color="orange", size=10),
-        range=sess_range,  # <-- MOVED INSIDE
-    )
-
-    layout_yaxis2 = dict(  # Price
-        title=None,
-        overlaying="y",
-        side="right",
-        anchor="x",
-        position=0.88,
-        showgrid=False,
-        zeroline=False,
-        tickfont=dict(color="green", size=10),
-        range=price_range,  # <-- MOVED INSIDE
-    )
-
-    layout_yaxis11 = dict(  # Inventory
-        title=None,
-        overlaying="y",
-        side="right",
-        anchor="x",
-        position=0.985,
-        showgrid=False,
-        zeroline=False,
-        tickfont=dict(color="pink", size=10),
-        range=inv_range,  # <-- MOVED INSIDE
-    )
-    # --- END MODIFICATION ---
-
-    # --- Bottom Plot Axes ---
-    layout_yaxis12 = dict(  # Impressions
-        title=None,
-        overlaying="y4",
-        side="right",
-        anchor="x",
-        position=0.985,
-        showgrid=False,
-        zeroline=False,
-        tickfont=dict(color="gray", size=10),
-        domain=[0, 0.2],
-    )
-
-    layout_yaxis13 = dict(  # Ad Units
-        title=None,
-        overlaying="y4",
-        side="left",
-        anchor="free",
-        position=0.02,
-        showgrid=False,
-        zeroline=False,
-        tickfont=dict(color="blue", size=10),
-        domain=[0, 0.2],
-    )
-
-    fig.update_layout(
-        title_text="Sales, Stockout, and Ads Trends",
-        legend=dict(orientation="v", x=1.02, y=1),
-        margin=dict(l=180, r=180, t=80, b=60),
-        hovermode="x unified",
-        yaxis=layout_yaxis_main,
-        yaxis2=layout_yaxis2,
-        yaxis10=layout_yaxis10,
-        yaxis11=layout_yaxis11,
-        yaxis12=layout_yaxis12,
-        yaxis13=layout_yaxis13,
-    )
-
-    # --- Update Y-Axes for Rows 1, 2, 3 ---
-    fig.update_yaxes(title_text=None, row=1, col=1, zeroline=True)
-    fig.update_yaxes(
-        title_text=None,
-        row=2,
-        col=1,
-        zeroline=True,
-        showgrid=False,
-        tickformat=".0%",
-        range=[y3_min, 0],
-        tickfont=dict(color="red", size=10),
-    )
-
-    fig.update_yaxes(
-        title_text=None,
-        row=3,
-        col=1,
-        secondary_y=False,
-        linecolor="red",
-        tickfont=dict(color="red", size=10),
-        position=0.12,
-    )
-    fig.update_yaxes(
-        title_text=None,
-        row=3,
-        col=1,
-        secondary_y=True,
-        linecolor="purple",
-        tickfont=dict(color="purple", size=10),
-        showgrid=False,
-        position=0.88,
-    )
-
-    # Tweak x-axis appearance (shared)
-    fig.update_xaxes(showspikes=True, spikecolor="grey", spikesnap="cursor")
-    # Render
-    plot_area.plotly_chart(fig, use_container_width=True)
 
 
 if (
@@ -960,18 +641,20 @@ if sales is not None and sessions is not None and ads is not None:
         sel_size,
         sel_color,
         available_inv,
+        include_events,
         date_range,
         periods,
     )
 
     if not combined.empty:
-        create_plot(
-            combined.copy(),
-            ads_visible.copy(),
-            show_change_notes,
-            show_lds,
-            available_inv,
-        )
+        with plot_area:
+            render_sales_chart(
+                combined.copy(), 
+                ads_visible.copy(),
+                show_change_notes=show_change_notes,
+                show_lds=show_lds,
+                available_inv=available_inv
+            )
 
         # absolute numbers metrics
         total_units_this_year = combined["units"].sum()
