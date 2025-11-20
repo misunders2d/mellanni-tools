@@ -4,7 +4,6 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 
 
-
 from dateutil.relativedelta import relativedelta
 
 from login import require_login
@@ -83,7 +82,9 @@ df_area_container = st.container()
 df_text, df_top_sellers = df_area_container.columns([1, 10])
 
 
-@st.cache_data(ttl=3600, show_spinner="Please wait, pulling sales data from BigQuery...")
+@st.cache_data(
+    ttl=3600, show_spinner="Please wait, pulling sales data from BigQuery..."
+)
 def get_sales_data(
     interval: str = "3 YEAR",
 ) -> tuple[pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
@@ -497,7 +498,7 @@ def filtered_sales(
     #     mask = combined_visible["date"].isin(event_dates_list)
     #     cols_to_null = ["units", "sessions", "net_sales", "stockout", "available", "inventory_supply_at_fba"]
     #     combined_visible.loc[mask, cols_to_null] = None
-        
+
     #     # Also apply to ads_visible
     #     mask_ads = ads_visible["date"].isin(event_dates_list)
     #     cols_to_null_ads = ["ad_spend", "total_sales", "impressions", "clicks"]
@@ -529,9 +530,6 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
     totals_asins = asin_sales.sum(numeric_only=True, axis=0)
     asin_sales = pd.concat([asin_sales, pd.DataFrame(totals_asins).T])
     return asin_sales
-
-
-
 
 
 if (
@@ -649,11 +647,11 @@ if sales is not None and sessions is not None and ads is not None:
     if not combined.empty:
         with plot_area:
             render_sales_chart(
-                combined.copy(), 
+                combined.copy(),
                 ads_visible.copy(),
                 show_change_notes=show_change_notes,
                 show_lds=show_lds,
-                available_inv=available_inv
+                available_inv=available_inv,
             )
 
         # absolute numbers metrics
@@ -920,6 +918,10 @@ def clear_data():
         os.remove(ads_tempfile)
     st.cache_data.clear()
 
-if st.button("Refresh data", help = "Clears cached data and pulls fresh data from source. Takes longer to load."):
+
+if st.button(
+    "Refresh data",
+    help="Clears cached data and pulls fresh data from source. Takes longer to load.",
+):
     clear_data()
     st.rerun()
