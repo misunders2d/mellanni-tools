@@ -83,7 +83,9 @@ df_text, df_top_sellers = df_area_container.columns([1, 10])
 
 
 @st.cache_data(
-    ttl=3600, show_spinner="Please wait, pulling sales data from BigQuery..."
+    ttl=3600,
+    show_spinner="Please wait, pulling sales data from BigQuery...",
+    max_entries=3,
 )
 def get_sales_data(
     interval: str = "3 YEAR",
@@ -341,6 +343,16 @@ def filtered_sales(
             prev_end = date_range[1] - relativedelta(years=1)
 
     inv_column = "available" if available_inv else "inventory_supply_at_fba"
+
+    sales_df = sales_df[
+        sales_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
+    ]
+    sessions_df = sessions_df[
+        sessions_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
+    ]
+    ads_df = ads_df[
+        ads_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
+    ]
 
     if sel_collection:
         sales_df = sales_df[sales_df["collection"].isin(sel_collection)]
