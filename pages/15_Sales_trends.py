@@ -7,7 +7,7 @@ from google.oauth2 import service_account
 from dateutil.relativedelta import relativedelta
 
 from login import require_login
-from modules.events import event_dates_list
+from common.events import event_dates_list
 from modules.sales_charts import render_sales_chart
 
 import os

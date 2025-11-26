@@ -45,3 +45,5 @@ streamlit-oauth
 urllib3
 XlsxWriter
 streamlit-echarts
+
+git+https://github.com/misunders2d/helper-modules.git@master
