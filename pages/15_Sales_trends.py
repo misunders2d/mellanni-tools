@@ -82,11 +82,11 @@ df_area_container = st.container()
 df_text, df_top_sellers = df_area_container.columns([1, 10])
 
 
-@st.cache_data(
-    ttl=3600,
-    show_spinner="Please wait, pulling sales data from BigQuery...",
-    max_entries=3,
-)
+# @st.cache_data(
+#     ttl=3600,
+#     show_spinner="Please wait, pulling sales data from BigQuery...",
+#     max_entries=3,
+# )
 def get_sales_data(
     interval: str = "3 YEAR",
 ) -> tuple[pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
@@ -928,7 +928,7 @@ def clear_data():
         os.remove(sessions_tempfile)
     if os.path.exists(ads_tempfile):
         os.remove(ads_tempfile)
-    st.cache_data.clear()
+    # st.cache_data.clear()
 
 
 if st.button(
