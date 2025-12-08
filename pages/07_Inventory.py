@@ -381,7 +381,27 @@ if st.user.email in (
 ):
     # @st.cache_data
     def download_inv_report(inv_date, market):
-        query = f'''SELECT * FROM `reports.fba_inventory_planning` WHERE DATE(snapshot_date)=DATE("{inv_date}") AND marketplace="{market}"'''
+        # query = f'''SELECT * FROM `reports.fba_inventory_planning` WHERE DATE(snapshot_date)=DATE("{inv_date}") AND marketplace="{market}"'''
+        query = f"""
+            SELECT *
+            FROM (
+            SELECT 
+                *,
+                ROW_NUMBER() OVER (
+                PARTITION BY marketplace, sku 
+                ORDER BY snapshot_date DESC
+                ) AS rn
+            FROM 
+                `mellanni-project-da.reports.fba_inventory_planning`
+            WHERE 
+                DATE(snapshot_date) >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
+                AND marketplace = '{market}'  -- Replace with your marketplace, e.g., 'US'
+            )
+            WHERE 
+            rn = 1  -- Keeps only the latest row per SKU/marketplace in the 3-day window
+            ORDER BY 
+            sku, snapshot_date DESC;  -- Optional: Sort by SKU and recency        
+        """
         if "WM" in market:
             if market == "WM":
                 query = f"""SELECT sku, shipNode, 
