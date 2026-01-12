@@ -1,7 +1,6 @@
 import streamlit as st
-from streamlit_echarts import st_echarts, JsCode
+from streamlit_echarts import st_echarts
 import pandas as pd
-from datetime import datetime
 
 
 def render_sales_chart(

@@ -937,8 +937,11 @@ def clear_data():
         os.remove(sessions_tempfile)
     if os.path.exists(ads_tempfile):
         os.remove(ads_tempfile)
-    # st.cache_data.clear()
+    if os.path.exists(forecast_tempfile) and wipe_forecast:
+        os.remove(forecast_tempfile)
 
+if st.user.email in ("2djohar@gmail.com","sergey@mellanni.com"):
+    wipe_forecast = st.checkbox("Wipe forecast data cache", value=False)
 
 if st.button(
     "Refresh data",
