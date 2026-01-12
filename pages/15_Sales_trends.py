@@ -1,4 +1,5 @@
 import streamlit as st
+from numpy import nan
 import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
@@ -16,6 +17,7 @@ os.makedirs("temp", exist_ok=True)
 sales_tempfile = os.path.join("temp", "sales.parquet")
 sessions_tempfile = os.path.join("temp", "sessions.parquet")
 ads_tempfile = os.path.join("temp", "ads.parquet")
+forecast_tempfile = os.path.join("temp", "forecast.parquet")
 
 st.set_page_config(
     page_title="Sales history", page_icon="media/logo.ico", layout="wide"
@@ -89,7 +91,7 @@ df_text, df_top_sellers = df_area_container.columns([1, 10])
 # )
 def get_sales_data(
     interval: str = "3 YEAR",
-) -> tuple[pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
+) -> tuple[pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
     sales_query = f"""
             WITH sales AS (
             SELECT
@@ -286,9 +288,9 @@ def get_sales_data(
             LEFT JOIN deduped_dict d
             ON COALESCE(a.asin, p.asin) = d.asin
             ORDER BY date ASC, asin;    
-
     """
 
+    forecast_query = "SELECT date, asin, units as forecast_units FROM mellanni-project-da.daily_reports.forecast ORDER BY date, asin"
     try:
         with bigquery.Client(
             credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id
@@ -296,10 +298,12 @@ def get_sales_data(
             sales_job = client.query(sales_query)
             session_job = client.query(sessions_query)
             ads_job = client.query(ads_query)
+            forecast_job = client.query(forecast_query)
 
             sales_df = sales_job.to_dataframe()
             sessions_df = session_job.to_dataframe()
             ads_df = ads_job.to_dataframe()
+            forecast_df = forecast_job.to_dataframe()
 
             # sales_df[["collection", "size", "color"]] = sales_df[
             #     ["collection", "size", "color"]
@@ -311,10 +315,10 @@ def get_sales_data(
             #     ["collection", "size", "color"]
             # ].astype("category")
 
-        return sales_df, sessions_df, ads_df
+        return sales_df, sessions_df, ads_df, forecast_df
     except Exception as e:
         st.error(f"Error while pulling BQ data: {e}")
-        return (None, None, None)
+        return (None, None, None, None)
 
 
 # @st.cache_data(ttl=3600, show_spinner="Filtering data...")
@@ -322,6 +326,7 @@ def filtered_sales(
     sales_df: pd.DataFrame,
     sessions_df: pd.DataFrame,
     ads_df: pd.DataFrame,
+    forecast_df: pd.DataFrame,
     sel_collection,
     sel_size,
     sel_color,
@@ -372,6 +377,10 @@ def filtered_sales(
         sessions_df = sessions_df[~sessions_df["date"].isin(event_dates_list)]
         ads_df = ads_df[~ads_df["date"].isin(event_dates_list)]
 
+    # merge sales_df with forecast_df
+    forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.date
+    sales_df = pd.merge(sales_df, forecast_df, how="left", on=["date", "asin"], validate="1:1")
+
     asin_sessions = sessions_df.groupby("asin").agg({"sessions": "sum"}).reset_index()
     date_sessions = sessions_df.groupby("date").agg({"sessions": "sum"}).reset_index()
 
@@ -413,6 +422,7 @@ def filtered_sales(
                 "size": "first",
                 "color": "first",
                 "units": "sum",
+                "forecast_units": "sum",
                 "net_sales": "sum",
                 "available": "last",
                 "inventory_supply_at_fba": "last",
@@ -435,6 +445,7 @@ def filtered_sales(
         .agg(
             {
                 "units": "sum",
+                "forecast_units": "sum",
                 "net_sales": "sum",
                 "available": "sum",
                 "inventory_supply_at_fba": "sum",
@@ -476,6 +487,7 @@ def filtered_sales(
     combined_visible[
         [
             "units",
+            "forecast_units",
             "net_sales",
             "available",
             "inventory_supply_at_fba",
@@ -489,6 +501,7 @@ def filtered_sales(
     ] = combined_visible[
         [
             "units",
+            "forecast_units",
             "net_sales",
             "available",
             "inventory_supply_at_fba",
@@ -548,20 +561,24 @@ if (
     "sales" not in st.session_state
     or "sessions" not in st.session_state
     or "ads" not in st.session_state
+    or "forecast" not in st.session_state
 ):
     if (
         os.path.exists(sales_tempfile)
         and os.path.exists(sessions_tempfile)
         and os.path.exists(ads_tempfile)
+        and os.path.exists(forecast_tempfile)
     ):
         st.session_state["sales"] = pd.read_parquet(sales_tempfile)
         st.session_state["sessions"] = pd.read_parquet(sessions_tempfile)
         st.session_state["ads"] = pd.read_parquet(ads_tempfile)
+        st.session_state["forecast"] = pd.read_parquet(forecast_tempfile)
     else:
         (
             st.session_state["sales"],
             st.session_state["sessions"],
             st.session_state["ads"],
+            st.session_state["forecast"],
         ) = get_sales_data()
         if isinstance(st.session_state["sales"], pd.DataFrame):
             st.session_state["sales"].to_parquet(sales_tempfile, index=False)
@@ -569,19 +586,9 @@ if (
             st.session_state["sessions"].to_parquet(sessions_tempfile, index=False)
         if isinstance(st.session_state["ads"], pd.DataFrame):
             st.session_state["ads"].to_parquet(ads_tempfile, index=False)
+        if isinstance(st.session_state["forecast"], pd.DataFrame):
+            st.session_state["forecast"].to_parquet(forecast_tempfile, index=False)
 
-
-# if (
-#     st.session_state["sales"]["date"].max()
-#     < (pd.to_datetime("today") - pd.Timedelta(days=1)).date()
-# ):
-#     st.session_state["sales"], st.session_state["sessions"] = get_sales_data()
-#     if isinstance(st.session_state["sales"], pd.DataFrame):
-#         st.session_state["sales"].to_csv(sales_tempfile, index=False)
-#     if isinstance(st.session_state["sessions"], pd.DataFrame):
-#         st.session_state["sessions"].to_csv(sessions_tempfile, index=False)
-#     if isinstance(st.session_state["ads"], pd.DataFrame):
-#         st.session_state["sessions"].to_csv(ads_tempfile, index=False)
 
 sales = st.session_state["sales"].copy()
 # sales['date'] = pd.to_datetime(sales['date']).dt.date
@@ -589,8 +596,9 @@ sessions = st.session_state["sessions"].copy()
 # sessions['date'] = pd.to_datetime(sessions['date']).dt.date
 ads = st.session_state["ads"].copy()
 # ads['date'] = pd.to_datetime(ads['date']).dt.date
+forecast = st.session_state["forecast"].copy()
 
-if sales is not None and sessions is not None and ads is not None:
+if sales is not None and sessions is not None and ads is not None and forecast is not None:
     collections = sales["collection"].unique()
     sizes = sales["size"].unique()
     colors = sales["color"].unique()
@@ -647,6 +655,7 @@ if sales is not None and sessions is not None and ads is not None:
         sales.copy(),
         sessions.copy(),
         ads.copy(),
+        forecast.copy(),
         sel_collection,
         sel_size,
         sel_color,
@@ -719,32 +728,32 @@ if sales is not None and sessions is not None and ads is not None:
         avg_conversion_this_year = (
             total_ad_units_this_year / total_clicks_this_year
             if total_clicks_this_year > 0
-            else 0
+            else nan
         )
         avg_conversion_last_year = (
             total_ad_units_last_year / total_clicks_last_year
             if total_clicks_last_year > 0
-            else 0
+            else nan
         )
         avg_cpc_this_year = (
             total_spend_this_year / total_clicks_this_year
             if total_clicks_this_year > 0
-            else 0
+            else nan
         )
         avg_cpc_last_year = (
             total_spend_last_year / total_clicks_last_year
             if total_clicks_last_year > 0
-            else 0
+            else nan
         )
         avg_acos_this_year = (
             total_spend_this_year / total_ad_dollars_this_year
             if total_ad_dollars_this_year > 0
-            else 0
+            else nan
         )
         avg_acos_last_year = (
             total_spend_last_year / total_ad_dollars_last_year
             if total_ad_dollars_last_year > 0
-            else 0
+            else nan
         )
 
         metric_text = (

@@ -31,6 +31,7 @@ def render_sales_chart(
     # MUST convert NaN to None for JSON serialization
     # Rounding: Units/Sessions are integers (0 decimals)
     units = [int(round(x)) if pd.notna(x) else None for x in df["units"].tolist()]
+    forecast_units = [int(round(x)) if pd.notna(x) else None for x in df["forecast_units"].tolist()]
     sessions = [int(round(x)) if pd.notna(x) else None for x in df["sessions"].tolist()]
     avg_units = [
         int(round(x)) if pd.notna(x) else None for x in df["30-day avg"].tolist()
@@ -155,6 +156,7 @@ def render_sales_chart(
         "legend": {
             "data": [
                 "Units",
+                "Unit forecast",
                 "30-day avg",
                 "Sessions",
                 "Inventory",
@@ -319,6 +321,16 @@ def render_sales_chart(
                     "symbolSize": 30,
                     "label": {"show": True, "formatter": "!"},
                 },
+            },
+            {
+                "name": "Unit forecast",
+                "type": "line",
+                "lineStyle": {"type": "dotted", "opacity": 0.5},
+                "xAxisIndex": 0,
+                "yAxisIndex": 0,
+                "data": forecast_units,
+                "itemStyle": {"color": "#f2ff00"},
+                "emphasis": {"focus": "series"},
             },
             {
                 "name": "30-day avg",
