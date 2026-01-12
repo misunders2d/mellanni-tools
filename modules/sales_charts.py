@@ -326,11 +326,11 @@ def render_sales_chart(
             {
                 "name": "Unit forecast",
                 "type": "line",
-                "lineStyle": {"type": "dotted", "opacity": 0.5},
+                "lineStyle": {"type": "dash", "opacity": 0.5},
                 "xAxisIndex": 0,
                 "yAxisIndex": 0,
                 "data": forecast_units,
-                "itemStyle": {"color": "#f2ff00"},
+                "itemStyle": {"color": "#ff00d4"},
                 "emphasis": {"focus": "series"},
             },
             {
