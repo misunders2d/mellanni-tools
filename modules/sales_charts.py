@@ -30,7 +30,9 @@ def render_sales_chart(
     # MUST convert NaN to None for JSON serialization
     # Rounding: Units/Sessions are integers (0 decimals)
     units = [int(round(x)) if pd.notna(x) else None for x in df["units"].tolist()]
-    forecast_units = [int(round(x)) if pd.notna(x) else None for x in df["forecast_units"].tolist()]
+    forecast_units = [
+        int(round(x)) if pd.notna(x) else None for x in df["forecast_units"].tolist()
+    ]
     sessions = [int(round(x)) if pd.notna(x) else None for x in df["sessions"].tolist()]
     avg_units = [
         int(round(x)) if pd.notna(x) else None for x in df["30-day avg"].tolist()

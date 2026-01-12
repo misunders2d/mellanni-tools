@@ -91,7 +91,9 @@ df_text, df_top_sellers = df_area_container.columns([1, 10])
 # )
 def get_sales_data(
     interval: str = "3 YEAR",
-) -> tuple[pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
+) -> tuple[
+    pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None
+]:
     sales_query = f"""
             WITH sales AS (
             SELECT
@@ -359,6 +361,11 @@ def filtered_sales(
         ads_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
     ]
 
+    forecast_df["date"] = pd.to_datetime(forecast_df["date"]).dt.date
+    forecast_df = forecast_df[
+        forecast_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
+    ]
+
     if sel_collection:
         sales_df = sales_df[sales_df["collection"].isin(sel_collection)]
         sessions_df = sessions_df[sessions_df["collection"].isin(sel_collection)]
@@ -372,14 +379,17 @@ def filtered_sales(
         sessions_df = sessions_df[sessions_df["color"].isin(sel_color)]
         ads_df = ads_df[ads_df["color"].isin(sel_color)]
 
+    # merge sales_df with forecast_df
+    sales_asins = sales_df["asin"].unique()
+    forecast_asins = forecast_df[forecast_df["asin"].isin(sales_asins)].copy()
+    sales_df = pd.merge(
+        sales_df, forecast_asins, how="outer", on=["date", "asin"], validate="1:1"
+    )
+
     if not include_events:
         sales_df = sales_df[~sales_df["date"].isin(event_dates_list)]
         sessions_df = sessions_df[~sessions_df["date"].isin(event_dates_list)]
         ads_df = ads_df[~ads_df["date"].isin(event_dates_list)]
-
-    # merge sales_df with forecast_df
-    forecast_df['date'] = pd.to_datetime(forecast_df['date']).dt.date
-    sales_df = pd.merge(sales_df, forecast_df, how="left", on=["date", "asin"], validate="1:1")
 
     asin_sessions = sessions_df.groupby("asin").agg({"sessions": "sum"}).reset_index()
     date_sessions = sessions_df.groupby("date").agg({"sessions": "sum"}).reset_index()
@@ -598,7 +608,12 @@ ads = st.session_state["ads"].copy()
 # ads['date'] = pd.to_datetime(ads['date']).dt.date
 forecast = st.session_state["forecast"].copy()
 
-if sales is not None and sessions is not None and ads is not None and forecast is not None:
+if (
+    sales is not None
+    and sessions is not None
+    and ads is not None
+    and forecast is not None
+):
     collections = sales["collection"].unique()
     sizes = sales["size"].unique()
     colors = sales["color"].unique()
@@ -686,6 +701,7 @@ if sales is not None and sessions is not None and ads is not None and forecast i
         sessions_last_year = combined_previous["sessions"].sum()
         conversion_this_year = total_units_this_year / sessions_this_year
         conversion_last_year = total_units_last_year / sessions_last_year
+        total_forecast_this_year = combined["forecast_units"].sum()
 
         # average numbers metrics
         days_this_year = (date_range[1] - date_range[0]).days + 1
@@ -768,7 +784,7 @@ if sales is not None and sessions is not None and ads is not None and forecast i
             value=f"{total_units_this_year:,.0f}",
             delta=f"{total_units_this_year / total_units_last_year -1:.1%} {yoy_text}",
             chart_data=combined["units"],
-            help=f"{metric_text}: {total_units_last_year:,.0f}",
+            help=f"{metric_text}: {total_units_last_year:,.0f}\nForecast units: {total_forecast_this_year:,.0f}",
         )
         dollar_metric.metric(
             label="Total sales",
@@ -940,7 +956,8 @@ def clear_data():
     if os.path.exists(forecast_tempfile) and wipe_forecast:
         os.remove(forecast_tempfile)
 
-if st.user.email in ("2djohar@gmail.com","sergey@mellanni.com"):
+
+if st.user.email in ("2djohar@gmail.com", "sergey@mellanni.com"):
     wipe_forecast = st.checkbox("Wipe forecast data cache", value=False)
 
 if st.button(
