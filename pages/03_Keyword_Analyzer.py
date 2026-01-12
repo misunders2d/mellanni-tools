@@ -2,12 +2,16 @@ import streamlit as st
 import pandas as pd
 import pandas_gbq
 from fuzzywuzzy import fuzz
-import os, re, time
-from typing import Literal, Dict
+import os
+import re
+import time
+from typing import Literal
 from modules import gcloud_modules as gc
 from modules import formatting as ff
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
+
+from login import require_login
 
 st.set_page_config(
     page_title="SQP analyzer",
@@ -16,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-from login import require_login
 
 require_login()
 
@@ -262,7 +265,7 @@ def is_similar(query, target, threshold):
 @session_state_decorator
 @st.cache_resource(show_spinner=False)
 def read_bq(
-    start_week: str = "2025-01-01", end_week: str = "2025-12-31", *args, **kwargs
+    start_week: str = "2025-01-01", end_week: str = "2026-12-31", *args, **kwargs
 ) -> None:
     """Read data from BigQuery and return a DataFrame."""
     with gc.gcloud_connect() as client:
@@ -367,7 +370,7 @@ def sort_files(file_list: list) -> None:
         header = pd.read_csv(file, nrows=1)
         columns = header.columns.tolist()
         sqp = process_header_columns(columns)
-        if not sqp in duplicates:  # check for duplicated files just in case
+        if sqp not in duplicates:  # check for duplicated files just in case
             duplicates.append(dict(sqp))
         else:
             raise BaseException(f"Duplicate file found:\n{file}\n{sqp}")
