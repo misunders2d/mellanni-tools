@@ -16,7 +16,6 @@ from modules.telegram_notifier import send_telegram_message
 from data import table_data
 
 import logging
-import re
 from dotenv import load_dotenv
 
 from login import require_login
@@ -168,7 +167,7 @@ async def run_agent(user_input: str, session_id: str, user_id: str):
                                 "content": df,
                             }
                             st.session_state.messages.append(artifact_data)
-                        except:
+                        except Exception:
                             pass
 
                     else:
