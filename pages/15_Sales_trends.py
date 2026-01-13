@@ -631,7 +631,9 @@ if (
             "End date",
             value=max_date,
             min_value=min_date,
-            max_value=max_date,
+            max_value=max(
+                max_date, pd.to_datetime(f"{pd.to_datetime("today").year}-12-31").date()
+            ),
             width=150,
         ),
     )
