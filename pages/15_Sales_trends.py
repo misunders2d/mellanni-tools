@@ -292,7 +292,7 @@ def get_sales_data(
             ORDER BY date ASC, asin;    
     """
 
-    forecast_query = "SELECT date, asin, units as forecast_units FROM mellanni-project-da.daily_reports.forecast ORDER BY date, asin"
+    forecast_query = "SELECT date, asin, units as forecast_units, dollar as forecast_dollar FROM mellanni-project-da.daily_reports.forecast ORDER BY date, asin"
     try:
         with bigquery.Client(
             credentials=GC_CREDENTIALS, project=GC_CREDENTIALS.project_id
@@ -433,6 +433,7 @@ def filtered_sales(
                 "color": "first",
                 "units": "sum",
                 "forecast_units": "sum",
+                "forecast_dollar": "sum",
                 "net_sales": "sum",
                 "available": "last",
                 "inventory_supply_at_fba": "last",
@@ -456,6 +457,7 @@ def filtered_sales(
             {
                 "units": "sum",
                 "forecast_units": "sum",
+                "forecast_dollar": "sum",
                 "net_sales": "sum",
                 "available": "sum",
                 "inventory_supply_at_fba": "sum",
@@ -498,6 +500,7 @@ def filtered_sales(
         [
             "units",
             "forecast_units",
+            "forecast_dollar",
             "net_sales",
             "available",
             "inventory_supply_at_fba",
@@ -512,6 +515,7 @@ def filtered_sales(
         [
             "units",
             "forecast_units",
+            "forecast_dollar",
             "net_sales",
             "available",
             "inventory_supply_at_fba",
@@ -704,6 +708,7 @@ if (
         conversion_this_year = total_units_this_year / sessions_this_year
         conversion_last_year = total_units_last_year / sessions_last_year
         total_forecast_this_year = combined["forecast_units"].sum()
+        total_dollar_forecast_this_year = combined["forecast_dollar"].sum()
 
         # average numbers metrics
         days_this_year = (date_range[1] - date_range[0]).days + 1
@@ -793,7 +798,7 @@ if (
             value=f"${total_dollars_this_year:,.0f}",
             delta=f"{total_dollars_this_year / total_dollars_last_year -1:.1%} {yoy_text}",
             chart_data=combined["net_sales"],
-            help=f"{metric_text}: ${total_dollars_last_year:,.0f}",
+            help=f"{metric_text}: ${total_dollars_last_year:,.0f}\nForecast sales: {total_dollar_forecast_this_year:,.0f}",
         )
         price_metric.metric(
             label="Average price",
