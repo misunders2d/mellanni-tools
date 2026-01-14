@@ -967,3 +967,28 @@ if selected_dates and "bq_data" in st.session_state:
     )
 
     kw_plot_area.plotly_chart(kw_fig1, use_container_width=True)
+
+    if kw_tab.checkbox(
+        "Export keyword data to Excel", value=False, key="export_kw_data"
+    ):
+        kw_daily_linked = kw_daily.copy()
+        kw_daily_linked["search_term"] = (
+            '=HYPERLINK("https://www.amazon.com/s?k='
+            + kw_daily_linked["search_term"].str.replace(" ", "+")
+            + '","'
+            + kw_daily_linked["search_term"].astype(str)
+            + '")'
+        )
+        with st.spinner("Preparing data for download...", show_time=True):
+            st.download_button(
+                label="Download KW data",
+                data=create_bytes_df(
+                    [kw_daily_linked, kw_filtered], ["KW positions", "Daily data"]
+                ),
+                file_name=f"KW_data_{selected_dates[1]}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_kw_data",
+                on_click=lambda: st.session_state.update(
+                    {"export_kw_data": False}
+                ),
+            )
