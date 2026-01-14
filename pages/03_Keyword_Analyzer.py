@@ -988,7 +988,5 @@ if selected_dates and "bq_data" in st.session_state:
                 file_name=f"KW_data_{selected_dates[1]}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="download_kw_data",
-                on_click=lambda: st.session_state.update(
-                    {"export_kw_data": False}
-                ),
+                on_click=lambda: st.session_state.update({"export_kw_data": False}),
             )
