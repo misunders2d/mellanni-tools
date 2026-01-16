@@ -2,6 +2,7 @@ from google import genai
 from PIL import Image
 from io import BytesIO
 import streamlit as st
+from typing import Any
 
 st.set_page_config(
     page_title="Bedroom Decor Suggestions",
@@ -14,21 +15,33 @@ st.subheader(
 )
 
 
-def generate_prompt(base_image, reference_images: dict):
+def calculate_cost(response):
+    try:
+        input_tokens = 0
+        if response.usage_metadata and response.usage_metadata.prompt_token_count:
+            input_tokens += response.usage_metadata.prompt_token_count
 
-    contents = [
-        """
-            You are an expert in bedroom decor, specifically in color matching, items matching and overall design.
-            Below you will find an image of a bedroom that needs to be redecorated.
-            Make sure to research all the latest trends in bedroom decor and come up with a modern, stylish and cozy design.
-        """,
-        """
-            Here is the image of a bedroom.
-            Do not make any changes to bed frame or walls, but modify the colors and bedding items.
-            Important! If the image does not contain bedroom, inform the user that the image is not valid and ask for a new one.
-        """,
-        base_image,
-    ]
+        output_tokens = 0
+        if response.usage_metadata and response.usage_metadata.candidates_token_count:
+            output_tokens += response.usage_metadata.candidates_token_count
+
+        total_cost = (input_tokens * 0.30 / 1_000_000) + 0.039
+        return total_cost
+    except Exception as e:
+        return str(e)
+
+
+def generate_prompt(
+    master_prompt, base_image=None, reference_images: dict | None = None
+):
+
+    contents = [master_prompt]
+    if base_image:
+        contents.append(base_image)
+    if reference_images:
+        for image in reference_images.values():
+            contents.append(image["text"])
+            contents.append(image["image"])
     return contents
 
 
@@ -45,7 +58,8 @@ def generate_suggestted_decor(contents: list):
             or not response.candidates[0].content
             or not response.candidates[0].content.parts
         ):
-            return None
+            return
+        total_cost = calculate_cost(response=response)
         image_parts = [
             part.inline_data.data
             for part in response.candidates[0].content.parts
@@ -54,33 +68,100 @@ def generate_suggestted_decor(contents: list):
 
         if image_parts and isinstance(image_parts[0], bytes):
             image = Image.open(BytesIO(image_parts[0]))
-            return image
+            return image, total_cost
     except Exception as e:
         st.warning(f"Sorry, an error occurred: {e}")
+        return
 
 
-base_image_colum, result_image_colum = st.columns(2)
-base_image_area = base_image_colum.empty()
-if st.toggle("Use your camera to take a picture of your bedroom", value=False):
-    image_to_use = base_image_colum.camera_input("Or take a picture of your bedroom")
-else:
-    image_to_use = base_image_colum.file_uploader(
-        "Upload a picture of your bedroom", type=["png", "jpg", "jpeg"]
+bedroom_tab, photoshop_tab = st.tabs(["Bedrom decor", "Photoshop"])
+with bedroom_tab:
+    base_image_colum, result_image_colum = st.columns(2)
+    base_image_area = base_image_colum.empty()
+    if st.toggle("Use your camera to take a picture of your bedroom", value=False):
+        image_to_use = base_image_colum.camera_input(
+            "Or take a picture of your bedroom"
+        )
+    else:
+        image_to_use = base_image_colum.file_uploader(
+            "Upload a picture of your bedroom", type=["png", "jpg", "jpeg"]
+        )
+    if image_to_use is not None:
+        base_image = Image.open(image_to_use)
+        master_prompt = (
+            """
+            You are an expert in bedroom decor, specifically in color matching, items matching and overall design.
+            Below you will find an image of a bedroom that needs to be redecorated.
+            Make sure to research all the latest trends in bedroom decor and come up with a modern, stylish and cozy design.
+
+            Here is the image of a bedroom.
+            Do not make any changes to bed frame or walls, but modify the colors and bedding items.
+            Important! If the image does not contain bedroom, inform the user that the image is not valid and ask for a new one.
+        """,
+        )
+
+        contents = generate_prompt(master_prompt, base_image)
+        base_image_area.image(base_image, caption="Original image")
+        if st.button("Generate decor suggestions"):
+            with st.spinner("Generating decor suggestions..."):
+                generation = generate_suggestted_decor(contents)
+                if not generation:
+                    st.error(
+                        "Failed to generate the decor suggestions. Please try again."
+                    )
+                else:
+                    final_image, total_cost = generation
+                    result_image_colum.image(
+                        final_image,
+                        caption="Suggested decor",
+                    )
+
+    else:
+        st.info("Please upload (or take a picture of) a bedroom image to proceed.")
+
+with photoshop_tab:
+    prompt_kwargs: dict[str, Any] = {}
+
+    input_cols, result_cols = st.columns([2, 4])
+    prompt_input = input_cols.text_area(label="What do you want to do?")
+    prompt_kwargs = {"master_prompt": prompt_input}
+    main_image_input = input_cols.file_uploader(
+        "Upload the image you want to edit (optional)", type=["jpg", "jpeg", "png"]
     )
-if image_to_use is not None:
-    base_image = Image.open(image_to_use)
-    contents = generate_prompt(base_image, reference_images={})
-    base_image_area.image(base_image, caption="Original image")
-    if st.button("Generate decor suggestions"):
-        with st.spinner("Generating decor suggestions..."):
-            final_image = generate_suggestted_decor(contents)
-            if not final_image:
-                st.error("Failed to generate the decor suggestions. Please try again.")
-            else:
-                result_image_colum.image(
-                    final_image,
-                    caption="Suggested decor",
-                )
+    if main_image_input is not None:
+        main_image = Image.open(main_image_input)
+        input_cols.image(main_image)
+        prompt_kwargs["base_image"] = main_image
 
-else:
-    st.info("Please upload (or take a picture of) a bedroom image to proceed.")
+    reference_images_input = input_cols.file_uploader(
+        label="Upload reference images, if any",
+        accept_multiple_files=True,
+        type=["jpg", "jpeg", "png"],
+    )
+
+    if reference_images_input:
+        reference_images = {}
+        for i, reference_image in enumerate(reference_images_input):
+            ref_image = Image.open(reference_image)
+            input_cols.image(ref_image)
+            ref_text = input_cols.text_input(label="what is this image for?", key=i)
+            reference_images[i] = {"text": ref_text, "image": ref_image}
+            input_cols.divider()
+        prompt_kwargs["reference_images"] = reference_images
+
+    if result_cols.button(label="Generate!", type="primary"):
+        if not prompt_input:
+            st.warning("No prompt detected.")
+            st.stop()
+
+        contents = generate_prompt(**prompt_kwargs)
+        with st.spinner("Please wait, NanoBanana is working..."):
+            generation = generate_suggestted_decor(contents=contents)
+            if not generation:
+                result_cols.error(
+                    "Failed to generate the decor suggestions. Please try again."
+                )
+            else:
+                result, total_cost = generation
+                result_cols.image(result)
+                result_cols.write(f"Total cost for the generation: ${total_cost:.5f}")
