@@ -392,7 +392,8 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                     bulk_variations.update(p.variations)
                 curr_tokens_left = get_tokens()
                 if not isinstance(curr_tokens_left, str) and len(bulk_variations)> curr_tokens_left * 0.9:
-                    st.warning(f"Too many variations ({len(bulk_variations)}), with {curr_tokens_left} remaining tokens. Please reduce ASINs or wait for tokens to replenish")
+                    bulk.warning(f"Too many variations ({len(bulk_variations)}), with {curr_tokens_left} remaining tokens. Please reduce ASINs or wait for tokens to replenish")
+                    st.stop()
                 if len(bulk_variations) > 0:
                     variations_data = get_products(list(bulk_variations))
                     if isinstance(variations_data, str):
