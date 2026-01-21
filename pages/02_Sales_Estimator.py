@@ -5,6 +5,7 @@ import pandas as pd
 
 # from modules import keepa_modules
 from modules.keepa_modules import KeepaProduct, get_tokens, get_products
+from login import require_login
 
 st.set_page_config(
     page_title="Sales estimator",
@@ -13,7 +14,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-from login import require_login
 
 require_login()
 
@@ -56,6 +56,9 @@ def calculate_variation_sales(product: KeepaProduct, days=plot_last_days, market
 
     asins = list(product.variations)
     products_data = get_products(asins)
+    if isinstance(products_data, str):
+        st.warning(f"Could not pull products data: {products_data}")
+        st.stop()
 
     products = [KeepaProduct(asin, domain=market) for asin in asins]
     for ap in products:
@@ -368,7 +371,7 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
         bulk_df = pd.DataFrame()
         products = []
         try:
-            asins_bulk = re.split(r"[\n\r,]", bulk_asin_input)
+            asins_bulk = re.split(r"[\n\r\s,]", bulk_asin_input)
             asins_clean = []
             for asin in asins_bulk:
                 asin_match = re.match("B[A-Z0-9]{9}", asin.upper())
@@ -376,6 +379,10 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                     asins_clean.append(asin_match.group().strip())
 
             products_data = get_products(asins_clean)
+            if isinstance(products_data, str):
+                st.warning(f"Could not pull products data: {products_data}")
+                st.stop()
+            
             products = [KeepaProduct(asin, domain="US") for asin in asins_clean]
             _ = [p.extract_from_products(products_data) for p in products]
             if include_bulk_variations:
@@ -383,8 +390,15 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                 for p in products:
                     p.get_variations()
                     bulk_variations.update(p.variations)
+                curr_tokens_left = get_tokens()
+                if not isinstance(curr_tokens_left, str) and len(bulk_variations)> curr_tokens_left * 0.9:
+                    st.warning(f"Too many variations ({len(bulk_variations)}), with {curr_tokens_left} remaining tokens. Please reduce ASINs or wait for tokens to replenish")
                 if len(bulk_variations) > 0:
                     variations_data = get_products(list(bulk_variations))
+                    if isinstance(variations_data, str):
+                        st.warning(f"Could not pull products data: {variations_data}")
+                        st.stop()
+
                     products_data.extend(variations_data)
                     asins_clean.extend(list(bulk_variations))
                     products = [KeepaProduct(asin, domain="US") for asin in asins_clean]
