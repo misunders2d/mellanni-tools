@@ -382,7 +382,7 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
             if isinstance(products_data, str):
                 st.warning(f"Could not pull products data: {products_data}")
                 st.stop()
-            
+
             products = [KeepaProduct(asin, domain="US") for asin in asins_clean]
             _ = [p.extract_from_products(products_data) for p in products]
             if include_bulk_variations:
@@ -391,8 +391,13 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
                     p.get_variations()
                     bulk_variations.update(p.variations)
                 curr_tokens_left = get_tokens()
-                if not isinstance(curr_tokens_left, str) and len(bulk_variations)> curr_tokens_left * 0.9:
-                    bulk.warning(f"Too many variations ({len(bulk_variations)}), with {curr_tokens_left} remaining tokens. Please reduce ASINs or wait for tokens to replenish")
+                if (
+                    not isinstance(curr_tokens_left, str)
+                    and len(bulk_variations) > curr_tokens_left * 0.9
+                ):
+                    bulk.warning(
+                        f"Too many variations ({len(bulk_variations)}), with {curr_tokens_left} remaining tokens. Please reduce ASINs or wait for tokens to replenish"
+                    )
                     st.stop()
                 if len(bulk_variations) > 0:
                     variations_data = get_products(list(bulk_variations))

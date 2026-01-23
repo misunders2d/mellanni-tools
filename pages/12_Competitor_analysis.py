@@ -4,7 +4,6 @@ from openai import OpenAI, NotFoundError
 import streamlit as st
 from modules.keepa_modules import get_product_details
 
-
 st.set_page_config(
     page_title="Competitor analysis",
     page_icon="media/logo.ico",

@@ -4,7 +4,6 @@ from google.genai import types
 
 from .creatives_agents.tools import check_json_string, export_json_to_dataframe
 
-
 REVIEW_GUIDELINES = """
 What's not allowed
 Seller, order, or shipping feedback

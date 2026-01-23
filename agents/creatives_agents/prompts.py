@@ -132,8 +132,7 @@ IMAGE GENERATION WORKFLOW
 )
 
 STORYLINE_AGENT_INSTRUCTIONS = (
-    "You generate concise storylines for social media platforms. "
-    f"""
+    "You generate concise storylines for social media platforms. " f"""
 WORKFLOW:
 1. The user gives you the topic for storyline generation.
 2. You must come up with 3-5 interesting, fun and engaging ideas and present their storylines.

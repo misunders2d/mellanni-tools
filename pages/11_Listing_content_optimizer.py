@@ -3,7 +3,6 @@ import streamlit as st
 import time, os, re
 from modules.keepa_modules import get_product_details
 
-
 st.set_page_config(
     page_title="Mellanni Tools App", page_icon="media/logo.ico", layout="wide"
 )

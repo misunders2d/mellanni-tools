@@ -31,6 +31,10 @@ kw_filter_area, slider_area, button_area = st.columns(
 sqp_tab, kw_tab = st.tabs(["SQP results", "Keywords stats"])
 kw_plot_area = kw_tab.empty()
 kw_df1, kw_df2 = kw_tab.columns([1, 1], gap="small")
+export_kws = kw_tab.checkbox(
+    "Export keyword data to Excel", value=False, key="export_kw_data"
+)
+daily_data = kw_tab.checkbox("Show daily kw performance")
 
 ### SQP tab -------------------------------------------------------------------
 
@@ -752,7 +756,7 @@ if selected_dates:
         bq_search = refine_file(bq_search, scope="brand")
         df_area.dataframe(
             bq_search.sort_values("Purchases: Total Count", ascending=False),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             key="bq_search",
             column_config=df_columns_config,
@@ -791,10 +795,10 @@ if selected_dates:
             left4="Purchases: Brand Price (Median)",
         )
 
-        plot1.plotly_chart(fig1, use_container_width=True)
-        plot2.plotly_chart(fig2, use_container_width=True)
-        plot3.plotly_chart(fig3, use_container_width=True)
-        plot4.plotly_chart(fig4, use_container_width=True)
+        plot1.plotly_chart(fig1, width="stretch")
+        plot2.plotly_chart(fig2, width="stretch")
+        plot3.plotly_chart(fig3, width="stretch")
+        plot4.plotly_chart(fig4, width="stretch")
 
         if sqp_tab.checkbox(
             "Export SQP data to Excel", value=False, key="export_sqp_data"
@@ -852,9 +856,12 @@ kw_columns_config = {
 
 
 @st.cache_resource(show_spinner=True)
-def pull_keywords_from_bq(list_of_dates) -> pd.DataFrame:
+def pull_keywords_from_bq(list_of_dates, daily=False) -> pd.DataFrame:
     """Pull keywords data from BigQuery."""
     dates_str = '","'.join([d.strftime("%Y-%-m-%d") for d in list_of_dates])
+    if daily:
+        dates_datetime = pd.date_range(list_of_dates[0], pd.to_datetime("today").date())
+        dates_str = '","'.join([d.strftime("%Y-%-m-%d") for d in dates_datetime])
     with gc.gcloud_connect() as client:
         query = f"""
         SELECT k.search_term, k.ASIN, k.Position, k.date, d.collection,
@@ -947,14 +954,14 @@ if selected_dates and "bq_data" in st.session_state:
     kw_df1.dataframe(
         kw_filtered,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config=kw_columns_config,
     )
     kw_df2.markdown("***Best search position by keyword***")
     kw_df2.dataframe(
         kw_daily,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config=kw_columns_config,
     )
 
@@ -966,11 +973,9 @@ if selected_dates and "bq_data" in st.session_state:
         left1="purchases_total_count",
     )
 
-    kw_plot_area.plotly_chart(kw_fig1, use_container_width=True)
+    kw_plot_area.plotly_chart(kw_fig1, width="stretch")
 
-    if kw_tab.checkbox(
-        "Export keyword data to Excel", value=False, key="export_kw_data"
-    ):
+    if export_kws:
         kw_daily_linked = kw_daily.copy()
         kw_daily_linked["search_term"] = (
             '=HYPERLINK("https://www.amazon.com/s?k='
@@ -990,3 +995,9 @@ if selected_dates and "bq_data" in st.session_state:
                 key="download_kw_data",
                 on_click=lambda: st.session_state.update({"export_kw_data": False}),
             )
+    if daily_data:
+        daily_kws = pull_keywords_from_bq(list_of_dates=selected_dates, daily=True)
+        daily_kws = daily_kws.sort_values(
+            ["date", "collection", "search_term"], ascending=[False, True, True]
+        )
+        st.data_editor(daily_kws, hide_index=True)

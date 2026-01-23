@@ -7,7 +7,6 @@ from google.adk.models.lite_llm import LiteLlm
 
 import query_examples
 
-
 OPENAI_API_KEY = os.environ.get("OPENAI_AGENTS_API_KEY")
 GROK_API_KEY = os.environ.get("GROK_API_KEY")
 
