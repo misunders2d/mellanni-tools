@@ -996,6 +996,7 @@ if selected_dates and "bq_data" in st.session_state:
                 on_click=lambda: st.session_state.update({"export_kw_data": False}),
             )
     if daily_data:
+        st.cache_resource.clear()
         daily_kws = pull_keywords_from_bq(list_of_dates=selected_dates, daily=True)
         daily_kws = daily_kws.sort_values(
             ["date", "collection", "search_term"], ascending=[False, True, True]
