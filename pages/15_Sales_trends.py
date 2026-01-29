@@ -14,6 +14,7 @@ from modules.sales_charts import render_sales_chart
 import os
 
 os.makedirs("temp", exist_ok=True)
+
 sales_tempfile = os.path.join("temp", "sales.parquet")
 sessions_tempfile = os.path.join("temp", "sessions.parquet")
 ads_tempfile = os.path.join("temp", "ads.parquet")

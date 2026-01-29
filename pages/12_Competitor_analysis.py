@@ -1,8 +1,10 @@
-import os, re
+import os
+import re
 
 from openai import OpenAI, NotFoundError
 import streamlit as st
 from modules.keepa_modules import get_product_details
+from login import require_login
 
 st.set_page_config(
     page_title="Competitor analysis",
@@ -16,7 +18,6 @@ API_KEY = os.getenv("OPENAI_SUMMARIZER_KEY")
 KEEPA_KEY = os.getenv("KEEPA_KEY")
 HEIGHT = 250
 
-from login import require_login
 
 require_login()
 
@@ -61,14 +62,14 @@ def generate_prompt(items, props):
 
 
 def compare_products(details, instructions, props, test=False):
-    if test == True:
+    if test:
         props = {k: False for k in props}
     MODEL = (
         "gpt-3.5-turbo-0125"
-        if any([test == True, props.get("image", False) == False])
+        if any([test, props.get("image", False) == False])
         else "gpt-4o"
     )
-    MAX_TOKENS = 20 if test == True else 3000
+    MAX_TOKENS = 20 if test else 3000
     props_used = ", ".join([x for x in props if props[x] == True])  # type: ignore
     debug_area.write(
         f"Using {MODEL} with {MAX_TOKENS} token limit. The following props are used: {props_used}"
@@ -83,7 +84,7 @@ def compare_products(details, instructions, props, test=False):
         {"role": "user", "content": instructions},
     ]
     messages.extend(details)
-    if test == True:
+    if test:
         messages = [
             {
                 "role": "system",
@@ -147,7 +148,7 @@ props_values = [
 ]
 props = {key: value for key, value in dict(zip(props_names, props_values)).items()}
 
-if image_check == False:
+if not image_check:
     st.warning("You deselected the image, please update your prompt accordingly!")
     st.session_state.INSTRUCTIONS = "Tell me about these products"
 

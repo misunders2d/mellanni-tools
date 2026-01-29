@@ -41,9 +41,10 @@ python-amazon-sp-api
 pytz
 requests
 streamlit
+streamlit-echarts
 streamlit-oauth
+streamlit-image-comparison
 urllib3
 XlsxWriter
-streamlit-echarts
 
 git+https://github.com/misunders2d/helper-modules.git@master

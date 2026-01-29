@@ -2,6 +2,7 @@ from google import genai
 from PIL import Image
 from io import BytesIO
 import streamlit as st
+from streamlit_image_comparison import image_comparison
 from typing import Any
 
 st.set_page_config(
@@ -76,15 +77,20 @@ def generate_suggestted_decor(contents: list):
 
 bedroom_tab, photoshop_tab = st.tabs(["Bedrom decor", "Photoshop"])
 with bedroom_tab:
-    base_image_colum, result_image_colum = st.columns(2)
-    base_image_area = base_image_colum.empty()
+    _, preview_column, _ = st.columns([2, 4, 2])
+    preview_area = preview_column.empty()
+    _, base_image_colum, _, result_image_colum, _ = st.columns([2, 4, 2, 4, 2])
+
     if st.toggle("Use your camera to take a picture of your bedroom", value=False):
-        image_to_use = base_image_colum.camera_input(
-            "Or take a picture of your bedroom"
+        image_to_use = st.camera_input(
+            "Or take a picture of your bedroom",
+            key="file_uploader",
         )
     else:
-        image_to_use = base_image_colum.file_uploader(
-            "Upload a picture of your bedroom", type=["png", "jpg", "jpeg"]
+        image_to_use = st.file_uploader(
+            "Upload a picture of your bedroom",
+            type=["png", "jpg", "jpeg"],
+            key="file_uploader",
         )
     if image_to_use is not None:
         base_image = Image.open(image_to_use)
@@ -101,7 +107,7 @@ with bedroom_tab:
         )
 
         contents = generate_prompt(master_prompt, base_image)
-        base_image_area.image(base_image, caption="Original image")
+        preview_area.image(base_image, caption="Original image")
         if st.button("Generate decor suggestions"):
             with st.spinner("Generating decor suggestions..."):
                 generation = generate_suggestted_decor(contents)
@@ -111,10 +117,21 @@ with bedroom_tab:
                     )
                 else:
                     final_image, total_cost = generation
+                    base_image_colum.image(base_image)
                     result_image_colum.image(
                         final_image,
                         caption="Suggested decor",
                     )
+                    with preview_area:
+                        image_comparison(
+                            img1=base_image,  # type: ignore
+                            img2=final_image,  # type: ignore
+                            label1="Original image",
+                            label2="Suggested decor",
+                            make_responsive=True,
+                            width=800,
+                            starting_position=80
+                        )
 
     else:
         st.info("Please upload (or take a picture of) a bedroom image to proceed.")
