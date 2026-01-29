@@ -6,13 +6,10 @@ from streamlit_image_comparison import image_comparison
 from typing import Any
 
 st.set_page_config(
-    page_title="Bedroom Decor Suggestions",
+    page_title="AI photoshop",
     page_icon="media/logo.ico",
     layout="wide",
     initial_sidebar_state="collapsed",
-)
-st.subheader(
-    "Get instant bedroom decor suggestions. Simply upload a picture of your bedroom!"
 )
 
 
@@ -77,6 +74,9 @@ def generate_suggestted_decor(contents: list):
 
 bedroom_tab, photoshop_tab = st.tabs(["Bedrom decor", "Photoshop"])
 with bedroom_tab:
+    bedroom_tab.subheader(
+        "Get instant bedroom decor suggestions. Simply upload a picture of your bedroom!"
+    )
     _, preview_column, _ = st.columns([2, 4, 2])
     preview_area = preview_column.empty()
     _, base_image_colum, _, result_image_colum, _ = st.columns([2, 4, 2, 4, 2])
@@ -130,13 +130,14 @@ with bedroom_tab:
                             label2="Suggested decor",
                             make_responsive=True,
                             width=800,
-                            starting_position=80
+                            starting_position=80,
                         )
 
     else:
         st.info("Please upload (or take a picture of) a bedroom image to proceed.")
 
 with photoshop_tab:
+    photoshop_tab.subheader("Prototype anything with AI photoshop")
     prompt_kwargs: dict[str, Any] = {}
 
     input_cols, result_cols = st.columns([2, 4])
