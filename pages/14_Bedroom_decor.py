@@ -89,7 +89,7 @@ with bedroom_tab:
     else:
         image_to_use = st.file_uploader(
             "Upload a picture of your bedroom",
-            type=["png", "jpg", "jpeg"],
+            type=["png", "jpg", "jpeg", "webp"],
             key="file_uploader",
         )
     if image_to_use is not None:
