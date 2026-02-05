@@ -16,7 +16,7 @@ google-cloud-secret-manager
 google-cloud-storage
 google-genai
 gspread
-imagekitio
+imagekitio<5
 keepa
 Levenshtein
 litellm

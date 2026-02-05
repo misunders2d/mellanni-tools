@@ -1,11 +1,8 @@
-import os, html
-from dotenv import load_dotenv
-
-load_dotenv()
+import html
 
 from typing import Final
 
-from openai import OpenAI, NotFoundError  # future development
+from openai import OpenAI  # future development
 
 from streamlit import secrets
 
@@ -14,6 +11,10 @@ from numpy.linalg import norm
 import pandas as pd
 
 from modules import gcloud_modules as gd
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 OPENAI_KEY: Final = secrets["OPENAI_RETURNS_CLASSIFIER_KEY"]
 if not OPENAI_KEY:
@@ -56,12 +57,12 @@ def split_df(df: pd.DataFrame, num_rows: int) -> list[pd.DataFrame]:
     return df_list
 
 
-def get_embedding_df(df: pd.DataFrame, df_col: str) -> pd.DataFrame:
+def get_embedding_df(df: pd.DataFrame, df_col: str) -> pd.DataFrame | None:
     if len(df) == 0:
         return None
     clean_df = df.copy()
     clean_df = clean_df.dropna(subset=df_col)
-    clean_df = clean_df[clean_df[df_col] != "nan"]
+    clean_df = clean_df.loc[clean_df[df_col] != "nan"]
     if len(clean_df) == 0:
         return df
     result = pd.DataFrame()
@@ -111,6 +112,6 @@ def measure_label_relevance(
     labels = get_embedding_df(labels, labels_col)
     for label in labels[labels_col].values.tolist():
         print(f'Matching "{label}" to dataset')
-        label_emb = labels[labels[labels_col] == label]["emb"].values[0]
+        label_emb = labels.loc[labels[labels_col] == label]["emb"].values[0]
         df[label] = df[emb_col].map(lambda x: cosine_similarity(x, label_emb))
     return df
