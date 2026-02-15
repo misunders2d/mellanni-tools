@@ -1,14 +1,15 @@
-import streamlit as st
-import pandas as pd
-import re
 import json
+import re
+import time
 from io import BytesIO
+
+import pandas as pd
+import pyotp
+import streamlit as st
+
+from login import require_login
 from modules import formatting as ff
 from modules import gcloud_modules as gc
-from openai import OpenAI
-import time
-import pyotp
-from login import require_login
 
 key = st.secrets["OPENAI_SUMMARIZER_KEY"]
 # openai.api_key = key
@@ -209,8 +210,8 @@ with col1:
             st.text_area("Generated links", full_list)
 
     with st.expander("Pricelist checker"):
-        import pandas as pd
         import numpy as np
+        import pandas as pd
 
         def linspace(df, steps):
             result = np.linspace(df["Standard Price"], df["MSRP"], steps)

@@ -1,10 +1,13 @@
 import os
 import re
 
-from openai import OpenAI, NotFoundError
 import streamlit as st
-from modules.keepa_modules import get_product_details
+from google import genai
+from google.genai import types
+from openai import NotFoundError, OpenAI
+
 from login import require_login
+from modules.keepa_modules import get_product_details
 
 st.set_page_config(
     page_title="Competitor analysis",
@@ -23,7 +26,7 @@ require_login()
 
 
 def generate_prompt(items, props):
-    details = []
+    details = [types.Part(text = instructions)]
     product = ""
     for item in items:
         product += f"Product id: {item}\n"
@@ -42,79 +45,46 @@ def generate_prompt(items, props):
                 f'Product sales per month: {items[item].get("monthly sales")} units\n\n'
             )
         if not props.get("image", False):
-            details.append({"role": "user", "content": product})
+            details.append(types.Part(text = product))
         else:
             product += f'Product image: {items[item].get("image")}\n\n'
-            details.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": product},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": items[item].get("image")},
-                        },
-                    ],
-                }
+            details.append(types.Part( text = product))
+            details.append(types.Part(
+                    file_data = types.FileData(
+                        file_uri = items[item].get("image"),
+                        mime_type='image/jpg'))
             )
         product = ""
     return details
 
 
 def compare_products(details, instructions, props, test=False):
-    if test:
-        props = {k: False for k in props}
-    MODEL = (
-        "gpt-3.5-turbo-0125"
-        if any([test, props.get("image", False) == False])
-        else "gpt-4o"
-    )
-    MAX_TOKENS = 20 if test else 3000
     props_used = ", ".join([x for x in props if props[x] == True])  # type: ignore
     debug_area.write(
-        f"Using {MODEL} with {MAX_TOKENS} token limit. The following props are used: {props_used}"
-    )
-    client = OpenAI(api_key=API_KEY)
-    messages = [
-        {
-            "role": "system",
-            "content": "You are an expert in Amazon product listings.",
-        },
-        # {"role": "user", "content": "You are presented with images and price points of several products, along with their monthly sales. Please evaluate these products in terms of sellability, pointing out their weak and strong selling points"},
-        {"role": "user", "content": instructions},
-    ]
-    messages.extend(details)
-    if test:
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an expert in Amazon product listings.",
-            },
-            {"role": "user", "content": "Once upon a time on Amazon..."},
-        ]
-
-    response = client.chat.completions.create(
-        model=MODEL, messages=messages, max_tokens=MAX_TOKENS, stream=True
+        f"The following props are used: {props_used}"
     )
 
-    # if response.choices[0].finish_reason == 'stop':
-    #     feedback = response.choices[0].message.content
-    # else:
-    #     feedback = response.choices[0].finish_reason
-    # return feedback
-    # saved_result = []
-    # copy_result = response
-    # for chunk in copy_result:
-    #     if chunk.choices[0].delta.content is not None:
-    #         saved_result.append(chunk.choices[0].delta.content)
+    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"], vertexai=False)
+    content = genai.types.Content( parts= details)
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents = content
+    )
+    if (
+        not response.candidates
+        or not response.candidates[0].content
+        or not response.candidates[0].content.parts
+    ):
+        return
 
     with response_area.chat_message("assistant", avatar="media/logo.ico"):
-        st.session_state.result = st.write_stream(response)
-    # st.session_state.result.write_stream(response)
-
-    # for chunk in response:
-    #     if chunk.choices[0].delta.content is not None:
-    #         result.write_stream(chunk.choices[0].delta.content)
+        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            parts =response.candidates[0].content.parts
+            for part in parts:
+                if part.text:
+                    st.write(part.text)
+                    st.session_state.result += part.text
     return None
 
 
@@ -124,6 +94,8 @@ try:
         st.session_state.INSTRUCTIONS = instr.read()
 except Exception as e:
     st.write(e)
+if 'result' not in st.session_state:
+    st.session_state['result'] = ''
 
 header_area = st.empty()
 debug_area = st.empty()

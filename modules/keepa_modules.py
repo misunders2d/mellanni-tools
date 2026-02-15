@@ -1,9 +1,10 @@
-import keepa
 import os
-from numpy import nan
+import time
+
+import keepa
 import pandas as pd
 import streamlit as st
-import time
+from numpy import nan
 
 KEEPA_KEY = os.getenv("KEEPA_KEY", "")
 
@@ -443,7 +444,7 @@ def get_tokens(api_key=KEEPA_KEY):
 
 def get_product_details(asins: list[str]):
     api = keepa.Keepa(KEEPA_KEY, timeout=60)
-    tokens = api.tokens_left
+    tokens = get_tokens()
     if tokens < len(asins):
         st.write("Please wait, not enough tokens to pull data from Amazon")
         time.sleep(20)
