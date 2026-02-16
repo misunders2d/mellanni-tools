@@ -182,7 +182,7 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
                             break
                     except Exception as e:
                         st.toast(
-                            body="Error checking {sku}, hold on: {e}",
+                            body=f"Error checking {sku}, hold on: {e}",
                             icon="⏱️",
                             duration="short",
                         )
