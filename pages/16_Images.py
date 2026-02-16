@@ -181,7 +181,11 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
                         if sku_details:
                             break
                     except Exception as e:
-                        st.info(f"Error checking {sku}, hold on: {e}")
+                        st.toast(
+                            body="Error checking {sku}, hold on: {e}",
+                            icon="⏱️",
+                            duration="short",
+                        )
                         pass
                 if not sku_details:
                     st.error(f"Could not get details for any of {sku_str}")
