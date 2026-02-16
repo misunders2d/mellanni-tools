@@ -257,7 +257,7 @@ if submit_button and len(asin) >= 10:
             product_title_area.markdown(chunk)
         if product.exists:
             product_title_area.write(
-                f"View on Amazon: https://www.amazon.com/dp/{asin}"
+                f"View on Amazon: https://www.amazon.com/dp/{asin_clean}"
             )
             if product.image:
                 product_image_area.image(product.image, caption=product.asin)
