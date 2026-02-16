@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, List, Literal, TypedDict
+from typing import List, Literal, TypedDict
 
 import requests
 import streamlit as st

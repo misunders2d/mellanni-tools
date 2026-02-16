@@ -1,11 +1,13 @@
-import streamlit as st
 import re
-import plotly.graph_objects as go
+
 import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+from login import require_login
 
 # from modules import keepa_modules
-from modules.keepa_modules import KeepaProduct, get_tokens, get_products
-from login import require_login
+from modules.keepa_modules import KeepaProduct, get_products, get_tokens
 
 st.set_page_config(
     page_title="Sales estimator",
@@ -374,7 +376,7 @@ if bulk_btn_col.button("Submit", key="bulk_button", help="Submit ASINs for proce
             asins_bulk = re.split(r"[\n\r\s,]", bulk_asin_input)
             asins_clean = []
             for asin in asins_bulk:
-                asin_match = re.match("B[A-Z0-9]{9}", asin.upper())
+                asin_match = re.search("B[A-Z0-9]{9}", asin.upper())
                 if asin_match:
                     asins_clean.append(asin_match.group().strip())
 

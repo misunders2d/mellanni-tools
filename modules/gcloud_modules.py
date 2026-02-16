@@ -1,7 +1,8 @@
-import streamlit as st
-import pandas as pd
-import gdown
 from io import BytesIO
+
+import gdown
+import pandas as pd
+import streamlit as st
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
@@ -74,9 +75,11 @@ def pull_dictionary(
                 [dictionary_us, dictionary_eu, dictionary_uk, dictionary_ca]
             )
 
-    dictionary = dictionary[~dictionary["fnsku"].isin(["bundle", "none", "FBM"])]
-    dictionary["collection"] = dictionary["collection"].str.replace("1800", "Iconic")
-    dictionary["sub_collection"] = dictionary["sub_collection"].str.replace(
+    dictionary = dictionary.loc[~dictionary["fnsku"].isin(["bundle", "none", "FBM"])]
+    dictionary["collection"] = dictionary.loc[:, "collection"].str.replace(
+        "1800", "Iconic"
+    )
+    dictionary["sub_collection"] = dictionary.loc[:, "sub_collection"].str.replace(
         "1800", "Iconic"
     )
     return dictionary

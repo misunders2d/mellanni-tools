@@ -4,9 +4,12 @@ import time
 import keepa
 import pandas as pd
 import streamlit as st
+from dotenv import load_dotenv
 from numpy import nan
 
-KEEPA_KEY = os.getenv("KEEPA_KEY", "")
+load_dotenv()
+
+KEEPA_KEY = st.secrets["KEEPA_KEY"] or os.getenv("KEEPA_KEY", "")
 
 
 class KeepaProduct:
