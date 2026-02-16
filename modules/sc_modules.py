@@ -1,9 +1,11 @@
-import os, requests, time
-from sp_api.api import ListingsItems
-from typing import List, Literal
+import os
+import time
+from typing import Dict, List, Literal, TypedDict
+
+import requests
 import streamlit as st
 from dotenv import load_dotenv
-from typing import TypedDict, Literal, Dict, List
+from sp_api.api import ListingsItems
 
 load_dotenv()
 
@@ -103,7 +105,7 @@ def get_listing_details(
         response = listings_client.get_listings_item(
             sellerId=SELLER_ID, sku=sku, includedData=include
         )
-    except Exception as e:
+    except Exception:
         return
     return response
 

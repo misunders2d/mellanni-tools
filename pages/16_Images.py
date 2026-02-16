@@ -1,31 +1,33 @@
-import re
-import streamlit as st
-import pandas as pd
 import base64
+import concurrent.futures
+import re
 from typing import Literal
+
+import pandas as pd
+import streamlit as st
 from numpy import nan
+
+from login import require_login
+from modules import gcloud_modules as gc
 from modules.image_modules import (
-    upload_image,
+    headers,
     list_files,
-    upload_image_to_gcs,
     list_files_gcs,
     update_version_gcs,
-    headers,
+    upload_image,
+    upload_image_to_gcs,
 )
-from modules import gcloud_modules as gc
 from modules.sc_modules import (
-    push_images_to_amazon,
-    get_listing_details,
     extract_sku_images,
+    get_listing_details,
+    push_images_to_amazon,
 )
-import concurrent.futures
 
 st.set_page_config(layout="wide", initial_sidebar_state="collapsed")
 
 ACCEPTED_FILE_TYPES = ".jpg"
 MAX_WORKERS = 10
 
-from login import require_login
 
 require_login()
 
@@ -162,36 +164,49 @@ with st.expander("Images on Amazon", expanded=False, icon=":material/image:"):
                     and st.session_state.selected_sizes[0] is not None
                     else ""
                 )
-                sku, asin = dictionary[
+                sku_asin_pairs = dictionary.loc[
                     (dictionary["collection"] == selected_product)
                     & (dictionary["color"] == selected_color)
                     & (dictionary["size"] == selected_size)
-                ][["sku", "asin"]].values[0]
-                sku_details = extract_sku_images(
-                    get_listing_details(sku, include=["attributes"])
-                )
+                ][["sku", "asin"]].values.tolist()
+                sku_details = None
+                sku = None
+                asin = None
+                sku_str = ", ".join(x[0] for x in sku_asin_pairs)
+                for sku, asin in sku_asin_pairs:
+                    try:
+                        sku_details = extract_sku_images(
+                            get_listing_details(sku, include=["attributes"])
+                        )
+                        if sku_details:
+                            break
+                    except Exception as e:
+                        st.info(f"Error checking {sku}, hold on: {e}")
+                        pass
+                if not sku_details:
+                    st.error(f"Could not get details for any of {sku_str}")
+                else:
+                    for position, link in sku_details.items():
 
-                for position, link in sku_details.items():
+                        if position in amz_positions:
+                            amz_positions[position].image(link, caption=position)
 
-                    if position in amz_positions:
-                        amz_positions[position].image(link, caption=position)
+                    # Insert a link to the Amazon ASIN page
+                    if asin:
+                        amazon_url = f"https://www.amazon.com/dp/{asin}"
+                        view_amaon_area.link_button(
+                            f"View on Amazon (SKU: {sku})",
+                            amazon_url,
+                            type="tertiary",
+                            icon=":material/open_in_new:",
+                        )
 
-                # Insert a link to the Amazon ASIN page
-                if asin:
-                    amazon_url = f"https://www.amazon.com/dp/{asin}"
-                    view_amaon_area.link_button(
-                        f"View on Amazon (SKU: {sku})",
-                        amazon_url,
-                        type="tertiary",
-                        icon=":material/open_in_new:",
-                    )
+                        sku_asin_str = f"ASIN: {asin}, SKU: {sku}"
+                        sku_asin_area.write(sku_asin_str)
 
-                    sku_asin_str = f"ASIN: {asin}, SKU: {sku}"
-                    sku_asin_area.write(sku_asin_str)
-
-            except:
+            except Exception as e:
                 st.warning(
-                    "Either properly select a product, color and size, or the product does not have an ASIN assigned.",
+                    f"Either properly select a product, color and size, or the product does not have an ASIN assigned.\n{e}",
                     icon="⚠️",
                 )
 
@@ -232,7 +247,7 @@ def sanitize_products(product: str):
 
 def create_links(source=target):
     if (
-        not "selected_product" in st.session_state
+        "selected_product" not in st.session_state
         or not st.session_state.selected_product
     ):
         folder = None
@@ -322,7 +337,7 @@ st.session_state.selected_product = product_area.selectbox(
 # If product is selected, show color options
 if st.session_state.selected_product:
     colors = sorted(
-        dictionary[dictionary["collection"] == st.session_state.selected_product][
+        dictionary.loc[dictionary["collection"] == st.session_state.selected_product][
             "color"
         ]
         .unique()
@@ -351,7 +366,7 @@ if (
     and st.session_state.selected_product
 ):
     sizes = sorted(
-        dictionary[
+        dictionary.loc[
             (dictionary["collection"] == st.session_state.selected_product)
             & (dictionary["color"].isin(st.session_state.selected_colors))
         ]["size"]
