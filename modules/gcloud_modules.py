@@ -34,10 +34,12 @@ def list_projects():
     return table_list
 
 
-@st.cache_data(ttl=3600)
-def pull_dictionary(
+# @st.cache_data(ttl=3600)
+async def pull_dictionary(
     combine: bool = False, market: str = "US", full: bool = False, cols=None
 ) -> pd.DataFrame:
+    if "dictionary" in st.session_state:
+        return st.session_state.dictionary.copy()
     if not full:
         columns = "sku,asin,fnsku,upc,collection,sub_collection,size,color,short_title"
     elif not cols:
@@ -82,6 +84,7 @@ def pull_dictionary(
     dictionary["sub_collection"] = dictionary.loc[:, "sub_collection"].str.replace(
         "1800", "Iconic"
     )
+    st.session_state.dictionary = dictionary.copy()
     return dictionary
 
 

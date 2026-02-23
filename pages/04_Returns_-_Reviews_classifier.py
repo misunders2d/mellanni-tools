@@ -1,8 +1,11 @@
-import streamlit as st
-from modules import gcloud_modules as gc
-from modules import embed_modules as em
-from login import require_login
+import asyncio
+
 import pandas as pd
+import streamlit as st
+
+from login import require_login
+from modules import embed_modules as em
+from modules import gcloud_modules as gc
 
 st.set_page_config(
     page_title="Returns and reviews analyzer",
@@ -25,8 +28,10 @@ date_to = pd.to_datetime("today").date()
 date_from = pd.to_datetime(date_to) - pd.Timedelta(days=10)
 if "dictionary" not in st.session_state:
     with st.spinner("Please wait, preparing data..."):
-        st.session_state["dictionary"] = gc.pull_dictionary(
-            cols=["asin", "collection", "size", "color"], combine=True
+        st.session_state["dictionary"] = asyncio.run(
+            gc.pull_dictionary(
+                cols=["asin", "collection", "size", "color"], combine=True
+            )
         )
         st.session_state["labels"] = em.download_labels()
 dictionary = st.session_state["dictionary"]

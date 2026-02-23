@@ -8,7 +8,7 @@ from modules import gcloud_modules as gc
 from modules.gcloud_modules import bigquery
 
 asins = ["B00NLLUMOE", "B00NQDGAP2", "B0822XBDZW"]
-start_date = ["2026-01-04", "2026-01-11", "2026-02-01", "2026-02-08", "2026-02-20"]
+start_date = ["2026-01-04", "2026-01-11", "2026-02-01", "2026-02-08", "2026-02-15"]
 period = "WEEK"
 
 

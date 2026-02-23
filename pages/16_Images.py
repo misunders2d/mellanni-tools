@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import concurrent.futures
 import re
@@ -9,19 +10,11 @@ from numpy import nan
 
 from login import require_login
 from modules import gcloud_modules as gc
-from modules.image_modules import (
-    headers,
-    list_files,
-    list_files_gcs,
-    update_version_gcs,
-    upload_image,
-    upload_image_to_gcs,
-)
-from modules.sc_modules import (
-    extract_sku_images,
-    get_listing_details,
-    push_images_to_amazon,
-)
+from modules.image_modules import (headers, list_files, list_files_gcs,
+                                   update_version_gcs, upload_image,
+                                   upload_image_to_gcs)
+from modules.sc_modules import (extract_sku_images, get_listing_details,
+                                push_images_to_amazon)
 
 st.set_page_config(layout="wide", initial_sidebar_state="collapsed")
 
@@ -60,7 +53,7 @@ image_names = [
     "other_image_8",
     "swatch_image",
 ]
-dictionary = gc.pull_dictionary()
+dictionary = asyncio.run(gc.pull_dictionary())
 
 with st.expander(
     "Select a product or upload images", expanded=True, icon=":material/image_arrow_up:"
