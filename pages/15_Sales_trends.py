@@ -1,17 +1,15 @@
-import streamlit as st
-from numpy import nan
+import os
+
 import pandas as pd
+import streamlit as st
+from common.events import event_dates_list
+from dateutil.relativedelta import relativedelta
 from google.cloud import bigquery
 from google.oauth2 import service_account
-
-
-from dateutil.relativedelta import relativedelta
+from numpy import nan
 
 from login import require_login
-from common.events import event_dates_list
 from modules.sales_charts import render_sales_chart
-
-import os
 
 os.makedirs("temp", exist_ok=True)
 
@@ -568,6 +566,7 @@ def filtered_sales(
 def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
     asin_sales = asin_sales.head(num_top_sellers)
     totals_asins = asin_sales.sum(numeric_only=True, axis=0)
+    asin_sales["#"] = asin_sales.index + 1
     asin_sales = pd.concat([asin_sales, pd.DataFrame(totals_asins).T])
     return asin_sales
 
@@ -915,6 +914,7 @@ if (
             num_rows="fixed",
             hide_index=True,
             column_order=[
+                "#",
                 "asin",
                 "collection",
                 "size",
@@ -927,6 +927,7 @@ if (
                 "inventory_supply_at_fba",
             ],
             column_config={
+                "#": st.column_config.NumberColumn(),
                 "asin": st.column_config.LinkColumn(
                     display_text="https://www\\.amazon\\.com/dp/(.*)"
                 ),
