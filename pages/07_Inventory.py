@@ -1,19 +1,23 @@
-import streamlit as st
+import asyncio
+import difflib
+import textwrap
 from typing import Any
-from modules import formatting as ff
-import textwrap, difflib
 
-from modules import gcloud_modules as gc
+import streamlit as st
 from PIL import ImageFont
 
+from modules import formatting as ff
+from modules import gcloud_modules as gc
+
 font = ImageFont.load_default()
-from fpdf import FPDF
-import pandas as pd
-from io import BytesIO
-import numpy as np
 import os
-from barcode import Code128, Code39
+from io import BytesIO
+
+import numpy as np
+import pandas as pd
+from barcode import Code39, Code128
 from barcode.writer import ImageWriter
+from fpdf import FPDF
 
 from login import require_login
 
@@ -251,8 +255,8 @@ with col3:
         st.session_state.market = st.radio(
             "Select marketplace", ["US", "CA", "EU", "UK"], horizontal=True
         )
-        dictionary = gc.pull_dictionary(
-            combine=False, market=st.session_state.market, full=full
+        dictionary = asyncio.run(
+            gc.pull_dictionary(combine=False, market=st.session_state.market, full=full)
         )
         output = BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
@@ -306,7 +310,7 @@ with col1:
             sku_list = qty_file["sku"].unique().tolist()
     if col1.button("Create barcodes", icon=":material/barcode:") and len(sku_list) > 0:
         with st.spinner("Please wait"):
-            dictionary = gc.pull_dictionary(combine=True)
+            dictionary = asyncio.run(gc.pull_dictionary(combine=True))
             check_skus(sku_list, dictionary)
             st.session_state.file = dictionary[
                 dictionary["sku"].isin(sku_list)
