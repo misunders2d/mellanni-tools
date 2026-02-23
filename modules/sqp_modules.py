@@ -7,67 +7,148 @@ from utils.mellanni_modules import export_to_excel, user_folder
 from modules import gcloud_modules as gc
 from modules.gcloud_modules import bigquery
 
-asins = ["B00NLLUMOE", "B00NQDGAP2"]
-start_date = ["2026-01-04", "2026-01-11", "2026-02-01"]
+asins = ["B00NLLUMOE", "B00NQDGAP2", "B0822XBDZW"]
+start_date = ["2026-01-04", "2026-01-11", "2026-02-01", "2026-02-08", "2026-02-20"]
 period = "WEEK"
-query_date = "query_date"
-query = "query"
-date = "date"
 
 
 def check_sqp_columns(sqp_raw: pd.DataFrame) -> dict:
 
     target_cols = {
-        "startDate": "startDate",
-        "endDate": "endDate",
-        "asin": "asin",
-        "searchQueryData_searchQuery": "searchQuery",
-        "searchQueryData_searchQueryScore": "searchQueryScore",
-        "searchQueryData_searchQueryVolume": "searchQueryVolume",
-        "impressionData_totalQueryImpressionCount": "totalQueryImpressionCount",
-        "impressionData_asinImpressionCount": "asinImpressionCount",
-        "impressionData_asinImpressionShare": "asinImpressionShare",
-        "clickData_totalClickCount": "totalClickCount",
-        "clickData_totalClickRate": "totalClickRate",
-        "clickData_asinClickCount": "asinClickCount",
-        "clickData_asinClickShare": "asinClickShare",
-        "totalMedianClickPrice_amount": "totalMedianClickPrice_amount",
-        "totalMedianClickPrice_currencyCode": "totalMedianClickPrice_currencyCode",
-        "asinMedianClickPrice_amount": "asinMedianClickPrice_amount",
-        "asinMedianClickPrice_currencyCode": "asinMedianClickPrice_currencyCode",
-        "clickData_totalSameDayShippingClickCount": "totalSameDayShippingClickCount",
-        "clickData_totalOneDayShippingClickCount": "totalOneDayShippingClickCount",
-        "clickData_totalTwoDayShippingClickCount": "totalTwoDayShippingClickCount",
-        "cartAddData_totalCartAddCount": "totalCartAddCount",
-        "cartAddData_totalCartAddRate": "totalCartAddRate",
-        "cartAddData_asinCartAddCount": "asinCartAddCount",
-        "cartAddData_asinCartAddShare": "asinCartAddShare",
-        "totalMedianCartAddPrice_amount": "totalMedianCartAddPrice_amount",
-        "totalMedianCartAddPrice_currencyCode": "totalMedianCartAddPrice_currencyCode",
-        "asinMedianCartAddPrice_amount": "asinMedianCartAddPrice_amount",
-        "asinMedianCartAddPrice_currencyCode": "asinMedianCartAddPrice_currencyCode",
-        "cartAddData_totalSameDayShippingCartAddCount": "totalSameDayShippingCartAddCount",
-        "cartAddData_totalOneDayShippingCartAddCount": "totalOneDayShippingCartAddCount",
-        "cartAddData_totalTwoDayShippingCartAddCount": "totalTwoDayShippingCartAddCount",
-        "purchaseData_totalPurchaseCount": "totalPurchaseCount",
-        "purchaseData_totalPurchaseRate": "totalPurchaseRate",
-        "purchaseData_asinPurchaseCount": "asinPurchaseCount",
-        "purchaseData_asinPurchaseShare": "asinPurchaseShare",
-        "totalMedianPurchasePrice_amount": "totalMedianPurchasePrice_amount",
-        "totalMedianPurchasePrice_currencyCode": "totalMedianPurchasePrice_currencyCode",
-        "asinMedianPurchasePrice_amount": "asinMedianPurchasePrice_amount",
-        "asinMedianPurchasePrice_currencyCode": "asinMedianPurchasePrice_currencyCode",
-        "purchaseData_totalSameDayShippingPurchaseCount": "totalSameDayShippingPurchaseCount",
-        "purchaseData_totalOneDayShippingPurchaseCount": "totalOneDayShippingPurchaseCount",
-        "purchaseData_totalTwoDayShippingPurchaseCount": "totalTwoDayShippingPurchaseCount",
-        "cartAddData_asinMedianCartAddPrice": "asinMedianCartAddPrice",
-        "purchaseData_asinMedianPurchasePrice": "asinMedianPurchasePrice",
-        "clickData_asinMedianClickPrice": "asinMedianClickPrice",
-        "cartAddData_totalMedianCartAddPrice": "totalMedianCartAddPrice",
-        "purchaseData_totalMedianPurchasePrice": "totalMedianPurchasePrice",
-        "clickData_totalMedianClickPrice": "totalMedianClickPrice",
-        "period": "period",
-        "marketplaces": "marketplaces",
+        "startDate": ("startDate", {"type": ""}),
+        "endDate": ("endDate", {"type": ""}),
+        "asin": ("asin", {"type": ""}),
+        "searchQueryData_searchQuery": ("searchQuery", {"type": ""}),
+        "searchQueryData_searchQueryScore": ("searchQueryScore", {"type": ""}),
+        "searchQueryData_searchQueryVolume": ("searchQueryVolume", {"type": "number"}),
+        "impressionData_totalQueryImpressionCount": (
+            "totalQueryImpressionCount",
+            {"type": "number"},
+        ),
+        "impressionData_asinImpressionCount": (
+            "asinImpressionCount",
+            {"type": "number"},
+        ),
+        "impressionData_asinImpressionShare": (
+            "asinImpressionShare",
+            {"type": "percent", "precision": 2},
+        ),
+        "clickData_totalClickCount": ("totalClickCount", {"type": "number"}),
+        "clickData_totalClickRate": ("totalClickRate", {"type": "percent"}),
+        "clickData_asinClickCount": ("asinClickCount", {"type": "number"}),
+        "clickData_asinClickShare": ("asinClickShare", {"type": "percent"}),
+        "totalMedianClickPrice_amount": (
+            "totalMedianClickPrice_amount",
+            {"type": "currency"},
+        ),
+        "totalMedianClickPrice_currencyCode": (
+            "totalMedianClickPrice_currencyCode",
+            {"type": ""},
+        ),
+        "asinMedianClickPrice_amount": (
+            "asinMedianClickPrice_amount",
+            {"type": "currency"},
+        ),
+        "asinMedianClickPrice_currencyCode": (
+            "asinMedianClickPrice_currencyCode",
+            {"type": ""},
+        ),
+        "clickData_totalSameDayShippingClickCount": (
+            "totalSameDayShippingClickCount",
+            {"type": "number"},
+        ),
+        "clickData_totalOneDayShippingClickCount": (
+            "totalOneDayShippingClickCount",
+            {"type": "number"},
+        ),
+        "clickData_totalTwoDayShippingClickCount": (
+            "totalTwoDayShippingClickCount",
+            {"type": "number"},
+        ),
+        "cartAddData_totalCartAddCount": ("totalCartAddCount", {"type": "number"}),
+        "cartAddData_totalCartAddRate": ("totalCartAddRate", {"type": "percent"}),
+        "cartAddData_asinCartAddCount": ("asinCartAddCount", {"type": "number"}),
+        "cartAddData_asinCartAddShare": ("asinCartAddShare", {"type": "percent"}),
+        "totalMedianCartAddPrice_amount": (
+            "totalMedianCartAddPrice_amount",
+            {"type": "currency"},
+        ),
+        "totalMedianCartAddPrice_currencyCode": (
+            "totalMedianCartAddPrice_currencyCode",
+            {"type": ""},
+        ),
+        "asinMedianCartAddPrice_amount": (
+            "asinMedianCartAddPrice_amount",
+            {"type": "currency"},
+        ),
+        "asinMedianCartAddPrice_currencyCode": (
+            "asinMedianCartAddPrice_currencyCode",
+            {"type": ""},
+        ),
+        "cartAddData_totalSameDayShippingCartAddCount": (
+            "totalSameDayShippingCartAddCount",
+            {"type": "number"},
+        ),
+        "cartAddData_totalOneDayShippingCartAddCount": (
+            "totalOneDayShippingCartAddCount",
+            {"type": "number"},
+        ),
+        "cartAddData_totalTwoDayShippingCartAddCount": (
+            "totalTwoDayShippingCartAddCount",
+            {"type": "number"},
+        ),
+        "purchaseData_totalPurchaseCount": ("totalPurchaseCount", {"type": "number"}),
+        "purchaseData_totalPurchaseRate": ("totalPurchaseRate", {"type": "percent"}),
+        "purchaseData_asinPurchaseCount": ("asinPurchaseCount", {"type": "number"}),
+        "purchaseData_asinPurchaseShare": ("asinPurchaseShare", {"type": "percent"}),
+        "totalMedianPurchasePrice_amount": (
+            "totalMedianPurchasePrice_amount",
+            {"type": "currency"},
+        ),
+        "totalMedianPurchasePrice_currencyCode": (
+            "totalMedianPurchasePrice_currencyCode",
+            {"type": ""},
+        ),
+        "asinMedianPurchasePrice_amount": (
+            "asinMedianPurchasePrice_amount",
+            {"type": "currency"},
+        ),
+        "asinMedianPurchasePrice_currencyCode": (
+            "asinMedianPurchasePrice_currencyCode",
+            {"type": ""},
+        ),
+        "purchaseData_totalSameDayShippingPurchaseCount": (
+            "totalSameDayShippingPurchaseCount",
+            {"type": "number"},
+        ),
+        "purchaseData_totalOneDayShippingPurchaseCount": (
+            "totalOneDayShippingPurchaseCount",
+            {"type": "number"},
+        ),
+        "purchaseData_totalTwoDayShippingPurchaseCount": (
+            "totalTwoDayShippingPurchaseCount",
+            {"type": "number"},
+        ),
+        "cartAddData_asinMedianCartAddPrice": ("asinMedianCartAddPrice", {"type": ""}),
+        "purchaseData_asinMedianPurchasePrice": (
+            "asinMedianPurchasePrice",
+            {"type": "currency"},
+        ),
+        "clickData_asinMedianClickPrice": ("asinMedianClickPrice", {"type": ""}),
+        "cartAddData_totalMedianCartAddPrice": (
+            "totalMedianCartAddPrice",
+            {"type": "currency"},
+        ),
+        "purchaseData_totalMedianPurchasePrice": (
+            "totalMedianPurchasePrice",
+            {"type": "currency"},
+        ),
+        "clickData_totalMedianClickPrice": (
+            "totalMedianClickPrice",
+            {"type": "currency"},
+        ),
+        "period": ("period", {"type": ""}),
+        "marketplaces": ("marketplaces", {"type": ""}),
     }
 
     if not sqp_raw.columns.tolist() == list(target_cols.keys()):
@@ -299,17 +380,26 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
     column_check = check_sqp_columns(sqp_raw)
     if column_check.get("status") == "error":
         raise BaseException(f"Columns do not match: {column_check.get('message')}")
-    target_cols, blank_cols = (
+    target_cols_dict, blank_cols = (
         column_check.get("target_cols", []),
         column_check.get("blank_cols", []),
     )
 
-    sqp = sqp_raw.rename(columns=column_check.get("target_cols"))
+    target_cols = {key: value[0] for key, value in target_cols_dict.items()}
+    column_formatting = {x[0]: x[1] for x in target_cols_dict.values() if x[1]["type"]}
+    column_formatting.update(
+        {
+            "ASINs shown": {"type": "number", "decimal": 1},
+            "asinCTR": {"type": "percent", "precision": 2},
+        }
+    )
+
+    sqp = sqp_raw.rename(columns=target_cols)
 
     sqp_asin = add_missing_columns(sqp.copy())
     sqp_asin = reorder_df(
         df=sqp_asin.copy(),
-        original_cols=target_cols.values(),
+        original_cols=list(target_cols.values()),
         blank_cols=blank_cols,
         target="full",
     )
@@ -346,7 +436,7 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
     date_query_report = add_missing_columns(df=date_query_report.copy())
     date_query_report = reorder_df(
         date_query_report,
-        original_cols=target_cols.values(),
+        original_cols=list(target_cols.values()),
         blank_cols=blank_cols,
         target="query_date",
     )
@@ -383,11 +473,11 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
     date_report = add_missing_columns(date_report.copy())
     date_report = reorder_df(
         date_report,
-        original_cols=target_cols.values(),
+        original_cols=list(target_cols.values()),
         blank_cols=blank_cols,
         target="date",
     )
-    return sqp_asin, date_query_report, date_report
+    return sqp_asin, date_query_report, date_report, column_formatting
 
 
 def main():
@@ -398,12 +488,15 @@ def main():
     if not isinstance(sqp_raw, pd.DataFrame):
         raise BaseException("sqp_raw is not a vaild dataframe")
 
-    sqp_asin, date_query_report, date_report = calculate_sqp(sqp_raw=sqp_raw)
+    sqp_asin, date_query_report, date_report, column_formatting = calculate_sqp(
+        sqp_raw=sqp_raw
+    )
     _ = export_to_excel(
         dfs=[sqp_asin, date_query_report, date_report],
         sheet_names=["ASIN", "Search Query", "Date"],
         filename="SQP report.xlsx",
         out_folder=user_folder,
+        column_formats=column_formatting,
     )
 
 
