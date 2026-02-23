@@ -1,5 +1,6 @@
 Authlib
 beautifulsoup4
+customtkinter
 db-dtypes
 fpdf
 fuzzywuzzy

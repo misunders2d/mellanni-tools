@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "authlib>=1.6.3",
     "beautifulsoup4>=4.13.5",
+    "customtkinter>=5.2.2",
     "db-dtypes>=1.4.3",
     "fpdf>=1.7.2",
     "fuzzywuzzy>=0.18.0",
