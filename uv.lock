@@ -1466,8 +1466,8 @@ wheels = [
 
 [[package]]
 name = "helper-modules"
-version = "0.1.53"
-source = { git = "https://github.com/misunders2d/helper-modules.git?rev=master#66c8273b98a6c0a9c4b75ad78b0113a4d76d5c53" }
+version = "0.1.54"
+source = { git = "https://github.com/misunders2d/helper-modules.git?rev=master#7eb534d25ca30ede1f523d46e9b95a4429640464" }
 dependencies = [
     { name = "customtkinter" },
     { name = "gdown" },
