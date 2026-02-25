@@ -312,6 +312,8 @@ def group_by_index(
     if len(immutable_cols) == 0:
         totals_df = pd.DataFrame(columns=pd.Index(index_cols))
     else:
+        currency_code_cols = [x for x in immutable_cols if "currency" in x]
+        df[currency_code_cols] = df[currency_code_cols].fillna("")
         totals_df = df.groupby(index_cols)[immutable_cols].agg("min").reset_index()
     sums_df = df.groupby(index_cols)[sum_cols].agg("sum").reset_index()
     price_df = calculate_weighted_prices(
@@ -387,15 +389,20 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
 
     target_cols = {key: value[0] for key, value in target_cols_dict.items()}
     column_formatting = {x[0]: x[1] for x in target_cols_dict.values() if x[1]["type"]}
+
+    sqp = sqp_raw.rename(columns=target_cols)
+    for col in column_formatting:
+        try:
+            sqp[col] = pd.to_numeric(sqp[col])
+        except Exception as e:
+            print(f"Could not convert {col} to numeric: {e}")
     column_formatting.update(
         {
             "ASINs shown": {"type": "number", "decimal": 1},
             "asinCTR": {"type": "percent", "precision": 2},
+            "asinConversion": {"type": "percent", "precision": 2},
         }
     )
-
-    sqp = sqp_raw.rename(columns=target_cols)
-
     sqp_asin = add_missing_columns(sqp.copy())
     sqp_asin = reorder_df(
         df=sqp_asin.copy(),

@@ -5,6 +5,7 @@ from typing import List, Literal, TypedDict
 import requests
 import streamlit as st
 from dotenv import load_dotenv
+from google.oauth2 import service_account
 from sp_api.api import ListingsItems
 
 load_dotenv()
@@ -27,6 +28,10 @@ positions_mapping = {
     "other_image_8": "other_product_image_locator_8",
     "swatch_image": "swatch_product_image_locator",
 }
+
+GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"]
+)
 
 
 def get_amazon_credentials():
