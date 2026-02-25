@@ -9,6 +9,7 @@ import pandas as pd
 import pandas_gbq
 import streamlit as st
 from dotenv import load_dotenv
+from google.oauth2 import service_account
 from sp_api.asyncio.api import Reports
 from sp_api.base import (
     ApiResponse,
@@ -18,7 +19,6 @@ from sp_api.base import (
 )
 
 from modules.gcloud_modules import bigquery, gcloud_connect
-from modules.sc_modules import GC_CREDENTIALS
 
 load_dotenv()
 
@@ -32,6 +32,10 @@ credentials = dict(
     refresh_token=REFRESH_TOKEN_US,
     lwa_app_id=os.environ["AMZ_CLIENT_ID"],
     lwa_client_secret=os.environ["AMZ_CLIENT_SECRET"],
+)
+
+GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"]
 )
 
 
