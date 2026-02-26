@@ -1,7 +1,23 @@
 import pandas as pd
 import streamlit as st
+from fuzzywuzzy import fuzz
 
 from modules import gcloud_modules as gc
+
+
+def is_similar(query, target, threshold: int = 70):
+    """Check if the query is similar to the target string using fuzzy matching."""
+    words = query.lower().split()
+    targets = target.lower().split()
+
+    if all(
+        [
+            any([fuzz.ratio(search_term, word) >= threshold for word in words])
+            for search_term in targets
+        ]
+    ):
+        return True
+    return False
 
 
 async def filter_dictionary(
@@ -85,3 +101,8 @@ async def filter_dictionary(
         ]
 
     return final_df
+
+
+def filter_column(df: pd.DataFrame, col: str, target: str):
+    df_filtered = df[df[col].apply(lambda x: is_similar(x, target))]
+    return df_filtered

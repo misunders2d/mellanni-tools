@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from login import require_login
-from modules.filter_modules import filter_dictionary
+from modules.filter_modules import filter_column, filter_dictionary
 from modules.gcloud_modules import pull_dictionary
 from modules.sp_api_modules import run_sqp_reports
 from modules.sqp_modules import calculate_sqp, pull_sqp_asin_data
@@ -26,16 +26,46 @@ filter_container = st.container()
 dates_container = st.container()
 dfs_container = st.container()
 coll_col, size_col, color_col = filter_container.columns([4, 2, 2])
-_, clear_btn_col, start_date_col, end_date_col = dates_container.columns([3, 1, 2, 2])
+filter_kw_col, clear_btn_col, start_date_col, end_date_col = dates_container.columns(
+    [3, 1, 2, 2]
+)
 
 start_date = start_date_col.date_input(label="Start date", label_visibility="collapsed")
-
 end_date = end_date_col.date_input(
     label="End date",
     label_visibility="collapsed",
     max_value=datetime.now() - timedelta(days=8),
 )
 
+
+def run_df_filter():
+    st.session_state.filter_search = st.session_state.phrase
+    if st.session_state.filter_search == "":
+        st.session_state.sqp_asin_filtered = st.session_state.sqp_asin.copy()
+        st.session_state.date_query_report_filtered = (
+            st.session_state.date_query_report.copy()
+        )
+    else:
+        st.session_state.sqp_asin_filtered = filter_column(
+            df=st.session_state.sqp_asin.copy(),
+            col="searchQuery",
+            target=st.session_state.filter_search,
+        )
+
+        st.session_state.date_query_report_filtered = filter_column(
+            df=st.session_state.date_query_report.copy(),
+            col="searchQuery",
+            target=st.session_state.filter_search,
+        )
+
+
+filter_kw = filter_kw_col.text_input(
+    label="Filter keywords",
+    placeholder="Enter keywords to search",
+    label_visibility="collapsed",
+    on_change=run_df_filter,
+    key="phrase",
+)
 
 asyncio.run(pull_dictionary())  # pre-populate dictionary
 filtered_dictionary = asyncio.run(
@@ -121,18 +151,44 @@ def get_column_config(column_formatting):
 
 def run_sqp_analysis(start_date, end_date):
     try:
-        sqp_asin, date_query_report, date_report, column_formatting = asyncio.run(
-            get_sqp_data(start_date, end_date)
-        )
-        dfs_container.dataframe(
-            date_report, column_config=get_column_config(column_formatting)
-        )
-        dfs_container.dataframe(
-            date_query_report, column_config=get_column_config(column_formatting)
-        )
+        (
+            st.session_state.sqp_asin,
+            st.session_state.date_query_report,
+            st.session_state.date_report,
+            st.session_state.column_formatting,
+        ) = asyncio.run(get_sqp_data(start_date, end_date))
 
     except Exception as e:
         st.error(e)
 
 
 st.button("Run", on_click=run_sqp_analysis, args=(start_date, end_date))
+
+if "date_report" in st.session_state:
+    dfs_container.dataframe(
+        st.session_state.date_report,
+        column_config=get_column_config(st.session_state.column_formatting),
+        hide_index=True,
+    )
+
+if "date_query_report" in st.session_state:
+    dfs_container.dataframe(
+        data=(
+            st.session_state.date_query_report_filtered
+            if "date_query_report_filtered" in st.session_state
+            else st.session_state.date_query_report
+        ),
+        column_config=get_column_config(st.session_state.column_formatting),
+        hide_index=True,
+    )
+
+if "sqp_asin" in st.session_state:
+    dfs_container.dataframe(
+        data=(
+            st.session_state.sqp_asin_filtered
+            if "sqp_asin_filtered" in st.session_state
+            else st.session_state.sqp_asin
+        ),
+        column_config=get_column_config(st.session_state.column_formatting),
+        hide_index=True,
+    )
