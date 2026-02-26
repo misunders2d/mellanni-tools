@@ -86,6 +86,11 @@ def filter_sundays(start_date, end_date):
 async def get_sqp_data(start_date=start_date, end_date=end_date):
     asins = list(pd.unique(filtered_dictionary["asin"]))
     if len(asins) > 100:
+        st.warning(
+            f"Please don't submit more than 100 ASINs at a time. You are currently trying to pull {len(asins)} asins"
+        )
+
+        st.stop()
         raise BaseException(
             f"Please don't submit more than 100 ASINs at a time. You are currently trying to pull {len(asins)} asins"
         )
