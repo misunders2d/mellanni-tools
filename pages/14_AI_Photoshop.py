@@ -1,9 +1,10 @@
+from io import BytesIO
+from typing import Any
+
+import streamlit as st
 from google import genai
 from PIL import Image
-from io import BytesIO
-import streamlit as st
 from streamlit_image_comparison import image_comparison
-from typing import Any
 
 st.set_page_config(
     page_title="AI photoshop",
@@ -11,6 +12,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+IMAGE_MODEL = "gemini-3.1-flash-image-preview"  # "gemini-2.5-flash-image"
 
 
 def calculate_cost(response):
@@ -23,7 +26,7 @@ def calculate_cost(response):
         if response.usage_metadata and response.usage_metadata.candidates_token_count:
             output_tokens += response.usage_metadata.candidates_token_count
 
-        total_cost = (input_tokens * 0.30 / 1_000_000) + 0.039
+        total_cost = (input_tokens * 0.25 / 1_000_000) + 0.067
         return total_cost
     except Exception as e:
         return str(e)
@@ -48,7 +51,7 @@ def generate_suggestted_decor(contents: list):
         client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"], vertexai=False)
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-image",
+            model=IMAGE_MODEL,
             contents=contents,
         )
         if (
