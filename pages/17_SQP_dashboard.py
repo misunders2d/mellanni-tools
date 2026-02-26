@@ -22,17 +22,15 @@ require_login()
 
 user_email = st.user.email
 
-filter_col, start_date_col, end_date_col = st.columns([4, 1, 1])
-start_date_text_input, start_date_date_input = start_date_col.columns([1, 2])
-end_date_text_input, end_date_date_input = end_date_col.columns([1, 2])
+filter_container = st.container()
+dates_container = st.container()
+dfs_container = st.container()
+coll_col, size_col, color_col = filter_container.columns([4, 2, 2])
+_, clear_btn_col, start_date_col, end_date_col = dates_container.columns([3, 1, 2, 2])
 
-start_date_text_input.write("Start:")
-start_date = start_date_date_input.date_input(
-    label="Start date", label_visibility="collapsed"
-)
+start_date = start_date_col.date_input(label="Start date", label_visibility="collapsed")
 
-end_date_text_input.write("End:")
-end_date = end_date_date_input.date_input(
+end_date = end_date_col.date_input(
     label="End date",
     label_visibility="collapsed",
     max_value=datetime.now() - timedelta(days=8),
@@ -40,7 +38,14 @@ end_date = end_date_date_input.date_input(
 
 
 asyncio.run(pull_dictionary())  # pre-populate dictionary
-filtered_dictionary = asyncio.run(filter_dictionary(col=filter_col))
+filtered_dictionary = asyncio.run(
+    filter_dictionary(
+        coll_target=coll_col,
+        size_target=size_col,
+        color_target=color_col,
+        clear_btn_target=clear_btn_col,
+    )
+)
 
 
 def filter_sundays(start_date, end_date):
@@ -119,8 +124,10 @@ def run_sqp_analysis(start_date, end_date):
         sqp_asin, date_query_report, date_report, column_formatting = asyncio.run(
             get_sqp_data(start_date, end_date)
         )
-        st.dataframe(date_report, column_config=get_column_config(column_formatting))
-        st.dataframe(
+        dfs_container.dataframe(
+            date_report, column_config=get_column_config(column_formatting)
+        )
+        dfs_container.dataframe(
             date_query_report, column_config=get_column_config(column_formatting)
         )
 

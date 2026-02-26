@@ -4,11 +4,15 @@ import streamlit as st
 from modules import gcloud_modules as gc
 
 
-async def filter_dictionary(col=None):
+async def filter_dictionary(
+    coll_target=None, size_target=None, color_target=None, clear_btn_target=None
+):
     """
     Filters the dictionary based on selected collection, size or color
     """
-    target = col if col else st
+    coll_target = coll_target if coll_target else st
+    size_target = size_target if size_target else st
+    color_target = color_target if color_target else st
 
     def clear_selection():
         for key in ["sel_col", "sel_size", "sel_color"]:
@@ -51,22 +55,21 @@ async def filter_dictionary(col=None):
     opt_color = sorted(pd.unique(mask_color["color"]))
 
     # --- 2. Render the Widgets ---
-    with target.popover(
-        label="Select products", icon=":material/shelves:", width="stretch"
-    ):
-        st.multiselect(
-            "Collections",
-            options=opt_col,
-            key="sel_col",
-            placeholder="Select collection(s)",
-        )
-        st.multiselect(
-            "Sizes", options=opt_size, key="sel_size", placeholder="Select size(s)"
-        )
-        st.multiselect(
-            "Colors", options=opt_color, key="sel_color", placeholder="Select color(s)"
-        )
-        st.button("Clear selection", on_click=clear_selection)
+    coll_target.multiselect(
+        "Collections",
+        options=opt_col,
+        key="sel_col",
+        placeholder="Select collection(s)",
+    )
+    size_target.multiselect(
+        "Sizes", options=opt_size, key="sel_size", placeholder="Select size(s)"
+    )
+    color_target.multiselect(
+        "Colors", options=opt_color, key="sel_color", placeholder="Select color(s)"
+    )
+    if clear_btn_target:
+
+        clear_btn_target.button("Clear selection", on_click=clear_selection)
 
     # --- 3. Return the Final Filtered DataFrame ---
     final_df = df.copy()

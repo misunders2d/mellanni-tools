@@ -26,7 +26,7 @@ REFRESH_TOKEN_US = os.environ.get(
     "AMZ_REFRESH_TOKEN_US", st.secrets["AMZ_REFRESH_TOKEN_US"]
 )
 SELLER_ID = os.environ.get("AMZ_SELLER_ID", st.secrets["AMZ_SELLER_ID"])
-MARKETPLACE_IDS = MARKETPLACE_IDS = ["ATVPDKIKX0DER"]
+MARKETPLACE_IDS = ["ATVPDKIKX0DER"]
 
 credentials = dict(
     refresh_token=REFRESH_TOKEN_US,
@@ -345,8 +345,8 @@ async def run_sqp_reports(date_asin_dict: dict[str | datetime, str | list]):
 
         for ba_upload in ba_uploads:
             results.append(await ba_upload)
-        for result in results:
-            print(result)
+        # for result in results:
+        #     print(result)
     except ValueError as e:
         print(f"Wrong date submitted: {e}")
     except Exception as e:
@@ -392,6 +392,7 @@ async def brand_analytics_report(
     report_options = {
         "reportPeriod": "WEEK",
     }
+
     if report_type == ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT:
         if not asin:
             raise BaseException("ASIN was not provided!")
@@ -404,6 +405,7 @@ async def brand_analytics_report(
                 reportOptions=report_options,
                 dataStartTime=str(week_start.date()),
                 dataEndTime=str(week_start.date() + timedelta(days=6)),
+                marketplaceIds=MARKETPLACE_IDS,
             )
     except (SellingApiBadRequestException, SellingApiRequestThrottledException) as e:
         print(f"Ran into rate limits, waiting for {timeout} seconds. {e}")
