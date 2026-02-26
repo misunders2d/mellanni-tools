@@ -40,7 +40,7 @@ end_date = end_date_col.date_input(
 
 def run_df_filter():
     st.session_state.filter_search = st.session_state.phrase
-    if st.session_state.filter_search == "":
+    if st.session_state.filter_search == "" or not st.session_state.filter_search:
         st.session_state.sqp_asin_filtered = st.session_state.sqp_asin.copy()
         st.session_state.date_query_report_filtered = (
             st.session_state.date_query_report.copy()

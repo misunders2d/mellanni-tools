@@ -7,6 +7,8 @@ from modules import gcloud_modules as gc
 
 def is_similar(query, target, threshold: int = 70):
     """Check if the query is similar to the target string using fuzzy matching."""
+    if not query or not target:
+        return False
     words = query.lower().split()
     targets = target.lower().split()
 

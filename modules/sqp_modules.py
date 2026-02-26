@@ -463,6 +463,7 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
             sqp[col] = sqp[col].astype(np.float64).fillna(0)
         except Exception as e:
             print(f"Could not convert {col} to numeric: {e}")
+    sqp["searchQuery"] = sqp["searchQuery"].fillna("")
 
     column_formatting = {x[0]: x[1] for x in target_cols_dict.values() if x[1]["type"]}
     column_formatting.update(
