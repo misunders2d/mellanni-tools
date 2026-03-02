@@ -574,7 +574,7 @@ def main():
         raise BaseException(f"Could not pull SQP data: {sqp_raw_result.get('message')}")
     sqp_raw = sqp_raw_result["result"]
     if not isinstance(sqp_raw, pd.DataFrame):
-        raise BaseException("sqp_raw is not a vaild dataframe")
+        raise BaseException("sqp_raw is not a valid dataframe")
 
     sqp_asin, date_query_report, date_report, column_formatting = calculate_sqp(
         sqp_raw=sqp_raw

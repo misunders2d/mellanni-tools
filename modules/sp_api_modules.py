@@ -41,7 +41,7 @@ GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
 
 async def check_and_download_report(
     response: ApiResponse | None = None, report_id: str | None = None, timeout=5
-):
+) -> dict:
     rate_limit = 0.0167
     if all([response is None, report_id is None]):
         raise ValueError("Either a response or a report ID must be provided")
@@ -75,24 +75,29 @@ async def check_and_download_report(
             except SellingApiRequestThrottledException:
                 print(f"Hit rate limits, sleeping for {int(1/rate_limit)+2} seconds")
                 time.sleep(int(1 / rate_limit) + 2)
-                report_document = await check_and_download_report(
+                report_status = await check_and_download_report(
                     report_id=report_id, timeout=int(1 / rate_limit) + 2
                 )
+                report_document = report_status["document"]
 
             except Exception as e:
                 print(
                     f"Unknown error occurred, cooling down and retrying.\n Error: {e}"
                 )
                 time.sleep(int(1 / rate_limit) + 2)
-                report_document = await check_and_download_report(
+                report_status = await check_and_download_report(
                     report_id=report_id, timeout=int(1 / rate_limit) + 2
                 )
+                report_document = report_status["document"]
 
             print(f"document id: {report_status['reportDocumentId']}")
         else:
             print(f"report status: {report_status['processingStatus']}")
-            report_document = ""
-        return report_document
+            return {"status": report_status["processingStatus"], "document": ""}
+        return {
+            "status": report_status["processingStatus"],
+            "document": report_document,
+        }
 
 
 def chunk_asins(asins: str | list, chunk_size: int = 18) -> list:
@@ -292,11 +297,12 @@ async def collect_sqp_reports(created_since, created_before):
             created_before=created_before,
         )
         for i, report_record in enumerate(all_reports, start=1):
-            document = await check_and_download_report(
+            document_status = await check_and_download_report(
                 report_id=report_record["reportId"]
             )
-            _ = await upload_ba_report(document=document)
-            print(f"Uploaded {i} reports of {len(all_reports)}", end="\n\n")
+            if document_status["status"] == "DONE":
+                _ = await upload_ba_report(document=document_status["document"])
+                print(f"Uploaded {i} reports of {len(all_reports)}", end="\n\n")
     except Exception as e:
         print(f"[[ERROR for {str(e)}]]: {e}\nRetrying...")
         await collect_sqp_reports(
@@ -305,12 +311,12 @@ async def collect_sqp_reports(created_since, created_before):
         )
 
 
-async def run_sqp_reports(date_asin_dict: dict[str | datetime, str | list]):
+async def run_sqp_reports(date_asin_dict: dict[str | datetime, str | list]) -> list:
     """
     Downloads SQP reports for a given selection of dates and for a given set of ASINs.
     ASINs are chunked 18 at a time.
     """
-    results = []
+    failed_reports = []
 
     clean_date_asin_dict = {
         convert_date_to_isoformat(start_date): chunk_asins(asin_list)
@@ -318,44 +324,41 @@ async def run_sqp_reports(date_asin_dict: dict[str | datetime, str | list]):
     }
 
     try:
-        ba_report_jobs = []
+        ba_report_jobs = {}
         for week_start, asin_list in clean_date_asin_dict.items():
             for asin_chunk in asin_list:
-                ba_report_jobs.append(
-                    brand_analytics_report(
-                        week_start=week_start,
-                        report_type=ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
-                        asin=asin_chunk,
-                    )
+                ba_report_jobs[week_start, asin_chunk] = brand_analytics_report(
+                    week_start=week_start,
+                    report_type=ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
+                    asin=asin_chunk,
                 )
 
-        responses = []
-        for ba_report_job in ba_report_jobs:
-            responses.append(await ba_report_job)
+        responses = {}
+        for date_asin, ba_report_job in ba_report_jobs.items():
+            responses[date_asin] = await ba_report_job
 
-        document_jobs = []
-        for response in responses:
-            document_jobs.append(check_and_download_report(response=response))
+        document_jobs = {}
+        for date_asin, response in responses.items():
+            document_jobs[date_asin] = check_and_download_report(response=response)
 
-        report_documents = []
-        for document_job in document_jobs:
-            report_documents.append(await document_job)
+        report_documents = {}
+        for date_asin, document_job in document_jobs.items():
+            report_documents[date_asin] = await document_job
 
-        ba_uploads = []
-        for report_document in report_documents:
-            ba_uploads.append(upload_ba_report(report_document))
+        ba_uploads = {}
+        for date_asin, report_document in report_documents.items():
+            if report_document["status"] == "FATAL":
+                failed_reports.append(date_asin)
+            else:
+                ba_uploads[date_asin] = upload_ba_report(report_document)
 
-        for ba_upload in ba_uploads:
-            results.append(await ba_upload)
-        # for result in results:
-        #     print(result)
+        for date_asin, ba_upload in ba_uploads.items():
+            await ba_upload
     except ValueError as e:
         print(f"Wrong date submitted: {e}")
     except Exception as e:
         print(f"Error while creating sqp reports: {e}")
-    finally:
-        if len(results) > 0:
-            (await result for result in results)
+    return failed_reports
 
 
 def get_last_sunday(date: datetime | None = None, day_delta: int = 7):

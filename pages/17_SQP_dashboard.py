@@ -87,17 +87,38 @@ def filter_sundays(start_date, end_date):
     return [str(x.date()) for x in date_range if x.weekday() == 6]
 
 
-async def get_sqp_data(start_date=start_date, end_date=end_date):
+async def get_sqp_data(
+    start_date=start_date, end_date=end_date, failed_asins: list | None = None
+):
     asins = list(pd.unique(filtered_dictionary["asin"]))
+    if (
+        failed_asins
+    ):  # means some of the asins were already requested from Amazon and the reports failed.
+        failed_asins_dict = {
+            date_str.split("T")[0]: asin_str.split()
+            for date_str, asin_str in failed_asins
+        }
+        failed_asins_list = [
+            asin for sublist in failed_asins_dict.values() for asin in sublist
+        ]
+        asins = [
+            x for x in asins if x not in failed_asins_list
+        ]  # removing failed asins from the requested asins list
+
     if len(asins) > 100:
         st.warning(
             f"Please don't submit more than 100 ASINs at a time. You are currently trying to pull {len(asins)} asins"
         )
 
-        st.stop()
         raise BaseException(
             f"Please don't submit more than 100 ASINs at a time. You are currently trying to pull {len(asins)} asins"
         )
+        st.stop()
+    elif len(asins) == 0:
+        st.warning(
+            "All ASINs are currently unreportable for this timeframe, please wait for a few hours or select a date that is one week earlier"
+        )
+        st.stop()
     dates = filter_sundays(start_date=start_date, end_date=end_date)
     sqp_raw_result = pull_sqp_asin_data(asins, dates)
 
@@ -112,11 +133,25 @@ async def get_sqp_data(start_date=start_date, end_date=end_date):
         for start_date, asin in sqp_raw[["startDate", "asin"]].drop_duplicates().values
     }
     missing_asins = {}
+    # checking if some of the requested asins did not return from bigquery table. in this case we're requesting them from Amazon directly.
     for date in dates:
         missing_asins[date] = []
         for asin in asins:
             if (date, asin) not in current_asins:
                 missing_asins[date].append(asin)
+    if failed_asins:
+        failed_asins_dict = {
+            date_str.split("T")[0]: asin_str.split()
+            for date_str, asin_str in failed_asins
+        }
+        st.toast(
+            f"Please note, the following reports failed, they are not ready in Amazon yet: {str(failed_asins)}"
+        )
+        for date, asin_list in failed_asins_dict.items():
+            for asin in asin_list:
+                pass
+                if asin in failed_asins_dict[date]:
+                    missing_asins[date].remove(asin)
 
     if any(len(missing_asins[x]) > 0 for x in missing_asins):
         missing_str = {date: len(missing_asins[date]) for date in missing_asins}
@@ -126,9 +161,11 @@ async def get_sqp_data(start_date=start_date, end_date=end_date):
         st.toast(missing_str_text)
         st.info("Pulling information from Amazon reports, this could take a while")
         date_asin_dict = {d: v for d, v in missing_asins.items() if len(v) > 0}
-        await run_sqp_reports(date_asin_dict=date_asin_dict)
+        failed_reports = await run_sqp_reports(date_asin_dict=date_asin_dict)
         sqp_asin, date_query_report, date_report, column_formatting = (
-            await get_sqp_data(start_date=start_date, end_date=end_date)
+            await get_sqp_data(
+                start_date=start_date, end_date=end_date, failed_asins=failed_reports
+            )
         )
 
     sqp_asin, date_query_report, date_report, column_formatting = calculate_sqp(
