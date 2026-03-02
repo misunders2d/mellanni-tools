@@ -8,6 +8,7 @@ from login import require_login
 from modules.filter_modules import filter_column, filter_dictionary
 from modules.gcloud_modules import pull_dictionary
 from modules.sp_api_modules import run_sqp_reports
+from modules.sqp_dashboard import render_sqp_dashboard
 from modules.sqp_modules import calculate_sqp, pull_sqp_asin_data
 
 st.set_page_config(
@@ -24,6 +25,7 @@ user_email = st.user.email
 
 filter_container = st.container()
 dates_container = st.container()
+dashboard_container = st.container()
 dfs_container = st.container()
 coll_col, size_col, color_col = filter_container.columns([4, 2, 2])
 filter_kw_col, clear_btn_col, start_date_col, end_date_col = dates_container.columns(
@@ -175,6 +177,7 @@ if "date_report" in st.session_state:
         column_config=get_column_config(st.session_state.column_formatting),
         hide_index=True,
     )
+    render_sqp_dashboard(st.session_state.date_report)
 
 if "date_query_report" in st.session_state:
     dfs_container.dataframe(

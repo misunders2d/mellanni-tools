@@ -236,6 +236,8 @@ def process_document(document):
 
 
 async def upload_ba_report(document):
+    if not document or document == "":
+        return {"status": "failed", "error": "document is empty"}
     try:
         unique_asins_job = check_if_ba_report_exists(document)
         report_df = process_document(document)
