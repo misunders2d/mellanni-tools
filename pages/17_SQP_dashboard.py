@@ -32,11 +32,13 @@ filter_kw_col, clear_btn_col, start_date_col, end_date_col = dates_container.col
     [3, 1, 2, 2]
 )
 
-start_date = start_date_col.date_input(label="Start date", label_visibility="collapsed")
 end_date = end_date_col.date_input(
     label="End date",
     label_visibility="collapsed",
     max_value=datetime.now() - timedelta(days=8),
+)
+start_date = start_date_col.date_input(
+    label="Start date", label_visibility="collapsed", max_value=end_date
 )
 
 
