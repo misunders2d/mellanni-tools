@@ -353,6 +353,8 @@ def scatter_charts(x_axis, y_axis, series: list):
 
 
 def radar_charts(df: pd.DataFrame):
+    if len(df) == 0:
+        return
     cols = [
         ["searchQueryVolume", "asinImpressionCount"],
         ["totalCTR", "asinCTR"],
@@ -966,6 +968,8 @@ def calendar_charts():
 
 
 def parallel_coordinates_charts(df: pd.DataFrame):
+    if len(df) == 0:
+        return
     cols = [
         "searchQueryVolume",
         "totalClickCount",
