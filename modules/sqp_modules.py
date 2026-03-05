@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -13,8 +13,8 @@ start_date = ["2026-01-04", "2026-01-11", "2026-02-01", "2026-02-08", "2026-02-1
 period = "WEEK"
 
 
-def check_sqp_columns(sqp_raw: pd.DataFrame) -> dict:
-
+def get_sqp_columns() -> dict[str, Any]:
+    """Produces columns list for the SQP file, including column formatting"""
     target_cols = {
         "startDate": ("startDate", {"type": ""}),
         "endDate": ("endDate", {"type": ""}),
@@ -158,11 +158,9 @@ def check_sqp_columns(sqp_raw: pd.DataFrame) -> dict:
         "marketplaces": ("marketplaces", {"type": ""}),
     }
 
-    if not sqp_raw.columns.tolist() == list(target_cols.keys()):
-        wrong_cols = [
-            x for x in sqp_raw.columns.tolist() if x not in list(target_cols.keys())
-        ] or [x for x in list(target_cols.keys()) if x not in sqp_raw.columns.tolist()]
-        return {"status": "error", "message": ", ".join(wrong_cols)}
+    rename_cols = {key: value[0] for key, value in target_cols.items()}
+
+    num_cols = [x[0] for x in target_cols.values() if x[1].get("type")]
 
     blank_cols = [
         "asinMedianCartAddPrice",
@@ -173,10 +171,25 @@ def check_sqp_columns(sqp_raw: pd.DataFrame) -> dict:
         "totalMedianClickPrice",
     ]
 
+    column_formatting = {x[0]: x[1] for x in target_cols.values() if x[1]["type"]}
+    column_formatting.update(
+        {
+            "ASINs shown": {"type": "number", "decimal": 1},
+            "asinCTR": {"type": "percent", "precision": 3},
+            "totalCTR": {"type": "percent", "precision": 3},
+            "asinConversion": {"type": "percent", "precision": 2},
+            "totalConversion": {"type": "percent", "precision": 2},
+            "asinMissedImpressions": {"type": "number", "decimal": 0},
+            "asinLostSales": {"type": "currency"},
+        }
+    )
+
     return {
-        "status": "success",
         "target_cols": target_cols,
+        "rename_cols": rename_cols,
+        "num_cols": num_cols,
         "blank_cols": blank_cols,
+        "column_formatting": column_formatting,
     }
 
 
@@ -340,9 +353,11 @@ def add_missing_columns(df: pd.DataFrame) -> pd.DataFrame:
         df["asinImpressionShare"] = (
             df["asinImpressionCount"] / df["totalQueryImpressionCount"]
         )
-        df["asinClickShare"] = df["asinClickCount"] / df["totalClickCount"].replace(
-            [np.inf, -np.inf], 0
-        ).fillna(0)
+        df["asinClickShare"] = (
+            (df["asinClickCount"] / df["totalClickCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
 
         df["asinMissedImpressions"] = (
             df["searchQueryVolume"] - df["asinImpressionCount"]
@@ -350,45 +365,65 @@ def add_missing_columns(df: pd.DataFrame) -> pd.DataFrame:
             0
         )  # for how many searches the brand asin DID NOT show up for customers - missed views
 
-        df["totalCTR"] = df["totalClickCount"] / df[
-            "totalQueryImpressionCount"
-        ].replace([np.inf, -np.inf], 0).fillna(
-            0
+        df["totalCTR"] = (
+            (df["totalClickCount"] / df["totalQueryImpressionCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
         )  # Click through rate total
-        df["asinCTR"] = df["asinClickCount"] / df["asinImpressionCount"].replace(
-            [np.inf, -np.inf], 0
-        ).fillna(
-            0
+        df["asinCTR"] = (
+            (df["asinClickCount"] / df["asinImpressionCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
         )  # Click through rate of the brand's ASIN
 
-        df["asinCartAddShare"] = df["asinCartAddCount"] / df[
-            "totalCartAddCount"
-        ].replace([np.inf, -np.inf], 0).fillna(0)
-        df["asinClickToAtcConversion"] = df["asinCartAddCount"] / df[
-            "asinClickCount"
-        ].replace([np.inf, -np.inf], 0).fillna(
-            0
+        df["asinCartAddShare"] = (
+            (df["asinCartAddCount"] / df["totalCartAddCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
+
+        df["totalClickToAtcConversion"] = (
+            (df["totalCartAddCount"] / df["totalClickCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
         )  # % of customers who added to cart after clicking (buying intent)
-        df["asinPurchaseShare"] = df["asinPurchaseCount"] / df[
-            "totalPurchaseCount"
-        ].replace([np.inf, -np.inf], 0).fillna(0)
 
-        df["totalConversion"] = df["totalPurchaseCount"] / df[
-            "totalClickCount"
-        ].replace([np.inf, -np.inf], 0).fillna(0)
-        df["asinConversion"] = df["asinPurchaseCount"] / df["asinClickCount"].replace(
-            [np.inf, -np.inf], 0
-        ).fillna(0)
+        df["asinClickToAtcConversion"] = (
+            (df["asinCartAddCount"] / df["asinClickCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )  # % of customers who added to cart after clicking (buying intent)
+        df["asinPurchaseShare"] = (
+            (df["asinPurchaseCount"] / df["totalPurchaseCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
 
-        df["totalClickRate"] = df["totalClickCount"] / df["searchQueryVolume"].replace(
-            [np.inf, -np.inf], 0
-        ).fillna(0)
-        df["totalCartAddRate"] = df["totalCartAddCount"] / df[
-            "searchQueryVolume"
-        ].replace([np.inf, -np.inf], 0).fillna(0)
-        df["totalPurchaseRate"] = df["totalPurchaseCount"] / df[
-            "searchQueryVolume"
-        ].replace([np.inf, -np.inf], 0).fillna(0)
+        df["totalConversion"] = (
+            (df["totalPurchaseCount"] / df["totalClickCount"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
+        df["asinConversion"] = (
+            (df["asinPurchaseCount"] / df["asinClickCount"])
+            .replace([np.inf, -np.inf, np.nan], 0)
+            .fillna(0)
+        )
+        df["totalClickRate"] = (
+            (df["totalClickCount"] / df["searchQueryVolume"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
+        df["totalCartAddRate"] = (
+            (df["totalCartAddCount"] / df["searchQueryVolume"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
+        df["totalPurchaseRate"] = (
+            (df["totalPurchaseCount"] / df["searchQueryVolume"])
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+        )
 
         max_conversion = df[["totalConversion", "asinConversion"]].max(axis=1)
         asin_purchase_price = df["asinMedianPurchasePrice_amount"].mean(
@@ -411,7 +446,7 @@ def reorder_df(
     df: pd.DataFrame,
     original_cols: list,
     blank_cols: list,
-    target: Literal["query_date", "query", "date", "full"],
+    target: Literal["query_date", "query", "date", "full", "combined"],
 ) -> pd.DataFrame:
     ordered_cols = [
         x
@@ -423,16 +458,29 @@ def reorder_df(
             _ = ordered_cols.pop(ordered_cols.index("asin"))
         case "query":
             ordered_cols = [x for x in ordered_cols if "Date" not in x]
+            _ = ordered_cols.pop(ordered_cols.index("asin"))
+
         case "date":
             ordered_cols = [
                 x for x in ordered_cols if not (x == "asin" or x == "searchQuery")
             ]
+        case "combined":
+            ordered_cols = [
+                x
+                for x in ordered_cols
+                if not (x == "asin" or x == "searchQuery" or "Date" in x)
+            ]
+
     total_click_count_index = ordered_cols.index("totalClickRate")
     ordered_cols.insert(total_click_count_index, "ASINs shown")
 
     asin_click_share_index = ordered_cols.index("asinClickShare")
     ordered_cols.insert(asin_click_share_index, "asinCTR")
     ordered_cols.insert(asin_click_share_index, "totalCTR")
+
+    asin_cart_add_share_index = ordered_cols.index("asinCartAddShare")
+    ordered_cols.insert(asin_cart_add_share_index, "asinClickToAtcConversion")
+    ordered_cols.insert(asin_cart_add_share_index, "totalClickToAtcConversion")
 
     asin_purchase_share_index = ordered_cols.index("asinPurchaseShare")
     ordered_cols.insert(asin_purchase_share_index, "asinConversion")
@@ -443,19 +491,19 @@ def reorder_df(
     return df.loc[:, ordered_cols]
 
 
-def calculate_sqp(sqp_raw: pd.DataFrame):
-    column_check = check_sqp_columns(sqp_raw)
-    if column_check.get("status") == "error":
-        raise BaseException(f"Columns do not match: {column_check.get('message')}")
-    target_cols_dict, blank_cols = (
-        column_check.get("target_cols", []),
-        column_check.get("blank_cols", []),
-    )
+def check_sqp(sqp_raw: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    check_columns = get_sqp_columns()
+    target_cols = check_columns["target_cols"]
+    rename_cols = check_columns["rename_cols"]
+    num_cols = check_columns["num_cols"]
 
-    target_cols = {key: value[0] for key, value in target_cols_dict.items()}
-    sqp = sqp_raw.rename(columns=target_cols)
+    if not sqp_raw.columns.tolist() == list(target_cols.keys()):
+        wrong_cols = [
+            x for x in sqp_raw.columns.tolist() if x not in list(target_cols.keys())
+        ] or [x for x in list(target_cols.keys()) if x not in sqp_raw.columns.tolist()]
+        print(f"status: error, message: {', '.join(wrong_cols)}")
 
-    num_cols = [x[0] for x in target_cols_dict.values() if x[1].get("type")]
+    sqp = sqp_raw.rename(columns=rename_cols)
 
     for col in num_cols:
         try:
@@ -465,22 +513,22 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
             print(f"Could not convert {col} to numeric: {e}")
     sqp["searchQuery"] = sqp["searchQuery"].astype(str).fillna("")
 
-    column_formatting = {x[0]: x[1] for x in target_cols_dict.values() if x[1]["type"]}
-    column_formatting.update(
-        {
-            "ASINs shown": {"type": "number", "decimal": 1},
-            "asinCTR": {"type": "percent", "precision": 3},
-            "totalCTR": {"type": "percent", "precision": 3},
-            "asinConversion": {"type": "percent", "precision": 2},
-            "totalConversion": {"type": "percent", "precision": 2},
-            "asinMissedImpressions": {"type": "number", "decimal": 0},
-            "asinLostSales": {"type": "currency"},
-        }
-    )
+    return sqp, check_columns
+
+
+def calculate_sqp(
+    sqp: pd.DataFrame,
+    check_columns: dict,
+):
+
+    rename_cols = check_columns["rename_cols"]
+    blank_cols = check_columns["blank_cols"]
+
+    # calculate the full asin / search query df
     sqp_asin = add_missing_columns(sqp.copy())
     sqp_asin = reorder_df(
         df=sqp_asin.copy(),
-        original_cols=list(target_cols.values()),
+        original_cols=list(rename_cols.values()),
         blank_cols=blank_cols,
         target="full",
     )
@@ -489,18 +537,18 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
     )
 
     # calculate results by date and search query
-    immutable_cols = [x for x in target_cols.values() if x.startswith("total")] + [
+    immutable_cols = [x for x in rename_cols.values() if x.startswith("total")] + [
         "searchQueryVolume"
     ]
 
     sum_cols = [
         x
-        for x in target_cols.values()
+        for x in rename_cols.values()
         if (x.startswith("asin") and x.endswith("Count"))
     ]
     price_cols = [
         x
-        for x in target_cols.values()
+        for x in rename_cols.values()
         if (x.startswith("asin") and x.endswith("Price_amount"))
     ]
 
@@ -520,7 +568,7 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
     date_query_report = add_missing_columns(df=date_query_report.copy())
     date_query_report = reorder_df(
         date_query_report,
-        original_cols=list(target_cols.values()),
+        original_cols=list(rename_cols.values()),
         blank_cols=blank_cols,
         target="query_date",
     )
@@ -533,12 +581,12 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
 
     sum_cols = [
         x
-        for x in target_cols.values()
+        for x in rename_cols.values()
         if ((x.startswith("asin") or x.startswith("total")) and x.endswith("Count"))
     ] + ["searchQueryVolume"]
     price_cols = [
         x
-        for x in target_cols.values()
+        for x in rename_cols.values()
         if (
             (x.startswith("asin") or x.startswith("total"))
             and x.endswith("Price_amount")
@@ -560,12 +608,92 @@ def calculate_sqp(sqp_raw: pd.DataFrame):
     date_report = add_missing_columns(date_report.copy())
     date_report = reorder_df(
         date_report,
-        original_cols=list(target_cols.values()),
+        original_cols=list(rename_cols.values()),
         blank_cols=blank_cols,
         target="date",
     )
     date_report = date_report.sort_values(by="startDate", ascending=True)
-    return sqp_asin, date_query_report, date_report, column_formatting
+
+    # calculate results for QUERY only
+    immutable_cols = []
+
+    sum_cols = [
+        x
+        for x in rename_cols.values()
+        if ((x.startswith("asin") or x.startswith("total")) and x.endswith("Count"))
+    ] + ["searchQueryVolume"]
+    price_cols = [
+        x
+        for x in rename_cols.values()
+        if (
+            (x.startswith("asin") or x.startswith("total"))
+            and x.endswith("Price_amount")
+        )
+    ]
+
+    query_report = group_by_index(
+        date_query_report.copy(),
+        index_cols=[
+            "searchQuery",
+            "period",
+            "marketplaces",
+        ],
+        sum_cols=sum_cols,
+        immutable_cols=immutable_cols,
+        price_cols=price_cols,
+    )
+    query_report = add_missing_columns(query_report.copy())
+    query_report = reorder_df(
+        query_report,
+        original_cols=list(rename_cols.values()),
+        blank_cols=blank_cols,
+        target="query",
+    )
+    query_report = query_report.sort_values(by="searchQueryVolume", ascending=False)
+
+    # calculate TOTAL combined results for the period
+    immutable_cols = []
+
+    sum_cols = [
+        x
+        for x in rename_cols.values()
+        if ((x.startswith("asin") or x.startswith("total")) and x.endswith("Count"))
+    ] + ["searchQueryVolume"]
+    price_cols = [
+        x
+        for x in rename_cols.values()
+        if (
+            (x.startswith("asin") or x.startswith("total"))
+            and x.endswith("Price_amount")
+        )
+    ]
+
+    combined_report = group_by_index(
+        date_report.copy(),
+        index_cols=[
+            "period",
+            "marketplaces",
+        ],
+        sum_cols=sum_cols,
+        immutable_cols=immutable_cols,
+        price_cols=price_cols,
+    )
+    combined_report = add_missing_columns(combined_report.copy())
+    combined_report = reorder_df(
+        combined_report,
+        original_cols=list(rename_cols.values()),
+        blank_cols=blank_cols,
+        target="combined",
+    )
+    combined_report = combined_report.copy()
+
+    return {
+        "sqp_asin": sqp_asin,
+        "date_query_report": date_query_report,
+        "date_report": date_report,
+        "query_report": query_report,
+        "combined_report": combined_report,
+    }
 
 
 def main():
@@ -576,15 +704,20 @@ def main():
     if not isinstance(sqp_raw, pd.DataFrame):
         raise BaseException("sqp_raw is not a valid dataframe")
 
-    sqp_asin, date_query_report, date_report, column_formatting = calculate_sqp(
-        sqp_raw=sqp_raw
-    )
+    sqp, check_columns = check_sqp(sqp_raw)
+    reports = calculate_sqp(sqp=sqp, check_columns=check_columns)
+    sqp_asin = reports["sqp_asin"]
+    date_query_report = reports["date_query_report"]
+    date_report = reports["date_report"]
+    query_report = reports["query_report"]
+    combined_report = reports["combined_report"]
+
     _ = export_to_excel(
         dfs=[sqp_asin, date_query_report, date_report],
         sheet_names=["ASIN", "Search Query", "Date"],
         filename="SQP report.xlsx",
         out_folder=user_folder,
-        column_formats=column_formatting,
+        column_formats=check_columns["column_formatting"],
     )
 
 

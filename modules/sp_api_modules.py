@@ -51,9 +51,12 @@ async def check_and_download_report(
         report_status_job = await report.get_report(reportId=report_id)
         report_status = report_status_job.payload
 
+        attempt = 1
+
         while report_status["processingStatus"] in ("IN_PROGRESS", "IN_QUEUE"):
-            print("Waiting for 5 seconds")
-            time.sleep(5)
+            attempt += 1
+            print(f"Waiting for {timeout} seconds, attempt # {attempt}")
+            time.sleep(timeout)
             report_status_job = await report.get_report(reportId=report_id)
             report_status = report_status_job.payload
 
