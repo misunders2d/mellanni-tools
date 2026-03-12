@@ -48,3 +48,5 @@ urllib3
 XlsxWriter
 
 git+https://github.com/misunders2d/helper-modules.git@master
+git+https://github.com/misunders2d/amazon_sp.git@master
+git+https://github.com/misunders2d/scheduled_reports.git@master

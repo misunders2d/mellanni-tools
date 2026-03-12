@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import streamlit as st
+from scheduled.sqp_reports import run_sqp_reports
 from streamlit_echarts import st_echarts
 
 from login import require_login
 from modules.filter_modules import filter_column, filter_dictionary
 from modules.gcloud_modules import pull_dictionary
-from modules.sp_api_modules import run_sqp_reports
 from modules.sqp_charts import parallel_coordinates_charts, radar_charts
 from modules.sqp_modules import calculate_sqp, check_sqp, pull_sqp_asin_data
 

@@ -1,4 +1,12 @@
+import os
+
 import streamlit as st
+
+os.environ["AMZ_CLIENT_ID"] = st.secrets["AMZ_CLIENT_ID"]
+os.environ["AMZ_CLIENT_SECRET"] = st.secrets["AMZ_CLIENT_SECRET"]
+os.environ["AMZ_REFRESH_TOKEN_US"] = st.secrets["AMZ_REFRESH_TOKEN_US"]
+
+os.environ["AMZ_SELLER_ID"] = st.secrets["AMZ_SELLER_ID"]
 
 PREAUTHORIZED_EMAILS = st.secrets["preauthorized_emails"]
 
