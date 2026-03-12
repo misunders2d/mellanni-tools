@@ -988,6 +988,8 @@ def parallel_coordinates_charts(df: pd.DataFrame):
     ]
 
     limits = {col: df[col].max() * 1.1 for col in cols}
+    mid_point = limits["searchQueryVolume"] / 10 / 2
+    max_val = limits["searchQueryVolume"] / 5
 
     options_parallel = {
         "tooltip": {
@@ -1042,8 +1044,17 @@ def parallel_coordinates_charts(df: pd.DataFrame):
             "show": True,
             "type": "continuous",
             "dimension": 0,  # Search Volume
-            "min": 0,
-            "max": limits["searchQueryVolume"] / 10,
+            "pieces": [
+                {
+                    "gt": mid_point,
+                    "lte": max_val,
+                    "color": "#00d4ff",
+                    "label": "Top Tier",
+                },
+                {"gt": 0, "lte": mid_point, "color": "#ff4500", "label": "Low Tier"},
+            ],
+            # "min": 0,
+            # "max": limits["searchQueryVolume"] / 10,
             "inRange": {"color": ["#ff4500", "#e68b39", "#00d4ff"]},
         },
         "series": [

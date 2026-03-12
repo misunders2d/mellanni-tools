@@ -9,7 +9,16 @@ from modules import gcloud_modules as gc
 from modules.gcloud_modules import bigquery
 
 asins = ["B00NLLUMOE", "B00NQDGAP2", "B0822XBDZW"]
-start_date = ["2026-01-04", "2026-01-11", "2026-02-01", "2026-02-08", "2026-02-15"]
+start_date = [
+    "2026-01-04",
+    "2026-01-11",
+    "2026-01-18",
+    "2026-01-25",
+    "2026-02-01",
+    "2026-02-08",
+    "2026-02-15",
+    "2026-02-22",
+]
 period = "WEEK"
 
 
@@ -686,7 +695,7 @@ def calculate_sqp(
         target="combined",
     )
     combined_report = combined_report.copy()
-
+    # TODO add asin-only and asin-date views
     return {
         "sqp_asin": sqp_asin,
         "date_query_report": date_query_report,
@@ -713,8 +722,8 @@ def main():
     combined_report = reports["combined_report"]
 
     _ = export_to_excel(
-        dfs=[sqp_asin, date_query_report, date_report],
-        sheet_names=["ASIN", "Search Query", "Date"],
+        dfs=[sqp_asin, date_query_report, date_report, query_report, combined_report],
+        sheet_names=["ASIN", "Search Query", "Date", "Query", "Total"],
         filename="SQP report.xlsx",
         out_folder=user_folder,
         column_formats=check_columns["column_formatting"],
