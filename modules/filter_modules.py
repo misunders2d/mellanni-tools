@@ -37,7 +37,7 @@ async def filter_dictionary(
             st.session_state[key] = []
 
     if "dictionary" not in st.session_state:
-        st.session_state.dictionary = await gc.pull_dictionary()
+        st.session_state.dictionary = gc.pull_dictionary()
     df = st.session_state.dictionary.copy()
     # Initialize session state keys if they don't exist
     for key in ["sel_col", "sel_size", "sel_color"]:
@@ -86,7 +86,6 @@ async def filter_dictionary(
         "Colors", options=opt_color, key="sel_color", placeholder="Select color(s)"
     )
     if clear_btn_target:
-
         clear_btn_target.button("Clear selection", on_click=clear_selection)
 
     # --- 3. Return the Final Filtered DataFrame ---
