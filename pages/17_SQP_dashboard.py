@@ -6,6 +6,7 @@ import streamlit as st
 from scheduled.sqp_reports import run_sqp_reports
 from streamlit_echarts import st_echarts
 
+import login
 from login import require_login
 from modules.filter_modules import filter_column, filter_dictionary
 from modules.gcloud_modules import pull_dictionary
@@ -268,11 +269,13 @@ if "sqp" in st.session_state:
 
     with dashboard_tab:
         parallels_data_df = st.session_state.query_report.copy()
-        st_echarts(
-            options=parallel_coordinates_charts(df=parallels_data_df), height="600px"
-        )
+        parallel_options = parallel_coordinates_charts(df=parallels_data_df)
+        if parallel_options:
+            st_echarts(options=parallel_options, height="600px")
         radar_data_df = st.session_state.combined_report.copy()
-        st_echarts(options=radar_charts(df=radar_data_df))
+        radar_options = radar_charts(df=radar_data_df)
+        if radar_options:
+            st_echarts(options=radar_options)
 
         # data_df = st.session_state.date_query_report.copy()
         # x_axis = {"type": "time", "name": "Date"}

@@ -1,9 +1,8 @@
-import datetime
 import random
 
 import pandas as pd
 import streamlit as st
-from streamlit_echarts import JsCode, st_echarts
+from streamlit_echarts import st_echarts
 
 
 def line_charts():
@@ -967,7 +966,7 @@ def calendar_charts():
     st_echarts(options=options_cal, height="400px")
 
 
-def parallel_coordinates_charts(df: pd.DataFrame):
+def parallel_coordinates_charts(df: pd.DataFrame) -> dict | None:
     if len(df) == 0:
         return
     cols = [
