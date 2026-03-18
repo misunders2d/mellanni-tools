@@ -181,6 +181,7 @@ def calculate_orders(date_from, date_to, days_delta):
             index="sku",
             values=["sku_quantity"],
             aggfunc=[
+                "sum",
                 lambda x: sum(x) / days_delta,
                 lambda x: sum(x) / 14,
             ],
@@ -188,8 +189,13 @@ def calculate_orders(date_from, date_to, days_delta):
         .fillna(0)
         .reset_index()
     )
-    orders_grouped.columns = ["sku", "long-term avg", "short-term avg"]
-    return orders_grouped
+    orders_grouped.columns = [
+        "sku",
+        "total_units_sold",
+        "long-term avg",
+        "short-term avg",
+    ]
+    return {"orders_grouped": orders_grouped, "shopify_orders": shopify_orders}
 
 
 def process_data(date_from, date_to):
@@ -203,7 +209,9 @@ def process_data(date_from, date_to):
     isr_data = isr_job.result()
 
     # orders_data = calculate_orders(date_from, date_to)
-    orders_data = orders_job.result()
+    orders_data_dict = orders_job.result()
+    orders_data = orders_data_dict["orders_grouped"]
+    shopify_orders = orders_data_dict["shopify_orders"]
 
     combined = pd.merge(orders_data, isr_data, how="left", on="sku", validate="1:1")
     combined["long-term avg"] = (combined["long-term avg"] / combined["ISR"]).replace(
@@ -222,19 +230,18 @@ def process_data(date_from, date_to):
         "avg corrected",
     ] = (0.1 * combined["short-term avg"]) + (0.9 * combined["long-term avg"]).round(4)
 
-    combined[f"Units needed for {st.session_state['days_of_sale']} days"] = (
-        combined["avg corrected"] * st.session_state["days_of_sale"]
-    )
-    combined = combined.sort_values(
-        f"Units needed for {st.session_state['days_of_sale']} days", ascending=False
-    )
-    return {"combined": combined, "isr_data": isr_data, "orders_data": orders_data}
+    return {
+        "combined": combined,
+        "isr_data": isr_data,
+        "orders_data": orders_data,
+        "shopify_orders": shopify_orders,
+    }
 
 
 #### INTERFACE ####
 date_selector_area = st.container(vertical_alignment="center")
-raw_df_area = st.container()
 df_area = st.container()
+raw_df_area = st.container()
 date_from_col, date_to_col, days_of_sale_col, button_col = date_selector_area.columns(
     [3, 3, 2, 2]
 )
@@ -252,9 +259,17 @@ days_of_sale = days_of_sale_col.number_input(
 st.session_state["days_delta"] = (date_to - date_from).days
 
 if button_col.button("Get Data"):
-    dfs = process_data(date_from, date_to)
+    st.session_state.dfs = process_data(date_from, date_to)
+if "dfs" in st.session_state:
+    calculated = st.session_state.dfs["combined"].copy()
+    calculated[f"Units needed for {st.session_state['days_of_sale']} days"] = (
+        calculated["avg corrected"] * st.session_state["days_of_sale"]
+    )
+    calculated = calculated.sort_values(
+        f"Units needed for {st.session_state['days_of_sale']} days", ascending=False
+    )
     df_area.dataframe(
-        dfs["combined"],
+        calculated,
         hide_index=True,
         column_config={
             "ISR": st.column_config.NumberColumn(
@@ -268,3 +283,5 @@ if button_col.button("Get Data"):
 
     # raw_df_area.dataframe(dfs["isr_data"], hide_index=True)
     # raw_df_area.dataframe(dfs["orders_data"], hide_index=True)
+    with raw_df_area.expander(label="Show raw order data") as expander:
+        expander.dataframe(st.session_state.dfs["shopify_orders"], hide_index=True)
