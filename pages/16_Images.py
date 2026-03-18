@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import concurrent.futures
 import re
@@ -10,11 +9,19 @@ from numpy import nan
 
 from login import require_login
 from modules import gcloud_modules as gc
-from modules.image_modules import (headers, list_files, list_files_gcs,
-                                   update_version_gcs, upload_image,
-                                   upload_image_to_gcs)
-from modules.sc_modules import (extract_sku_images, get_listing_details,
-                                push_images_to_amazon)
+from modules.image_modules import (
+    headers,
+    list_files,
+    list_files_gcs,
+    update_version_gcs,
+    upload_image,
+    upload_image_to_gcs,
+)
+from modules.sc_modules import (
+    extract_sku_images,
+    get_listing_details,
+    push_images_to_amazon,
+)
 
 st.set_page_config(layout="wide", initial_sidebar_state="collapsed")
 
@@ -53,7 +60,8 @@ image_names = [
     "other_image_8",
     "swatch_image",
 ]
-dictionary = asyncio.run(gc.pull_dictionary())
+dictionary = gc.pull_dictionary()
+
 
 with st.expander(
     "Select a product or upload images", expanded=True, icon=":material/image_arrow_up:"
@@ -259,21 +267,21 @@ def create_links(source=target):
             [x["product"], x["color"], x["size"], x["image"], x["position"]]
             for x in files
         ]
-        links = pd.DataFrame(files, columns=headers)
+        links = pd.DataFrame(files, columns=pd.Index(headers))
         dictionary_links = (
             dictionary[["sku", "collection", "size", "color"]].drop_duplicates().copy()
         )
-        dictionary_links[["collection", "size", "color"]] = dictionary_links[
-            ["collection", "size", "color"]
+        dictionary_links[["collection", "size", "color"]] = dictionary_links.loc[
+            :, ["collection", "size", "color"]
         ].map(sanitize_products)
         sku_links = pd.merge(
             links, dictionary_links, how="left", on=["collection", "size", "color"]
         )
         sku_links = sku_links[["sku", "link", "position"]]
-        skus = sku_links["sku"].unique()
-        ordered_links = [pd.DataFrame(columns=image_names)]
+        skus = sku_links.loc[:, "sku"].unique()
+        ordered_links = [pd.DataFrame(columns=pd.Index(image_names))]
         for sku in skus:
-            link_data = sku_links[sku_links["sku"] == sku]
+            link_data = sku_links.loc[sku_links["sku"] == sku]
             link_data = link_data.pivot(index="sku", columns="position", values="link")
             ordered_links.append(link_data)
         ordered_links = (
@@ -508,7 +516,7 @@ def extract_links_for_cloning(flat_file_obj):
         # flat_file = flat_file.dropna(subset = main_image_col)
         flat_file_skus = flat_file["sku"].unique()
         for ffs in flat_file_skus:
-            if not ffs in dictionary_skus:
+            if ffs not in dictionary_skus:
                 continue
             row = {}
             sku_flat_file = flat_file[flat_file["sku"] == ffs]
@@ -516,14 +524,16 @@ def extract_links_for_cloning(flat_file_obj):
             for image_col in image_names:
                 row[image_col] = sku_flat_file.loc[:, image_col].values[0]
             try:
-                row["product"] = dictionary[dictionary["sku"] == ffs][
+                row["product"] = dictionary.loc[dictionary["sku"] == ffs][
                     "collection"
                 ].values[0]
-                row["size"] = dictionary[dictionary["sku"] == ffs]["size"].values[0]
-                row["color"] = dictionary[dictionary["sku"] == ffs]["color"].values[0]
+                row["size"] = dictionary.loc[dictionary["sku"] == ffs]["size"].values[0]
+                row["color"] = dictionary.loc[dictionary["sku"] == ffs]["color"].values[
+                    0
+                ]
                 result.append(row)
-            except:
-                pass
+            except Exception as e:
+                print(e)
     except Exception as e:
         st.warning(f"Please upload a valid flat file template: {e}")
     final = {}
@@ -656,7 +666,7 @@ def start_push_images_to_amazon(
             else ""
         )
         skus = (
-            dictionary[
+            dictionary.loc[
                 (dictionary["collection"] == selected_product)
                 & (dictionary["color"] == selected_color)
                 & (dictionary["size"] == selected_size)
@@ -780,7 +790,7 @@ try:
                         try:
                             img_view_positions[image_name].image(
                                 object["image"],
-                                caption=f'{image_name}, updated: {object['updated'].strftime("%Y-%m-%d %H:%M:%S")}, version: {object['generation']}',
+                                caption=f"""{image_name}, updated: {object['updated'].strftime("%Y-%m-%d %H:%M:%S")}, version: {object['generation']}""",
                             )
                             if ver == 0:
                                 # delete image from GCS and Amazon

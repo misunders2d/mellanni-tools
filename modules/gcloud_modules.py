@@ -24,7 +24,7 @@ def gcloud_connect():
 
 def list_projects():
     client = gcloud_connect()
-    projects = [x.project_id for x in client.list_projects()]
+    # projects = [x.project_id for x in client.list_projects()]
     sections = [x.dataset_id for x in client.list_datasets()]
     table_list = {
         section: [x.table_id for x in client.list_tables(section)]
@@ -35,7 +35,7 @@ def list_projects():
 
 
 # @st.cache_data(ttl=3600)
-async def pull_dictionary(
+def pull_dictionary(
     combine: bool = False, market: str = "US", full: bool = False, cols=None
 ) -> pd.DataFrame:
     if "dictionary" in st.session_state:
@@ -139,8 +139,8 @@ def get_last_date(client, report="reports", table="business_report"):
     date = query_job.result().to_dataframe().values[0][0]  # get results from query
     try:
         date = date.strftime("%Y-%m-%d")
-    except:
-        pass
+    except Exception as e:
+        print(e)
     return date
 
 

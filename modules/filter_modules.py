@@ -22,7 +22,7 @@ def is_similar(query, target, threshold: int = 70):
     return False
 
 
-async def filter_dictionary(
+def filter_dictionary(
     coll_target=None, size_target=None, color_target=None, clear_btn_target=None
 ):
     """
@@ -86,6 +86,7 @@ async def filter_dictionary(
         "Colors", options=opt_color, key="sel_color", placeholder="Select color(s)"
     )
     if clear_btn_target:
+
         clear_btn_target.button("Clear selection", on_click=clear_selection)
 
     # --- 3. Return the Final Filtered DataFrame ---

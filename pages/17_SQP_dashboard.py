@@ -1,3 +1,4 @@
+import populate_env  # isort: skip
 import asyncio
 from datetime import datetime, timedelta
 
@@ -6,7 +7,6 @@ import streamlit as st
 from scheduled.sqp_reports import run_sqp_reports
 from streamlit_echarts import st_echarts
 
-import login
 from login import require_login
 from modules.filter_modules import filter_column, filter_dictionary
 from modules.gcloud_modules import pull_dictionary
@@ -24,7 +24,6 @@ st.set_page_config(
 require_login()
 
 user_email = st.user.email
-
 
 filter_container = st.container()
 dates_container = st.container()
@@ -67,14 +66,12 @@ filter_kw = filter_kw_col.text_input(
     key="phrase",
 )
 
-asyncio.run(pull_dictionary())  # pre-populate dictionary
-filtered_dictionary = asyncio.run(
-    filter_dictionary(
-        coll_target=coll_col,
-        size_target=size_col,
-        color_target=color_col,
-        clear_btn_target=clear_btn_col,
-    )
+_ = pull_dictionary()  # pre-populate dictionary
+filtered_dictionary = filter_dictionary(
+    coll_target=coll_col,
+    size_target=size_col,
+    color_target=color_col,
+    clear_btn_target=clear_btn_col,
 )
 
 
@@ -158,6 +155,8 @@ async def get_sqp_data(
         st.info("Pulling information from Amazon reports, this could take a while")
         date_asin_dict = {d: v for d, v in missing_asins.items() if len(v) > 0}
         failed_reports = await run_sqp_reports(date_asin_dict=date_asin_dict)
+        if not failed_reports or failed_reports == "":
+            return
         sqp_raw = await get_sqp_data(
             start_date=start_date, end_date=end_date, failed_asins=failed_reports
         )
@@ -194,9 +193,14 @@ def run_sqp_analysis(start_date, end_date):
 
     try:
         sqp_raw = asyncio.run(get_sqp_data(start_date, end_date))
-        st.session_state.sqp, st.session_state.check_columns = check_sqp(
-            sqp_raw=sqp_raw
-        )
+        if sqp_raw is None:
+            st.warning(
+                "Sorry, Amazon reports take longer to generate than expected, try later"
+            )
+        else:
+            st.session_state.sqp, st.session_state.check_columns = check_sqp(
+                sqp_raw=sqp_raw
+            )
 
     except Exception as e:
         st.error(e)

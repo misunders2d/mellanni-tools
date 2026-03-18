@@ -255,8 +255,8 @@ with col3:
         st.session_state.market = st.radio(
             "Select marketplace", ["US", "CA", "EU", "UK"], horizontal=True
         )
-        dictionary = asyncio.run(
-            gc.pull_dictionary(combine=False, market=st.session_state.market, full=full)
+        dictionary = gc.pull_dictionary(
+            combine=False, market=st.session_state.market, full=full
         )
         output = BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
@@ -310,7 +310,7 @@ with col1:
             sku_list = qty_file["sku"].unique().tolist()
     if col1.button("Create barcodes", icon=":material/barcode:") and len(sku_list) > 0:
         with st.spinner("Please wait"):
-            dictionary = asyncio.run(gc.pull_dictionary(combine=True))
+            dictionary = gc.pull_dictionary(combine=True)
             check_skus(sku_list, dictionary)
             st.session_state.file = dictionary[
                 dictionary["sku"].isin(sku_list)

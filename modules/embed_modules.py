@@ -1,18 +1,14 @@
 import html
-
 from typing import Final
 
+import pandas as pd
+from dotenv import load_dotenv
+from numpy import dot
+from numpy.linalg import norm
 from openai import OpenAI  # future development
-
 from streamlit import secrets
 
-from numpy import dot, array
-from numpy.linalg import norm
-import pandas as pd
-
 from modules import gcloud_modules as gd
-
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -80,15 +76,16 @@ def get_embedding_df(df: pd.DataFrame, df_col: str) -> pd.DataFrame | None:
     return result
 
 
-def clusterize_texts(df: pd.DataFrame, df_col: str, num_clusters: int = 10):
-    from sklearn.cluster import KMeans
-
-    embeddings = array(df[df_col].values.tolist())
-    kmeans = KMeans(n_clusters=num_clusters)
-    kmeans.fit(embeddings)
-    labels = kmeans.labels_
-    df["cluster"] = labels
-    return df
+# def clusterize_texts(df: pd.DataFrame, df_col: str, num_clusters: int = 10):
+#     from sklearn.cluster import KMeans
+#
+#     embeddings = array(df[df_col].values.tolist())
+#     kmeans = KMeans(n_clusters=num_clusters)
+#     kmeans.fit(embeddings)
+#     labels = kmeans.labels_
+#     df["cluster"] = labels
+#     return df
+#
 
 
 def get_top_labels(row, n_labels):
@@ -109,8 +106,10 @@ def assign_top_labels(df: pd.DataFrame, labels: pd.DataFrame, labels_col: str):
 def measure_label_relevance(
     df: pd.DataFrame, emb_col: str, labels: pd.DataFrame, labels_col: str
 ) -> pd.DataFrame:
-    labels = get_embedding_df(labels, labels_col)
-    for label in labels[labels_col].values.tolist():
+    labels_df = get_embedding_df(labels, labels_col)
+    if labels_df is None:
+        raise BaseException("Could not retrieve embeddings table")
+    for label in labels_df[labels_col].values.tolist():
         print(f'Matching "{label}" to dataset')
         label_emb = labels.loc[labels[labels_col] == label]["emb"].values[0]
         df[label] = df[emb_col].map(lambda x: cosine_similarity(x, label_emb))

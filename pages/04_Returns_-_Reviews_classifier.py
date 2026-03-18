@@ -1,5 +1,3 @@
-import asyncio
-
 import pandas as pd
 import streamlit as st
 
@@ -25,13 +23,11 @@ require_login()
 
 # initialize dictionary and selectors
 date_to = pd.to_datetime("today").date()
-date_from = pd.to_datetime(date_to) - pd.Timedelta(days=10)
+date_from = (pd.to_datetime(date_to) - pd.Timedelta(days=10)).date()
 if "dictionary" not in st.session_state:
     with st.spinner("Please wait, preparing data..."):
-        st.session_state["dictionary"] = asyncio.run(
-            gc.pull_dictionary(
-                cols=["asin", "collection", "size", "color"], combine=True
-            )
+        st.session_state["dictionary"] = gc.pull_dictionary(
+            cols=["asin", "collection", "size", "color"], combine=True
         )
         st.session_state["labels"] = em.download_labels()
 dictionary = st.session_state["dictionary"]
@@ -86,8 +82,8 @@ country = filters_area.radio(
     label_visibility="hidden",
 )
 country = "EU" if country in ("DE", "GB", "ES", "IT", "FR") else "US"
-start = filters_area.date_input("From", date_from)
-end = filters_area.date_input("To", date_to)
+start = filters_area.date_input(label="From", value=str(date_from))
+end = filters_area.date_input(label="To", value=date_to)
 
 collection = filters_area.multiselect(
     label="Collection(s):",
@@ -157,6 +153,9 @@ if choice == "Returns":
                 embedded_returns = em.get_embedding_df(
                     st.session_state.returns, "customer_comments"
                 )
+                if embedded_returns is None:
+                    st.warning("could not get the table for returns")
+                    st.stop()
                 label_relevances = em.measure_label_relevance(
                     embedded_returns, "emb", labels, "Return reason"
                 )
@@ -214,7 +213,8 @@ elif choice == "Reviews":
             with gc.gcloud_connect() as client:
                 try:
                     st.session_state.reviews = client.query(query).to_dataframe()
-                except:
+                except Exception as e:
+                    print(e)
                     st.session_state.reviews = pd.DataFrame()
                 # chart_area.dataframe(st.session_state.reviews)
         if "reviews" in st.session_state and len(st.session_state.reviews) > 0:
@@ -229,6 +229,9 @@ elif choice == "Reviews":
                     review_temp["title"] + "\n" + review_temp["body"]
                 )
                 embedded_returns = em.get_embedding_df(review_temp, "customer_comments")
+                if embedded_returns is None:
+                    st.warning("Could not get the table for returns")
+                    st.stop()
                 label_relevances = em.measure_label_relevance(
                     embedded_returns, "emb", labels, "Return reason"
                 )
