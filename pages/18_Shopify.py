@@ -5,9 +5,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from login import require_login
 from modules import gcloud_modules as gc
 from modules.gcloud_modules import bigquery
 
+require_login()
 st.set_page_config(
     page_title="Shopify units needed",
     page_icon="media/logo.ico",
