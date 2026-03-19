@@ -8,7 +8,7 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 from numpy import nan
 
-from login import require_login
+from login import require_login, sales_users
 from modules.sales_charts import render_sales_chart
 
 os.makedirs("temp", exist_ok=True)
@@ -23,17 +23,6 @@ st.set_page_config(
 )
 
 require_login()
-sales_users = [
-    "2djohar@gmail.com",
-    "sergey@mellanni.com",
-    "vitalii@mellanni.com",
-    "ruslan@mellanni.com",
-    "bohdan@mellanni.com",
-    "igor@mellanni.com",
-    "margarita@mellanni.com",
-    "masao@mellanni.com",
-    "valerii@mellanni.com",
-]
 
 GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
@@ -350,45 +339,45 @@ def filtered_sales(
 
     inv_column = "available" if available_inv else "inventory_supply_at_fba"
 
-    sales_df = sales_df[
+    sales_df = sales_df.loc[
         sales_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
     ]
-    sessions_df = sessions_df[
+    sessions_df = sessions_df.loc[
         sessions_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
     ]
-    ads_df = ads_df[
+    ads_df = ads_df.loc[
         ads_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
     ]
 
     forecast_df["date"] = pd.to_datetime(forecast_df["date"]).dt.date
-    forecast_df = forecast_df[
+    forecast_df = forecast_df.loc[
         forecast_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
     ]
 
     if sel_collection:
-        sales_df = sales_df[sales_df["collection"].isin(sel_collection)]
-        sessions_df = sessions_df[sessions_df["collection"].isin(sel_collection)]
-        ads_df = ads_df[ads_df["collection"].isin(sel_collection)]
+        sales_df = sales_df.loc[sales_df["collection"].isin(sel_collection)]
+        sessions_df = sessions_df.loc[sessions_df["collection"].isin(sel_collection)]
+        ads_df = ads_df.loc[ads_df["collection"].isin(sel_collection)]
     if sel_size:
-        sales_df = sales_df[sales_df["size"].isin(sel_size)]
-        sessions_df = sessions_df[sessions_df["size"].isin(sel_size)]
-        ads_df = ads_df[ads_df["size"].isin(sel_size)]
+        sales_df = sales_df.loc[sales_df["size"].isin(sel_size)]
+        sessions_df = sessions_df.loc[sessions_df["size"].isin(sel_size)]
+        ads_df = ads_df.loc[ads_df["size"].isin(sel_size)]
     if sel_color:
-        sales_df = sales_df[sales_df["color"].isin(sel_color)]
-        sessions_df = sessions_df[sessions_df["color"].isin(sel_color)]
-        ads_df = ads_df[ads_df["color"].isin(sel_color)]
+        sales_df = sales_df.loc[sales_df["color"].isin(sel_color)]
+        sessions_df = sessions_df.loc[sessions_df["color"].isin(sel_color)]
+        ads_df = ads_df.loc[ads_df["color"].isin(sel_color)]
 
     # merge sales_df with forecast_df
-    sales_asins = sales_df["asin"].unique()
+    sales_asins = sales_df["asin"].unique().tolist()
     forecast_asins = forecast_df[forecast_df["asin"].isin(sales_asins)].copy()
     sales_df = pd.merge(
         sales_df, forecast_asins, how="outer", on=["date", "asin"], validate="1:1"
     )
 
     if not include_events:
-        sales_df = sales_df[~sales_df["date"].isin(event_dates_list)]
-        sessions_df = sessions_df[~sessions_df["date"].isin(event_dates_list)]
-        ads_df = ads_df[~ads_df["date"].isin(event_dates_list)]
+        sales_df = sales_df.loc[~sales_df["date"].isin(event_dates_list)]
+        sessions_df = sessions_df.loc[~sessions_df["date"].isin(event_dates_list)]
+        ads_df = ads_df.loc[~ads_df["date"].isin(event_dates_list)]
 
     asin_sessions = sessions_df.groupby("asin").agg({"sessions": "sum"}).reset_index()
     date_sessions = sessions_df.groupby("date").agg({"sessions": "sum"}).reset_index()
@@ -547,14 +536,14 @@ def filtered_sales(
     # Set 'date' as the index, reindex to the full date range, and then reset index
     combined_visible = (
         combined_visible.set_index("date")
-        .reindex(full_date_range.date)
+        .reindex(full_date_range)  # .date)
         .reset_index()
         .rename(columns={"index": "date"})
     )
 
     ads_visible = (
         ads_visible.set_index("date")
-        .reindex(full_date_range.date)
+        .reindex(full_date_range)  # .date)
         .reset_index()
         .rename(columns={"index": "date"})
         # .fillna(0)
@@ -636,7 +625,7 @@ if (
             value=max_date,
             min_value=min_date,
             max_value=max(
-                max_date, pd.to_datetime(f"{pd.to_datetime("today").year}-12-31").date()
+                max_date, pd.to_datetime(f"{pd.to_datetime('today').year}-12-31").date()
             ),
             width=150,
         ),

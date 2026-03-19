@@ -24,7 +24,7 @@ def is_similar(query, target, threshold: int = 70):
 
 def filter_dictionary(
     coll_target=None, size_target=None, color_target=None, clear_btn_target=None
-):
+) -> pd.DataFrame:
     """
     Filters the dictionary based on selected collection, size or color
     """
@@ -90,15 +90,17 @@ def filter_dictionary(
         clear_btn_target.button("Clear selection", on_click=clear_selection)
 
     # --- 3. Return the Final Filtered DataFrame ---
-    final_df = df.copy()
+    final_df: pd.DataFrame = df.copy()
     if st.session_state.sel_col:
-        final_df = final_df[
+        final_df = final_df.loc[
             pd.Series(final_df["collection"]).isin(st.session_state.sel_col)
         ]
     if st.session_state.sel_size:
-        final_df = final_df[pd.Series(final_df["size"]).isin(st.session_state.sel_size)]
+        final_df = final_df.loc[
+            pd.Series(final_df["size"]).isin(st.session_state.sel_size)
+        ]
     if st.session_state.sel_color:
-        final_df = final_df[
+        final_df = final_df.loc[
             pd.Series(final_df["color"]).isin(st.session_state.sel_color)
         ]
 

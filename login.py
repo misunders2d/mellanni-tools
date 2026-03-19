@@ -14,6 +14,18 @@ except Exception as e:
 
 PREAUTHORIZED_EMAILS = st.secrets["preauthorized_emails"]
 
+sales_users = [
+    "2djohar@gmail.com",
+    "sergey@mellanni.com",
+    "vitalii@mellanni.com",
+    "ruslan@mellanni.com",
+    "bohdan@mellanni.com",
+    "igor@mellanni.com",
+    "margarita@mellanni.com",
+    "masao@mellanni.com",
+    "valerii@mellanni.com",
+]
+
 
 def login_screen():
     st.header("This app requires authorization.")
