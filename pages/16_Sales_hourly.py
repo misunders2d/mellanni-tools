@@ -55,7 +55,9 @@ async def get_orders_data(start_time: datetime, end_time: datetime):
     response = await all_orders_report(
         days=None, dataStartTime=start_time, dataEndTime=end_time
     )
-    all_orders_text = await process_reports.check_and_download_report(response)
+    all_orders_text = await process_reports.check_and_download_report(
+        response, time_to_wait=120
+    )
     if all_orders_text and isinstance(all_orders_text, str):
         return read_from_text(all_orders_text)
     return "Report could not be downloaded"
@@ -115,6 +117,8 @@ def apply_options():
 
 
 def plot_chart(df: pd.DataFrame):
+    if len(df) == 0:
+        return
     resampled = (
         df.set_index("pacific_datetime")
         .groupby("collection")["quantity"]
@@ -182,11 +186,16 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = datetime.now(pacific) - timedelta(days=3)
     st.session_state.end_time = datetime.now(pacific)
 
+button_name = "Refresh" if "report" in st.session_state else "Pull data"
 
 start_time_col, end_time_col, time_options_col, button_col, curr_time_col = st.columns(
     [3, 3, 4, 2, 2], vertical_alignment="bottom"
 )
 coll_select, size_select, color_select, sales_channel_select = st.columns([2, 1, 2, 2])
+metric_area = st.container()
+unit_metric, order_metric, dollar_metric, price_metric, aov_metric, cancelled_metric = (
+    metric_area.columns([1, 1, 1, 1, 1, 1])
+)
 with st.expander("Raw data"):
     analysis_df_area = st.container()
     total_df_area = st.container()
@@ -210,7 +219,7 @@ time_options = time_options_col.selectbox(
     on_change=apply_options,
     key="time_options",
 )
-if button_col.button("run"):
+if button_col.button(button_name, on_click=apply_options):
     if (end_time - start_time).days > 8:
         st.warning("Too long period, use Sales Trends dashboard instead")
     else:
@@ -221,6 +230,7 @@ if button_col.button("run"):
                     end_time=end_time.replace(tzinfo=pacific).astimezone(utc),
                 )
             )
+
 if "report" in st.session_state:
     if isinstance(st.session_state.report, pd.DataFrame):
         sales_channels = st.session_state.report["sales-channel"].unique().tolist()
@@ -236,6 +246,27 @@ if "report" in st.session_state:
         ]
 
         plot_chart(report_filtered)
+
+        total_units = report_filtered.quantity.sum()
+        total_orders = len(report_filtered["amazon-order-id"].unique())
+        total_revenue = report_filtered["item-price"].sum()
+        average_price = total_revenue / total_units if total_units > 0 else 0
+        aov = total_revenue / total_orders if total_orders > 0 else 0
+        cancelled_orders = len(
+            report_filtered[report_filtered["order-status"].str.lower() == "cancelled"][
+                "amazon-order-id"
+            ].unique()
+        )
+
+        unit_metric.metric(label="Units", value=total_units, format="localized")
+        order_metric.metric(label="Orders", value=total_orders)
+        dollar_metric.metric(label="Revenue", value=total_revenue, format="dollar")
+        price_metric.metric(label="Average price", value=average_price, format="dollar")
+        aov_metric.metric(label="AOV", value=aov, format="dollar")
+        cancelled_metric.metric(
+            label="Cancelled orders", value=cancelled_orders, format="localized"
+        )
+
         total_df_area.caption("Raw order data")
         total_df_area.dataframe(report_filtered, hide_index=True)
         top_skus, top_orders, top_promos = analyze_orders(report_filtered)
