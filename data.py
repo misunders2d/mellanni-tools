@@ -824,7 +824,7 @@ BIGQUERY_AGENT_INSTRUCTIONS_OLD_DICT = {
         "ASIN": "Amazon Standard Identification Number, a unique identifier for products on Amazon.",
         "Collection": "A group of products, often referred to by the user as 'product' or 'collection'. Obtained ONLY from the 'Collection' column of the `dictionary...` table (dictionary, dictionary_ca etc.).",
     },
-    "date_awareness": f"Today's date is {today.strftime("%YYY-%mm-%dd")}.",
+    "date_awareness": f"Today's date is {today.strftime('%YYY-%mm-%dd')}.",
     "data_structure_info": {
         "summary": f"Here's the list and description of the company data structure in bigquery tables:{table_data}. Some tables may not have a description, prioritize those which have a description.",
         "user_guidance": "The user might not be aware of the company data structure, ask them if they want to review any specific dataset and provide the descripton of this dataset.",
@@ -1022,3 +1022,61 @@ def create_bq_agent_instruction():
     """Create the BigQuery agent instructions, loading from file if available."""
     # return json.dumps(BIGQUERY_AGENT_INSTRUCTIONS_OLD_DICT, indent=4)
     return BIGQUERY_AGENT_INSTRUCTIONS_OLD
+
+
+pantone_to_hex = {
+    "Aqua": "#8DB9CA",  # 13-4409
+    "Baby Blue": "#8DB9CA",  # 13-4409
+    "Beige": "#D6CBB8",  # 13-0907
+    "Black": "#2D2926",  # 19-0303
+    "Blue": "#4C6F95",  # 18-3919
+    "Blue Hydrangea": "#98ABBD",  # 15-4008
+    "Blue Nova": "#4D5D7A",  # 18-3932
+    "Blush Pink": "#F6E4D9",  # 12-1303
+    "Brick Red": "#7F3E3A",  # 19-1543
+    "Brown": "#3F2A2B",  # 19-1116
+    "Burgundy": "#4C262C",  # 19-1726 (Primary)
+    "Chambray Heather": "#53565A",  # P-3901
+    "Coral": "#F07D70",  # 16-1329
+    "Dark Taupe": "#7F7166",  # 18-1108
+    "Denim Blue": "#4E525D",  # 18-3916
+    "Emerald Green": "#005F4B",  # 18-6114
+    "Gold": "#BC9D6E",  # 16-0928
+    "Golden Ivory": "#F2E8DA",  # 11-0606
+    "Gray": "#6B6D6D",  # 18-0201
+    "Green": "#40604A",  # 17-6323
+    "Hazy Lilac": "#8A8B92",  # 17-3910
+    "Imperial Blue": "#003865",  # 19-3954
+    "Ivory": "#F1F0EC",  # 11-4202
+    "Lavender": "#BABEDD",  # 14-3907
+    "Light Blue": "#A8C3D3",  # 15-4005
+    "Light Gray": "#8E9BA4",  # 16-5102
+    "Navy": "#232D4B",  # 19-4024
+    "Navy Blue": "#232D4B",  # 19-4024
+    "New Beige": "#C9B29B",  # 15-1216
+    "Oatmeal Heather": "#D6D2C4",  # P-3419
+    "Persimmon": "#D5896F",  # 16-1164
+    "Pink": "#F6E2E2",  # 12-2906
+    "Pistachio": "#BDD3A9",  # 13-0221
+    "Poppy Orange": "#E2583E",  # 17-1461
+    "Purple": "#43314F",  # 19-3619
+    "Royal Blue": "#003865",  # 19-3954
+    "Ruffle Gray": "#6B6D6D",  # 18-0201
+    "Ruffle Ivory": "#F2E8DA",  # 11-0606
+    "Ruffle White": "#F4F5F0",  # 11-0601
+    "Rust": "#A36E51",  # 17-1430
+    "Sage": "#8B9D93",  # 15-6315
+    "Sky Blue": "#90A8C3",  # 15-4030
+    "Solid Gray": "#6B6D6D",  # 18-0201
+    "Solid Ivory": "#F2E8DA",  # 11-0606
+    "Solid White": "#F4F5F0",  # 11-0601
+    "Spa Blue": "#96B6C8",  # 16-4109
+    "Spa Mint": "#8F9A9F",  # 14-4503
+    "Tan": "#B69E87",  # 16-1407
+    "Taupe": "#7B7C75",  # 17-0207
+    "Teal": "#00565F",  # 19-4535
+    "Terracotta": "#9B4F3F",  # 18-1248
+    "Violet": "#B6A2C3",  # 15-3716
+    "White": "#F4F5F0",  # 11-0601
+    "Yellow": "#F6D155",  # 12-0736
+}

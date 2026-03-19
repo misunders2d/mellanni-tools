@@ -8,6 +8,7 @@ import streamlit as st
 from reports import all_orders_report, process_reports
 from streamlit_echarts import st_echarts
 
+from data import pantone_to_hex
 from login import require_login, sales_users
 from modules.filter_modules import filter_dictionary
 
@@ -136,6 +137,81 @@ def apply_options():
 def plot_chart(df: pd.DataFrame):
     if len(df) == 0:
         return
+    coll_df = (
+        df.groupby("collection")
+        .agg({"quantity": "sum"})
+        .reset_index()
+        .sort_values("quantity", ascending=False)
+    )
+    size_df = (
+        df.groupby("size")
+        .agg({"quantity": "sum"})
+        .reset_index()
+        .sort_values("quantity", ascending=False)
+    )
+    color_df = (
+        df.groupby("color")
+        .agg({"quantity": "sum"})
+        .reset_index()
+        .sort_values("quantity", ascending=False)
+    )
+
+    def get_bedsheet_hex(color_name):
+        name = str(color_name).title().strip()
+
+        # Return mapped color or Catppuccin Mocha surface gray as fallback
+        return pantone_to_hex.get(name, "#585b70")
+
+    def get_pie_options(data_df, name_col, title, is_color_chart=False):
+        chart_data = []
+        for _, row in data_df.iterrows():
+            item = {"value": float(row["quantity"]), "name": str(row[name_col])}
+            # If it's the color chart, override the item's color specifically
+            if is_color_chart:
+                item["itemStyle"] = {"color": get_bedsheet_hex(row[name_col])}
+            chart_data.append(item)
+
+        return {
+            "title": {
+                "text": title,
+                "left": "center",
+                "textStyle": {"color": "#CDD6F4"},
+            },
+            "tooltip": {"trigger": "item", "formatter": "{b}: {c} ({d}%)"},
+            "series": [
+                {
+                    "type": "pie",
+                    "radius": ["45%", "70%"],
+                    "itemStyle": {
+                        "borderRadius": 8,
+                        "borderColor": "#1e1e2e",
+                        "borderWidth": 2,
+                    },
+                    "label": {"show": False},
+                    "emphasis": {
+                        "label": {"show": True, "fontSize": "15", "fontWeight": "bold"}
+                    },
+                    "data": chart_data,
+                }
+            ],
+            # Global palette used only for non-color charts
+            "color": ["#89b4fa", "#fab387", "#a6e3a1", "#f38ba8", "#cba6f7", "#94e2d5"],
+        }
+
+    pie_col1, pie_col2, pie_col3 = add_chart_area.columns(3)
+
+    with pie_col1:
+        st_echarts(
+            get_pie_options(coll_df, "collection", "By Collection"), height="300px"
+        )
+    with pie_col2:
+        st_echarts(get_pie_options(size_df, "size", "By Size"), height="300px")
+    with pie_col3:
+        st_echarts(
+            get_pie_options(color_df, "color", "By Color", is_color_chart=True),
+            height="300px",
+        )
+
     resampled = (
         df.set_index("pacific_datetime")
         .groupby("collection")["quantity"]
@@ -194,8 +270,8 @@ def plot_chart(df: pd.DataFrame):
         "series": series,
         "color": colors,
     }
-
-    st_echarts(options=options, height="550px")
+    with chart_area:
+        st_echarts(options=options, height="550px")
 
 
 ### Layout ###
@@ -220,6 +296,9 @@ with st.expander("Raw data"):
 with curr_time_col:
     time_slot = st.empty()
 update_pst_time(time_slot)
+
+chart_area = st.container()
+add_chart_area = st.container()
 
 filtered_dict: pd.DataFrame = filter_dictionary(
     coll_target=coll_select, size_target=size_select, color_target=color_select
