@@ -70,12 +70,29 @@ def analyze_orders(full_data: pd.DataFrame):
         .reset_index()
         .sort_values("quantity", ascending=False)
     )
+    top_skus = pd.merge(
+        top_skus,
+        st.session_state.dictionary[["sku", "asin"]],
+        how="left",
+        on="sku",
+        validate="1:m",
+    )
+    top_skus["sku"] = (
+        "https://www.amazon.com/dp/" + top_skus["asin"] + "#" + top_skus["sku"]
+    )
+    del top_skus["asin"]
+
     top_orders = (
         full_data.groupby("amazon-order-id")
         .agg({"quantity": "sum", "order-status": lambda x: ", ".join(x.unique())})
         .reset_index()
         .sort_values("quantity", ascending=False)
     )
+    top_orders["amazon-order-id"] = (
+        "https://sellercentral.amazon.com/orders-v3/order/"
+        + top_orders["amazon-order-id"]
+    )
+
     top_promos = (
         full_data.groupby("promotion-ids")
         .agg({"item-promotion-discount": "sum", "quantity": "sum"})
@@ -208,16 +225,18 @@ filtered_dict: pd.DataFrame = filter_dictionary(
     coll_target=coll_select, size_target=size_select, color_target=color_select
 )
 start_time = start_time_col.datetime_input(
-    label="Start time (Pacific)", value=st.session_state.start_time
+    label="Start time (Pacific)", value=st.session_state.start_time, disabled=True
 )
 end_time = end_time_col.datetime_input(
-    label="End time (Pacific)", value=st.session_state.end_time
+    label="End time (Pacific)", value=st.session_state.end_time, disabled=True
 )
 time_options = time_options_col.selectbox(
     label="Quick Select Timeframe",
     options=["Custom", "Today", "Yesterday", "Last 3 days", "Last 7 days", "Last week"],
+    index=1,
     on_change=apply_options,
     key="time_options",
+    disabled=True,
 )
 if button_col.button(button_name, on_click=apply_options):
     if (end_time - start_time).days > 8:
@@ -271,9 +290,21 @@ if "report" in st.session_state:
         total_df_area.dataframe(report_filtered, hide_index=True)
         top_skus, top_orders, top_promos = analyze_orders(report_filtered)
         sku_df_area.caption("Top SKUs")
-        sku_df_area.dataframe(top_skus, hide_index=True)
+        sku_df_area.dataframe(
+            top_skus,
+            hide_index=True,
+            column_config={"sku": st.column_config.LinkColumn(display_text=r"#(.*)")},
+        )
         order_df_area.caption("Top orders")
-        order_df_area.dataframe(top_orders, hide_index=True)
+        order_df_area.dataframe(
+            top_orders,
+            hide_index=True,
+            column_config={
+                "amazon-order-id": st.column_config.LinkColumn(
+                    display_text=r"order/(.*)",
+                )
+            },
+        )
         promo_df_area.caption("Top promos")
         promo_df_area.dataframe(top_promos, hide_index=True)
     else:
