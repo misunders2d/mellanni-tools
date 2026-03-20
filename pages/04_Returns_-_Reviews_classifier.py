@@ -29,7 +29,8 @@ if "dictionary" not in st.session_state:
         st.session_state["dictionary"] = gc.pull_dictionary(
             cols=["asin", "collection", "size", "color"], combine=True
         )
-        st.session_state["labels"] = em.download_labels()
+if "labels" not in st.session_state:
+    st.session_state["labels"] = em.download_labels()
 dictionary = st.session_state["dictionary"]
 labels = st.session_state["labels"]
 if "params" not in st.session_state:
