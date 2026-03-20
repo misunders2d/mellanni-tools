@@ -118,12 +118,12 @@ def apply_options():
 
         case "Last 3 days":
             st.session_state.start_time = (
-                datetime.now(pacific) - timedelta(days=4)
+                datetime.now(pacific) - timedelta(days=3)
             ).date()
             st.session_state.end_time = (datetime.now(pacific)).date()
         case "Last 7 days":
             st.session_state.start_time = (
-                datetime.now(pacific) - timedelta(days=8)
+                datetime.now(pacific) - timedelta(days=7)
             ).date()
             st.session_state.end_time = (datetime.now(pacific)).date()
         case "Last week":
