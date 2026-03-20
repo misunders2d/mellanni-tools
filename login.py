@@ -3,6 +3,8 @@ import os
 
 import streamlit as st
 
+from modules.gcloud_modules import pull_dictionary
+
 try:
     bigquery_service_account_info = st.secrets.get("gcp_service_account", "")
 except Exception as e:
@@ -11,7 +13,7 @@ except Exception as e:
         os.environ.get("gcp_service_account", "")
     )
 
-
+pull_dictionary()
 PREAUTHORIZED_EMAILS = st.secrets["preauthorized_emails"]
 
 sales_users = [
