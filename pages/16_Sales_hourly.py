@@ -258,7 +258,7 @@ def plot_chart(df: pd.DataFrame):
 
     options = {
         "backgroundColor": "transparent",
-        "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
+        "tooltip": {"trigger": "item", "formatter": "{a}<br/>{b}: <b>{c} units</b>"},
         "legend": {"textStyle": {"color": "#CDD6F4"}, "type": "scroll", "top": "top"},
         "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},
         "xAxis": {
