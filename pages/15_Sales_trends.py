@@ -555,7 +555,7 @@ def filtered_sales(
 def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
     asin_sales = asin_sales.head(num_top_sellers)
     totals_asins = asin_sales.sum(numeric_only=True, axis=0)
-    asin_sales["#"] = asin_sales.index + 1
+    asin_sales.loc[:, "#"] = asin_sales.index + 1
     asin_sales = pd.concat([asin_sales, pd.DataFrame(totals_asins).T])
     return asin_sales
 
