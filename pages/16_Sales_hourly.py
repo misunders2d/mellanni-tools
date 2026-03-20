@@ -315,11 +315,11 @@ time_options = time_options_col.selectbox(
         # "Custom",
         "Today",
         "Yesterday",
-        # "Last 3 days",
+        "Last 3 days",
         # "Last 7 days",
         # "Last week"
     ],
-    index=1,
+    index=0,
     on_change=apply_options,
     key="time_options",
     disabled=False,
