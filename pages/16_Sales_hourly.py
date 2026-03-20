@@ -355,15 +355,17 @@ if "hourly_report" in st.session_state:
         plot_chart(report_filtered)
 
         total_units = report_filtered.quantity.sum()
-        total_orders = len(report_filtered["amazon-order-id"].unique())
         total_revenue = report_filtered["item-price"].sum()
         average_price = total_revenue / total_units if total_units > 0 else 0
-        aov = total_revenue / total_orders if total_orders > 0 else 0
         cancelled_orders = len(
             report_filtered[report_filtered["order-status"].str.lower() == "cancelled"][
                 "amazon-order-id"
             ].unique()
         )
+        total_orders = (
+            len(report_filtered["amazon-order-id"].unique()) - cancelled_orders
+        )
+        aov = total_revenue / total_orders if total_orders > 0 else 0
 
         unit_metric.metric(label="Units", value=total_units, format="localized")
         order_metric.metric(label="Orders", value=total_orders)
