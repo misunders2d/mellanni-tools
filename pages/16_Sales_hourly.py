@@ -311,11 +311,18 @@ end_time = end_time_col.datetime_input(
 )
 time_options = time_options_col.selectbox(
     label="Quick Select Timeframe",
-    options=["Custom", "Today", "Yesterday", "Last 3 days", "Last 7 days", "Last week"],
+    options=[
+        # "Custom",
+        "Today",
+        "Yesterday",
+        # "Last 3 days",
+        # "Last 7 days",
+        # "Last week"
+    ],
     index=1,
     on_change=apply_options,
     key="time_options",
-    disabled=True,
+    disabled=False,
 )
 if button_col.button(button_name, on_click=apply_options):
     if (end_time - start_time).days > 8:
