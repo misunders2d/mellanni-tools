@@ -179,7 +179,7 @@ def plot_chart(df: pd.DataFrame):
             },
             "tooltip": {
                 "trigger": "item",
-                "formatter": "<b>{a}</b><br/>{b}: {c} units",
+                "formatter": "<b>{b}</b>: {c} units",
             },
             "series": [
                 {
@@ -261,7 +261,10 @@ def plot_chart(df: pd.DataFrame):
 
     options = {
         "backgroundColor": "transparent",
-        "tooltip": {"trigger": "item", "formatter": "{a}<br/>{b}: <b>{c} units</b>"},
+        "tooltip": {
+            "trigger": "item",
+            "formatter": "<b>{a}</b><br/>{b}: <b>{c} units</b>",
+        },
         "legend": {"textStyle": {"color": "#CDD6F4"}, "type": "scroll", "top": "top"},
         "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},
         "xAxis": {
