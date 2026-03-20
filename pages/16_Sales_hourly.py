@@ -279,7 +279,7 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = datetime.now(pacific) - timedelta(days=3)
     st.session_state.end_time = datetime.now(pacific)
 
-button_name = "Refresh" if "report" in st.session_state else "Pull data"
+button_name = "Refresh" if "hourly_report" in st.session_state else "Pull data"
 
 start_time_col, end_time_col, time_options_col, button_col, curr_time_col = st.columns(
     [3, 3, 4, 2, 2], vertical_alignment="bottom"
@@ -329,22 +329,24 @@ if button_col.button(button_name, on_click=apply_options):
         st.warning("Too long period, use Sales Trends dashboard instead")
     else:
         with st.spinner():
-            st.session_state.report = asyncio.run(
+            st.session_state.hourly_report = asyncio.run(
                 get_orders_data(
                     start_time=start_time.replace(tzinfo=pacific).astimezone(utc),
                     end_time=end_time.replace(tzinfo=pacific).astimezone(utc),
                 )
             )
 
-if "report" in st.session_state:
-    if isinstance(st.session_state.report, pd.DataFrame):
-        sales_channels = st.session_state.report["sales-channel"].unique().tolist()
+if "hourly_report" in st.session_state:
+    if isinstance(st.session_state.hourly_report, pd.DataFrame):
+        sales_channels = (
+            st.session_state.hourly_report["sales-channel"].unique().tolist()
+        )
         sales_channel = sales_channel_select.multiselect(
             label="Sales channel",
             options=sales_channels,
             default="Amazon.com" if "Amazon.com" in sales_channels else sales_channels,
         )
-        report_filtered = st.session_state.report.copy()
+        report_filtered = st.session_state.hourly_report.copy()
         report_filtered = report_filtered.loc[
             (report_filtered["asin"].isin(filtered_dict["asin"].values.tolist()))
             & (report_filtered["sales-channel"].isin(sales_channel))
@@ -394,4 +396,4 @@ if "report" in st.session_state:
         promo_df_area.caption("Top promos")
         promo_df_area.dataframe(top_promos, hide_index=True)
     else:
-        st.warning(st.session_state.report)
+        st.warning(st.session_state.hourly_report)
