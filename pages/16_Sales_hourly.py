@@ -85,7 +85,13 @@ def analyze_orders(full_data: pd.DataFrame):
 
     top_orders = (
         full_data.groupby("amazon-order-id")
-        .agg({"quantity": "sum", "order-status": lambda x: ", ".join(x.unique())})
+        .agg(
+            {
+                "quantity": "sum",
+                "order-status": lambda x: ", ".join(x.unique()),
+                "is-business-order": "first",
+            }
+        )
         .reset_index()
         .sort_values("quantity", ascending=False)
     )
