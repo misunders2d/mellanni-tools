@@ -3,6 +3,12 @@ from typing import Any
 
 import streamlit as st
 from google import genai
+from google.genai.types import (
+    GenerateContentConfig,
+    ImageConfig,
+    ThinkingConfig,
+    ThinkingLevel,
+)
 from PIL import Image
 from streamlit_image_comparison import image_comparison
 
@@ -16,7 +22,8 @@ st.set_page_config(
 IMAGE_MODEL = "gemini-3.1-flash-image-preview"  # "gemini-2.5-flash-image"
 
 
-def calculate_cost(response):
+def calculate_cost(response, resolution):
+    price_dict = {"512": 0.045, "1K": 0.067, "2K": 0.101, "4K": 0.151}
     try:
         input_tokens = 0
         if response.usage_metadata and response.usage_metadata.prompt_token_count:
@@ -26,7 +33,7 @@ def calculate_cost(response):
         if response.usage_metadata and response.usage_metadata.candidates_token_count:
             output_tokens += response.usage_metadata.candidates_token_count
 
-        total_cost = (input_tokens * 0.25 / 1_000_000) + 0.067
+        total_cost = (input_tokens * 0.5 / 1_000_000) + price_dict[resolution]
         return total_cost
     except Exception as e:
         return str(e)
@@ -53,6 +60,19 @@ def generate_suggestted_decor(contents: list):
         response = client.models.generate_content(
             model=IMAGE_MODEL,
             contents=contents,
+            config=GenerateContentConfig(
+                thinking_config=ThinkingConfig(
+                    thinking_level=ThinkingLevel(value=thinking),
+                ),
+                image_config=ImageConfig(
+                    aspect_ratio=aspect_ratio,
+                    image_size=resolution,
+                ),
+                response_modalities=[
+                    "IMAGE",
+                    "TEXT",
+                ],
+            ),
         )
         if (
             not response.candidates
@@ -60,12 +80,18 @@ def generate_suggestted_decor(contents: list):
             or not response.candidates[0].content.parts
         ):
             return
-        total_cost = calculate_cost(response=response)
+        total_cost = calculate_cost(response=response, resolution=resolution)
         image_parts = [
             part.inline_data.data
             for part in response.candidates[0].content.parts
             if part.inline_data
         ]
+
+        texts = [
+            part.text for part in response.candidates[0].content.parts if part.text
+        ]
+        if texts:
+            st.write("".join(texts))
 
         if image_parts and isinstance(image_parts[0], bytes):
             image = Image.open(BytesIO(image_parts[0]))
@@ -141,10 +167,41 @@ with bedroom_tab:
 
 with photoshop_tab:
     photoshop_tab.subheader("Prototype anything with AI photoshop")
+    selector_row = photoshop_tab.empty()
+    prompt_input_col, aspect_ratio_col, thinking_col, resolution_col = (
+        selector_row.columns([4, 1, 1, 1])
+    )
+    aspect_ratio = aspect_ratio_col.selectbox(
+        label="Select aspect ratio",
+        options=[
+            "Auto",
+            "16:9",
+            "1:1",
+            "1:4",
+            "1:8",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:1",
+            "4:3",
+            "4:5",
+            "5:4",
+            "8:1",
+            "9:16",
+            "16:9",
+            "21:9",
+        ],
+    )
+    thinking = thinking_col.selectbox(
+        label="Select thinking effort", options=["MINIMAL", "HIGH"]
+    )
+    resolution = resolution_col.selectbox(
+        label="Select resolution", options=["1K", "512", "2K", "4K"]
+    )
     prompt_kwargs: dict[str, Any] = {}
 
     input_cols, result_cols = st.columns([2, 4])
-    prompt_input = input_cols.text_area(label="What do you want to do?")
+    prompt_input = prompt_input_col.text_area(label="What do you want to do?")
     prompt_kwargs = {"master_prompt": prompt_input}
     main_image_input = input_cols.file_uploader(
         "Upload the image you want to edit (optional)", type=["jpg", "jpeg", "png"]
