@@ -24,57 +24,89 @@ if "current_prompt" not in st.session_state:
     st.session_state.current_prompt = ""
 IMAGE_MODEL = "gemini-3.1-flash-image-preview"  # "gemini-2.5-flash-image"
 PROMPT_EXAMPLE = {
-    "scene_setup": {
-        "perspective": "Low-angle, three-quarter side view, angled from the front-left corner of the bed, looking slightly up and across the room",
-        "spatial_layout": "The bed dominates the center-right of the frame, leading the eye with an implied line from the bottom-left toward the upper-right nightstand. The headboard is centered behind the bed. The depth of field creates distinct visual planes: sharp foreground, detailed middle-ground, soft background.",
-        "depth_of_field": "Very Shallow (f/2.2); hyper-sharp focus on the very front edge of the bed quilt. Headboard, pillows, and the right-side nightstand items fall into a soft, creamy bokeh.",
-        "camera_details": {
-            "lens": "50mm prime",
-            "position": "Ground level, angled up at 15 degrees",
-            "tilt_shift_effect": "Slight tilt-shift applied vertically to minimize perspective distortion and emphasize the horizontal layers of the bedding.",
+    "composition_and_spatial_geometry": {
+        "camera_angle": "Three-quarter perspective, 15-degree low-angle tilt looking up from the front-left corner of the mattress.",
+        "focal_point": "Coordinate [x:350, y:650] (Front-left quilted corner of the bedspread).",
+        "spatial_depth_planes": {
+            "foreground": "Sharp focus on the draping 'waterfall' fold of the teal quilt [x:100, y:800].",
+            "midground": "Layered pillows and the top fold of the bedding [x:500, y:400].",
+            "background": "Soft bokeh on the button-tufted headboard and side tables [x:500, y:200].",
         },
+        "shapes": "Repeating chevron/herringbone quilted patterns; soft organic 'S' curves in the fabric folds; rigid rectangular lines of the nightstand; circular geometry of the new lamp base.",
     },
-    "product_styling": {
-        "texture_enhancement": "Hyper-realistic micro-texture on the velvet quilting; distinct, visible threads in the stitching; high sheen on the pile",
-        "bed_dressing": {
-            "spatial_action": "The teal coverlet is draped with deliberate, soft folds cascading waterfall-style off the front-left corner of the mattress, creating volume and movement. At the head of the bed, the top edge is folded back neatly 6 inches, revealing a crisp ivory-silk flat sheet.",
-            "pillows": "Four pillows layered: two large ivory silk Euro shams (background); two of the quilted teal shams (angled forward, sharp focus).",
+    "product_details_and_materials": {
+        "primary_item": {
+            "label": "Quilted Bedspread",
+            "material": "High-luster crushed velvet with a dense, short-pile nap. Fiber density: 300 GSM.",
+            "color": "Deep Peacock Teal (HEX: #006666). Color depth varies with light from Cyan-Green to Forest Shadow.",
+            "texture": "Raised 3D quilted stitching in a rhythmic leaf/chevron pattern. Threads are high-strength polyester with a slight satin sheen.",
+            "physics": "Heavy drape weight; soft, rounded edges on folds; no sharp creases.",
         },
-        "accents": "A chunky-knit cream wool throw (oversized texture) is placed casually across the bottom-right corner of the bed.",
+        "layering_materials": [
+            {
+                "item": "Euro Shams (Back)",
+                "material": "Stone-washed Belgian linen.",
+                "color": "Antique Ivory (HEX: #F5F5DC).",
+                "shape": "Large 26x26 squares, slightly overstuffed for volume.",
+            },
+            {
+                "item": "Standard Shams (Front)",
+                "material": "Matching Peacock Teal velvet.",
+                "shape": "Rectangular 20x26 with a 2-inch flanged edge.",
+            },
+            {
+                "item": "Accent Throw",
+                "material": "Chunky-knit Merino wool (1-inch thick yarn).",
+                "color": "Soft Cream (HEX: #FFFDD0).",
+                "placement": "Folded diagonally across the bottom-right foot of the bed.",
+            },
+        ],
     },
-    "lighting_and_atmosphere": {
-        "primary_source": "Directional 'Golden Hour' sunlight (warm, gold/orange tone) flooding from a hypothesized large window off-camera to the RIGHT, casting long, soft shadows and defining the quilt texture.",
-        "secondary_lighting": "Subtle softbox fill-light from the left to prevent deep shadows in the foreground. A slight rim light traces the top edge of the headboard and pillows.",
-        "spatial_light_interaction": "The light grazes the quilted texture on the right and top surfaces, creating micro-highlights and shadows that scream volume. The foreground left is warmer and slightly softer.",
+    "lighting_and_chromatic_atmosphere": {
+        "primary_light": {
+            "type": "Key Light (Natural Window)",
+            "color_temp": "3200K (Warm Amber/Golden Hour).",
+            "direction": "45-degree angle from the right side of the frame.",
+            "effect": "Specular highlights on the 'peaks' of the quilted velvet; deep occlusion shadows in the 'valleys'.",
+        },
+        "secondary_light": {
+            "type": "Rim Light",
+            "color": "Cool White (5500K).",
+            "placement": "Back-left behind the headboard to create a thin halo silhouette, separating the bed from the wall.",
+        },
+        "global_illumination": "Soft bounce light from the ivory rug (implied) to fill the shadows on the left side of the bed.",
     },
-    "props_and_environment_refresh": {
-        "headboard": "Retain cream tufted pattern but update trim to a subtle brushed champagne gold (replacing the silver-white look).",
+    "environmental_props_and_surfaces": {
+        "headboard": {
+            "material": "Faux-leather or high-end vinyl upholstery with a matte finish.",
+            "color": "Champagne Beige (HEX: #D7C4A3).",
+            "shape": "Scalloped-top rectangular with diamond-pattern button tufting.",
+            "frame": "Brushed Champagne Gold metallic trim (satin finish, non-reflective).",
+        },
         "nightstand_right": {
-            "spatial_position": "Receded in space, softly blurred.",
+            "surface": "High-gloss white lacquer over MDF.",
+            "hardware": "Linear brushed brass handle.",
             "props": [
                 {
-                    "item": "Sleek, minimal brass task lamp with a texturally rich, dark grey fabric shade",
-                    "position": "Centered on nightstand",
+                    "item": "Table Lamp",
+                    "material": "Fluted smoke-gray glass base with a black linen drum shade.",
+                    "color": "Charcoal and Translucent Gray.",
                 },
                 {
-                    "item": "Small, leather-bound volume (e.g., gold-embossed poetry book)",
-                    "position": "Lying flat",
+                    "item": "Decor",
+                    "material": "Matte ceramic tray with two gold-rimmed coasters.",
                 },
             ],
         },
-        "nightstand_left": {
-            "spatial_position": "Closer, sharper focus.",
-            "props": [
-                {
-                    "item": "Single, stylized clear glass vase with two fresh, dark burgundy anemones and one structured olive branch",
-                    "position": "Offset, slightly overlapping the bed's edge.",
-                }
-            ],
+        "wall_treatment": {
+            "material": "Matte eggshell paint over wood wainscoting.",
+            "color": "Warm Greige (HEX: #E1DBD2).",
+            "shape": "Sunken rectangular panels with beveled molding.",
         },
-        "background_wall": "Wall molding retained but subtly darker white to create contrast; the pattern to the far left is softened.",
     },
-    "technical_specs": {
-        "render_style": "Photo-realistic cinematic rendering (Cycles/Octane). The emphasis is on light transport and material realism.",
+    "technical_rendering_intent": {
+        "engine_style": "Ray-traced, path-traced rendering (Cycles/V-Ray).",
+        "post_processing": "Subtle bloom on highlights; 5% grain for film-like texture; chromatic aberration at the extreme edges of the frame for realism.",
     },
 }
 
@@ -318,7 +350,12 @@ with photoshop_tab:
         contents = generate_prompt(**prompt_kwargs)
         contents[
             0
-        ] += f"\nGenerate the JSON structured prompt which includes ALL the improved image details. Refer to this example: {PROMPT_EXAMPLE}"
+        ] += f"""\nGenerate the JSON structured prompt which includes ALL the improved image details.
+        Everything must be described, including, but not limited to, colors, shapes, materials, facial expressions, mood, lighing, interior, style etc.
+
+        Refer to this example: {PROMPT_EXAMPLE}.
+        
+        Do not mention resolution or aspect raio"""
         with st.spinner("Please wait, generating a structured prompt..."):
             generation = generate_suggestted_decor(
                 contents=contents, improve_prompt=True
