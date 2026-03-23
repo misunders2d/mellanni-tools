@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from typing import Any
 
@@ -19,10 +20,66 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+if "current_prompt" not in st.session_state:
+    st.session_state.current_prompt = ""
 IMAGE_MODEL = "gemini-3.1-flash-image-preview"  # "gemini-2.5-flash-image"
+PROMPT_EXAMPLE = {
+    "scene_setup": {
+        "perspective": "Low-angle, three-quarter side view, angled from the front-left corner of the bed, looking slightly up and across the room",
+        "spatial_layout": "The bed dominates the center-right of the frame, leading the eye with an implied line from the bottom-left toward the upper-right nightstand. The headboard is centered behind the bed. The depth of field creates distinct visual planes: sharp foreground, detailed middle-ground, soft background.",
+        "depth_of_field": "Very Shallow (f/2.2); hyper-sharp focus on the very front edge of the bed quilt. Headboard, pillows, and the right-side nightstand items fall into a soft, creamy bokeh.",
+        "camera_details": {
+            "lens": "50mm prime",
+            "position": "Ground level, angled up at 15 degrees",
+            "tilt_shift_effect": "Slight tilt-shift applied vertically to minimize perspective distortion and emphasize the horizontal layers of the bedding.",
+        },
+    },
+    "product_styling": {
+        "texture_enhancement": "Hyper-realistic micro-texture on the velvet quilting; distinct, visible threads in the stitching; high sheen on the pile",
+        "bed_dressing": {
+            "spatial_action": "The teal coverlet is draped with deliberate, soft folds cascading waterfall-style off the front-left corner of the mattress, creating volume and movement. At the head of the bed, the top edge is folded back neatly 6 inches, revealing a crisp ivory-silk flat sheet.",
+            "pillows": "Four pillows layered: two large ivory silk Euro shams (background); two of the quilted teal shams (angled forward, sharp focus).",
+        },
+        "accents": "A chunky-knit cream wool throw (oversized texture) is placed casually across the bottom-right corner of the bed.",
+    },
+    "lighting_and_atmosphere": {
+        "primary_source": "Directional 'Golden Hour' sunlight (warm, gold/orange tone) flooding from a hypothesized large window off-camera to the RIGHT, casting long, soft shadows and defining the quilt texture.",
+        "secondary_lighting": "Subtle softbox fill-light from the left to prevent deep shadows in the foreground. A slight rim light traces the top edge of the headboard and pillows.",
+        "spatial_light_interaction": "The light grazes the quilted texture on the right and top surfaces, creating micro-highlights and shadows that scream volume. The foreground left is warmer and slightly softer.",
+    },
+    "props_and_environment_refresh": {
+        "headboard": "Retain cream tufted pattern but update trim to a subtle brushed champagne gold (replacing the silver-white look).",
+        "nightstand_right": {
+            "spatial_position": "Receded in space, softly blurred.",
+            "props": [
+                {
+                    "item": "Sleek, minimal brass task lamp with a texturally rich, dark grey fabric shade",
+                    "position": "Centered on nightstand",
+                },
+                {
+                    "item": "Small, leather-bound volume (e.g., gold-embossed poetry book)",
+                    "position": "Lying flat",
+                },
+            ],
+        },
+        "nightstand_left": {
+            "spatial_position": "Closer, sharper focus.",
+            "props": [
+                {
+                    "item": "Single, stylized clear glass vase with two fresh, dark burgundy anemones and one structured olive branch",
+                    "position": "Offset, slightly overlapping the bed's edge.",
+                }
+            ],
+        },
+        "background_wall": "Wall molding retained but subtly darker white to create contrast; the pattern to the far left is softened.",
+    },
+    "technical_specs": {
+        "render_style": "Photo-realistic cinematic rendering (Cycles/Octane). The emphasis is on light transport and material realism.",
+    },
+}
 
 
-def calculate_cost(response, resolution):
+def calculate_cost(response, resolution, image=True):
     price_dict = {"512": 0.045, "1K": 0.067, "2K": 0.101, "4K": 0.151}
     try:
         input_tokens = 0
@@ -33,10 +90,16 @@ def calculate_cost(response, resolution):
         if response.usage_metadata and response.usage_metadata.candidates_token_count:
             output_tokens += response.usage_metadata.candidates_token_count
 
-        total_cost = (input_tokens * 0.5 / 1_000_000) + price_dict[resolution]
+        image_cost = price_dict.get(resolution, 0) if image else 0
+
+        total_cost = (input_tokens * 0.5 / 1_000_000) + image_cost
         return total_cost
     except Exception as e:
         return str(e)
+
+
+def update_current_prompt(new_prompt: str):
+    st.session_state.current_prompt = new_prompt
 
 
 def generate_prompt(
@@ -53,14 +116,11 @@ def generate_prompt(
     return contents
 
 
-def generate_suggestted_decor(contents: list):
+def generate_suggestted_decor(contents: list, improve_prompt=False):
     try:
         client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"], vertexai=False)
-
-        response = client.models.generate_content(
-            model=IMAGE_MODEL,
-            contents=contents,
-            config=GenerateContentConfig(
+        config = (
+            GenerateContentConfig(
                 thinking_config=ThinkingConfig(
                     thinking_level=ThinkingLevel(value=thinking),
                 ),
@@ -72,7 +132,13 @@ def generate_suggestted_decor(contents: list):
                     "IMAGE",
                     "TEXT",
                 ],
-            ),
+            )
+            if not improve_prompt
+            else GenerateContentConfig(response_mime_type="application/json")
+        )
+
+        response = client.models.generate_content(
+            model=IMAGE_MODEL, contents=contents, config=config
         )
         if (
             not response.candidates
@@ -80,7 +146,9 @@ def generate_suggestted_decor(contents: list):
             or not response.candidates[0].content.parts
         ):
             return
-        total_cost = calculate_cost(response=response, resolution=resolution)
+        total_cost = calculate_cost(
+            response=response, resolution=resolution, image=not improve_prompt
+        )
         image_parts = [
             part.inline_data.data
             for part in response.candidates[0].content.parts
@@ -90,12 +158,13 @@ def generate_suggestted_decor(contents: list):
         texts = [
             part.text for part in response.candidates[0].content.parts if part.text
         ]
-        if texts:
-            st.write("".join(texts))
 
         if image_parts and isinstance(image_parts[0], bytes):
             image = Image.open(BytesIO(image_parts[0]))
             return image, total_cost
+        if texts:
+            return "".join(texts), total_cost
+
     except Exception as e:
         st.warning(f"Sorry, an error occurred: {e}")
         return
@@ -174,9 +243,8 @@ with photoshop_tab:
     aspect_ratio = aspect_ratio_col.selectbox(
         label="Select aspect ratio",
         options=[
-            "Auto",
-            "16:9",
             "1:1",
+            "16:9",
             "1:4",
             "1:8",
             "2:3",
@@ -201,7 +269,10 @@ with photoshop_tab:
     prompt_kwargs: dict[str, Any] = {}
 
     input_cols, result_cols = st.columns([2, 4])
-    prompt_input = prompt_input_col.text_area(label="What do you want to do?")
+    prompt_input = prompt_input_col.text_area(
+        label="What do you want to do?",
+        value=st.session_state.current_prompt,
+    )
     prompt_kwargs = {"master_prompt": prompt_input}
     main_image_input = input_cols.file_uploader(
         "Upload the image you want to edit (optional)", type=["jpg", "jpeg", "png"]
@@ -243,3 +314,22 @@ with photoshop_tab:
                 result, total_cost = generation
                 result_cols.image(result)
                 result_cols.write(f"Total cost for the generation: ${total_cost:.5f}")
+    if result_cols.button(label="Help me write", type="secondary"):
+        contents = generate_prompt(**prompt_kwargs)
+        contents[
+            0
+        ] += f"\nGenerate the JSON structured prompt which includes ALL the improved image details. Refer to this example: {PROMPT_EXAMPLE}"
+        with st.spinner("Please wait, generating a structured prompt..."):
+            generation = generate_suggestted_decor(
+                contents=contents, improve_prompt=True
+            )
+            if not generation:
+                result_cols.error(
+                    "Failed to generate the decor suggestions. Please try again."
+                )
+            else:
+                result, total_cost = generation
+                if isinstance(result, str):
+                    update_current_prompt(new_prompt=prompt_input + "\n" + result)
+                    st.write("Check the updated prompt in the input window")
+                    st.rerun()
