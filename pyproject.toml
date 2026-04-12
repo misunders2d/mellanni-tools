@@ -8,6 +8,7 @@ dependencies = [
     "amazon-sp",
     "authlib>=1.6.9",
     "beautifulsoup4>=4.14.3",
+    "cryptography>=46.0.5",
     "db-dtypes>=1.4.4",
     "fpdf>=1.7.2",
     "fuzzywuzzy>=0.18.0",

@@ -10,6 +10,8 @@ import streamlit as st
 from login import require_login
 from modules import formatting as ff
 from modules import gcloud_modules as gc
+from modules.crypto import decrypt
+from modules.supabase_client import get_supabase_client
 
 key = st.secrets["OPENAI_SUMMARIZER_KEY"]
 # openai.api_key = key
@@ -56,34 +58,42 @@ with col2:
 
 with col1:
     with st.expander("OTP codes", icon=":material/qr_code_2:"):
-        keys = json.loads(st.secrets["otps"]["users"])
 
-        def otp(text: str):
-            global result
-            totp = pyotp.TOTP(text.replace(" ", ""))
-            result = totp.now()
-            return result
+        def _compute_otp(secret: str) -> str:
+            return pyotp.TOTP(secret.replace(" ", "")).now()
+
+        @st.cache_data(ttl=30, show_spinner=False)
+        def _load_user_otps(email: str) -> dict[str, str]:
+            """Return {label: decrypted_secret} for OTPs the user is allowed to see."""
+            supabase = get_supabase_client()
+            result = (
+                supabase.table("otps")
+                .select("label, encrypted_secret, allowed_emails")
+                .contains("allowed_emails", [email])
+                .order("label")
+                .execute()
+            )
+            return {
+                row["label"]: decrypt(row["encrypted_secret"])
+                for row in result.data
+            }
 
         try:
-            all_keys = (x for x in keys if user_email in x["emails"])
-            sorted_keys = dict()
-            for key in keys:
-                if user_email in key["emails"]:
-                    for data, value in key["data"].items():
-                        sorted_keys[data] = value
-            sorted_keys = dict(sorted(sorted_keys.items()))
-            if sorted_keys:
-                otps = {key: otp(item) for key, item in sorted_keys.items()}
+            user_secrets = _load_user_otps(user_email)
+            if user_secrets:
+                codes = {label: _compute_otp(secret) for label, secret in user_secrets.items()}
                 output = "\n".join(
-                    f"{k}: ".ljust(50 - len(v)) + v for k, v in sorted(otps.items())
+                    f"{k}: ".ljust(50 - len(v)) + v for k, v in sorted(codes.items())
                 )
                 st.text_area(
                     label="OTPs", value=output, height=200, key=str(time.time())
                 )
                 if st.button("Refresh", key="OTP refresh"):
                     st.rerun()
-        except:
-            pass
+            else:
+                st.info("No OTPs assigned to your account.")
+        except Exception as e:
+            st.error(f"Failed to load OTPs: {e}")
 
     with st.expander("Link generator for Seller Central", icon=":material/link:"):
         sc_markets = st.radio(

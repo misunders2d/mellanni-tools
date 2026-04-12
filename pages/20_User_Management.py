@@ -80,7 +80,9 @@ def delete_user(user_id: str):
 ALL_ROLES = load_roles()
 
 # --- Tabs ---
-users_tab, roles_tab, agents_tab = st.tabs(["Users", "Roles", "Remote Agents"])
+users_tab, roles_tab, agents_tab, otps_tab = st.tabs(
+    ["Users", "Roles", "Remote Agents", "OTPs"]
+)
 
 # ==================== USERS TAB ====================
 with users_tab:
@@ -371,4 +373,106 @@ with agents_tab:
                 supabase.table("remote_agents").delete().eq("id", aid).execute()
                 if "remote_agent" in st.session_state:
                     del st.session_state["remote_agent"]
+                st.rerun()
+
+# ==================== OTPs TAB ====================
+with otps_tab:
+    from modules.crypto import encrypt
+
+    st.caption(
+        "Manage TOTP (2FA) secrets. Secrets are encrypted before storage. "
+        "Users will only see OTPs where their email is in the allowed list."
+    )
+
+    def load_otps() -> list[dict]:
+        result = supabase.table("otps").select("*").order("label").execute()
+        return result.data
+
+    # Load all users for the multiselect (ensures consistent email options)
+    all_user_emails = sorted(u["email"] for u in load_users())
+
+    # --- Add new OTP ---
+    with st.expander("Add new OTP", icon=":material/add_circle:"):
+        col_label, col_secret = st.columns([2, 3])
+        new_label = col_label.text_input(
+            "Label", placeholder="e.g. US: Vitalii", key="new_otp_label"
+        )
+        new_secret = col_secret.text_input(
+            "TOTP secret (base32)",
+            placeholder="ABCD EFGH IJKL MNOP",
+            key="new_otp_secret",
+            type="password",
+        )
+        new_allowed = st.multiselect(
+            "Allowed users",
+            options=all_user_emails,
+            key="new_otp_emails",
+        )
+        if st.button("Add OTP", type="primary", key="add_otp_btn"):
+            if not new_label or not new_secret:
+                st.warning("Label and secret are required.")
+            elif not new_allowed:
+                st.warning("Select at least one user.")
+            else:
+                try:
+                    supabase.table("otps").insert({
+                        "label": new_label.strip(),
+                        "encrypted_secret": encrypt(new_secret.strip()),
+                        "allowed_emails": new_allowed,
+                    }).execute()
+                    st.success(f"Added OTP '{new_label}'")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to add OTP: {e}")
+
+    st.divider()
+
+    # --- Search ---
+    search = st.text_input(
+        "Search OTPs",
+        placeholder="Type to filter by label...",
+        label_visibility="collapsed",
+        key="otp_search",
+    )
+
+    otps = load_otps()
+    if search:
+        otps = [o for o in otps if search.lower() in o["label"].lower()]
+
+    st.caption(f"{len(otps)} OTPs")
+
+    if not otps:
+        st.info("No OTPs match the filter.")
+    else:
+        # Column headers
+        h_label, h_emails, h_actions = st.columns([2, 4, 1])
+        h_label.markdown("**Label**")
+        h_emails.markdown("**Allowed users**")
+        h_actions.markdown("")
+
+        for otp_row in otps:
+            oid = otp_row["id"]
+            col_label, col_emails, col_actions = st.columns([2, 4, 1])
+
+            col_label.markdown(f"**{otp_row['label']}**")
+
+            current_emails = otp_row.get("allowed_emails") or []
+            # Include orphan emails (allowed but no longer in app_users) so they're visible
+            options = sorted(set(all_user_emails) | set(current_emails))
+
+            new_emails = col_emails.multiselect(
+                "Allowed users",
+                options=options,
+                default=current_emails,
+                key=f"otp_emails_{oid}",
+                label_visibility="collapsed",
+            )
+            if sorted(new_emails) != sorted(current_emails):
+                supabase.table("otps").update(
+                    {"allowed_emails": new_emails}
+                ).eq("id", oid).execute()
+                st.rerun()
+
+            if col_actions.button(":material/delete:", key=f"del_otp_{oid}"):
+                supabase.table("otps").delete().eq("id", oid).execute()
                 st.rerun()
