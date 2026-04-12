@@ -1,19 +1,14 @@
 import asyncio
 import logging
+import uuid
 from io import StringIO
 
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-from dotenv import load_dotenv
-from google.adk.artifacts import InMemoryArtifactService
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
 
-from agents.agent import create_root_agent
-from data import table_data
 from login import require_login
+from modules.a2a_client import get_remote_agent, send_message, parse_response
 from modules.telegram_notifier import send_telegram_message
 
 st.set_page_config(
@@ -23,255 +18,136 @@ st.set_page_config(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-
-APP_NAME = "mellanni_amz_agent"
 show_tool_calls = False
-tool_call_icon = ":material/construction:"
-tool_response_icon = ":material/quick_reference:"
 thought_icon = ":material/lightbulb_2:"
 
 require_login()
 
-with st.sidebar:
-    include_tool_calls = st.checkbox(
-        "Include tool calls output?",
-        value=show_tool_calls,
-        help="Checking this box will include tool/function calls in the chat, used for debugging",
-    )
+# --- Remote agent config ---
+remote_agent = get_remote_agent()
+if not remote_agent:
+    st.error("No remote agent configured. Ask an admin to set one up in User Management.")
+    st.stop()
 
+agent_url = remote_agent["url"]
+agent_name = remote_agent.get("name", "Ori")
+a2a_api_key = st.secrets["a2a"]["api_key"]
+
+# --- User info ---
 if "email" in st.user and isinstance(st.user.email, str):
     user_id = st.user.email
 else:
     user_id = "unknown_user"
-user_name = st.user.name if "name" in st.user else "Unknown User"
+
 if "picture" in st.user and isinstance(st.user.picture, str):
     user_picture = st.user.picture
 else:
     user_picture = "media/user_avatar.jpg"
 
+# --- Session state ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
+# Persistent context_id ties all messages to one session on the remote agent
+if "a2a_context_id" not in st.session_state:
+    # Use a clean context_id without special characters
+    email_prefix = user_id.split("@")[0] if "@" in user_id else user_id
+    st.session_state.a2a_context_id = f"st_{email_prefix}_{uuid.uuid4().hex[:8]}"
 
-if "artifact_service" not in st.session_state:
-    st.session_state["artifact_service"] = InMemoryArtifactService()
-
+# --- Render chat history ---
 for message in st.session_state.messages:
-    if message["role"] == "thought":
-        icon = thought_icon
-        if message.get("type") == "tool_call":
-            icon = tool_call_icon
-        elif message.get("type") == "tool_response":
-            icon = tool_response_icon
-
-        with st.expander(message["label"], icon=icon):
-            if message.get("type") == "tool_response":
-                st.json(message["content"])
-            else:
-                st.info(message["content"])
-    elif message["role"] == "artifact":
+    if message["role"] == "artifact":
         if message.get("type") == "image":
             st.image(message["content"])
         elif message.get("type") == "plot":
-            components.html(message["content"], height=600)  # type: ignore
+            components.html(message["content"], height=600)
         elif message.get("type") == "table":
-            st.dataframe(message["content"], width="content", hide_index=True)
-
+            st.dataframe(message["content"], use_container_width=True, hide_index=True)
     else:
         with st.chat_message(
             message["role"],
             avatar=(
-                user_picture if message["role"] == "user" else "media/jeff_avatar.jpeg"
+                user_picture
+                if message["role"] == "user"
+                else "media/jeff_avatar.jpeg"
             ),
         ):
             st.markdown(message["content"])
 
+# --- Chat input ---
+if prompt := st.chat_input("Ask me what I can do ;)"):
+    st.chat_message("user", avatar=user_picture).markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-new_msg = ""
-
-
-async def run_agent(user_input: str, session_id: str, user_id: str):
-    global new_msg
-
-    if "session_service" not in st.session_state:
-        st.session_state["session_service"] = InMemorySessionService()
-        await st.session_state["session_service"].create_session(
-            app_name=APP_NAME,
-            user_id=user_id,
-            session_id=session_id,
-            state={"table_data": table_data},
-        )
-    else:
-        await st.session_state["session_service"].get_session(
-            app_name=APP_NAME, user_id=user_id, session_id=session_id
-        )
-    session_service = st.session_state["session_service"]
-    artifact_service = st.session_state["artifact_service"]
-
-    runner = Runner(
-        agent=create_root_agent(),
-        app_name=APP_NAME,
-        session_service=session_service,
-        artifact_service=artifact_service,
-    )
-
-    async for event in runner.run_async(
-        user_id=user_id,
-        session_id=session_id,
-        new_message=types.Content(role="user", parts=[types.Part(text=user_input)]),
-    ):
-
-        # check if any artifacts were added during the event
-        if event.actions.artifact_delta:
-            for filename, version in event.actions.artifact_delta.items():
-                artifact = await artifact_service.load_artifact(
-                    app_name=APP_NAME,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename,
-                    version=version,
+    with st.chat_message(agent_name, avatar="media/jeff_avatar.jpeg"):
+        with st.spinner("Thinking..."):
+            try:
+                # Inject caller ID tag so Ori sets the correct user_id in session state.
+                # The tag is stripped by Ori's state_setter callback before the model sees it.
+                a2a_message = f"[__caller_id:{user_id}__]{prompt}"
+                logger.info(
+                    "A2A outbound: context_id=%s, message=%s",
+                    st.session_state.a2a_context_id,
+                    a2a_message[:100],
                 )
-                if artifact and artifact.inline_data and artifact.inline_data.mime_type:
-                    if "image" in artifact.inline_data.mime_type:
-                        st.image(artifact.inline_data.data)  # type: ignore
-                        artifact_data = {
-                            "role": "artifact",
-                            "type": "image",
-                            "label": "Image",
-                            "content": artifact.inline_data.data,
-                        }
-                        st.session_state.messages.append(artifact_data)
-                    elif "html" in artifact.inline_data.mime_type:
-                        components.html(artifact.inline_data.data, height=600)  # type: ignore
-                        artifact_data = {
-                            "role": "artifact",
-                            "type": "plot",
-                            "label": "Plot",
-                            "content": artifact.inline_data.data,
-                        }
-                        st.session_state.messages.append(artifact_data)
-                    elif "text/csv" in artifact.inline_data.mime_type:
-                        try:
-                            data_bytes = bytes(artifact.inline_data.data)
-                            csv_str = data_bytes.decode("utf-8")
-                            df = pd.read_csv(StringIO(csv_str))
-                            st.dataframe(df, width="content", hide_index=True)
-                            artifact_data = {
-                                "role": "artifact",
-                                "type": "table",
-                                "label": "Table",
-                                "content": df,
-                            }
-                            st.session_state.messages.append(artifact_data)
-                        except Exception:
-                            pass
 
-                    else:
-                        st.write(
-                            f"Don't know yet how to show {artifact.inline_data.mime_type}"
+                rpc_response = asyncio.run(
+                    send_message(
+                        url=agent_url,
+                        api_key=a2a_api_key,
+                        message=a2a_message,
+                        context_id=st.session_state.a2a_context_id,
+                    )
+                )
+
+                parsed = parse_response(rpc_response)
+
+                if parsed["error"]:
+                    st.error(f"Agent error: {parsed['error']}")
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": f"Error: {parsed['error']}"}
+                    )
+                else:
+                    # Display text response
+                    if parsed["text"]:
+                        st.markdown(parsed["text"])
+                        st.session_state.messages.append(
+                            {"role": "assistant", "content": parsed["text"]}
                         )
 
-        if not event.content or not event.content.parts:
-            continue
-        # iterate through message parts
-        for part in event.content.parts:
-            if part.thought:
-                st.toast("Thinking", icon=":material/psychology:")
-                thought_data = {
-                    "role": "thought",
-                    "type": "thought",
-                    "label": "Thought",
-                    "content": part.text,
-                }
-                st.session_state.messages.append(thought_data)
-                with st.expander(thought_data["label"], icon=thought_icon):
-                    st.info(thought_data["content"])
+                    # Display images
+                    for img_data in parsed["images"]:
+                        st.image(img_data)
+                        st.session_state.messages.append(
+                            {"role": "artifact", "type": "image", "content": img_data}
+                        )
 
-            elif part.function_call and include_tool_calls:
-                fc = part.function_call
-                thought_data = {
-                    "role": "thought",
-                    "type": "tool_call",
-                    "label": f"Tool Call: `{fc.name}`",
-                    "content": f"Arguments: `{fc.args}`",
-                }
-                st.session_state.messages.append(thought_data)
-                with st.expander(thought_data["label"], icon=tool_call_icon):
-                    st.info(thought_data["content"])
+                    # Display HTML plots
+                    for html_content in parsed["html"]:
+                        components.html(html_content, height=600)
+                        st.session_state.messages.append(
+                            {"role": "artifact", "type": "plot", "content": html_content}
+                        )
 
-            elif part.function_response and include_tool_calls:
-                fr = part.function_response
-                thought_data = {
-                    "role": "thought",
-                    "type": "tool_response",
-                    "label": f"Tool Response: `{fr.name}`",
-                    "content": fr.response,
-                }
-                st.session_state.messages.append(thought_data)
-                with st.expander(thought_data["label"], icon=tool_response_icon):
-                    st.json(thought_data["content"])
+                    # Display CSV tables
+                    for csv_text in parsed["tables"]:
+                        try:
+                            df = pd.read_csv(StringIO(csv_text))
+                            st.dataframe(df, use_container_width=True, hide_index=True)
+                            st.session_state.messages.append(
+                                {"role": "artifact", "type": "table", "content": df}
+                            )
+                        except Exception:
+                            st.text(csv_text)
 
-            elif part.text:
-                new_msg += part.text
-                yield part.text
+                    # Handle input_required state
+                    if parsed["state"] == "input_required":
+                        st.info("The agent needs more information. Please respond above.")
 
-        if event.error_code:
-            st.error(f"Sorry, the following error happened:\n{event.error_code}")
-
-
-# --- Chat Input Block with artifact saving ---
-
-if prompt := st.chat_input(
-    "Ask me what I can do ;)", accept_file=True, file_type=[".csv", ".xlsx", ".xls"]
-):
-    prompt_text = prompt.text
-    prompt_files = prompt.files
-    if prompt_files:
-        for file in prompt_files:
-            file_bytes = file.read()
-            mime_type = file.type
-            if not mime_type and file.name.endswith(".csv"):
-                mime_type = "text/csv"
-            elif not mime_type and (
-                file.name.endswith(".xls")
-                or file.name.endswith(".xlsx")
-                or file.name.endswith(".xlsm")
-            ):
-                mime_type = (
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            except Exception as e:
+                error_message = f"Failed to reach the remote agent: {e}"
+                logger.error(error_message)
+                send_telegram_message(error_message)
+                st.error(error_message)
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": error_message}
                 )
-
-            part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
-
-            asyncio.run(
-                st.session_state["artifact_service"].save_artifact(
-                    app_name=APP_NAME,
-                    user_id=user_id,
-                    session_id=f"{user_id}_session",
-                    filename=file.name,
-                    artifact=part,
-                )
-            )
-
-            prompt_text += (
-                f"\n\nbiguery_agent, I’ve uploaded `{file.name}` as an artifact."
-            )
-
-    st.chat_message("user", avatar=user_picture).markdown(prompt.text)
-    st.session_state.messages.append({"role": "user", "content": prompt.text})
-
-    with st.chat_message("Jeff", avatar="media/jeff_avatar.jpeg"):
-        try:
-            st.write_stream(
-                run_agent(
-                    user_input=prompt_text,
-                    session_id=f"{user_id}_session",
-                    user_id=user_id,
-                )
-            )
-        except Exception as e:
-            error_message = f"Sorry, an error occurred, please try later:\n{e}"
-            send_telegram_message(error_message)
-            st.write(error_message)
-
-    st.session_state.messages.append({"role": "assistant", "content": new_msg})
