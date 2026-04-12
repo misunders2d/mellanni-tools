@@ -454,7 +454,21 @@ with otps_tab:
             oid = otp_row["id"]
             col_label, col_emails, col_actions = st.columns([2, 4, 1])
 
-            col_label.markdown(f"**{otp_row['label']}**")
+            current_label = otp_row["label"]
+            new_label = col_label.text_input(
+                "Label",
+                value=current_label,
+                key=f"otp_label_{oid}",
+                label_visibility="collapsed",
+            )
+            if new_label.strip() and new_label.strip() != current_label:
+                try:
+                    supabase.table("otps").update(
+                        {"label": new_label.strip()}
+                    ).eq("id", oid).execute()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to rename OTP: {e}")
 
             current_emails = otp_row.get("allowed_emails") or []
             # Include orphan emails (allowed but no longer in app_users) so they're visible

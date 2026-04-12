@@ -25,6 +25,16 @@ HELP = {
         "detail page is the problem. If purchase share drops vs cart-add, check pricing, "
         "shipping speed, or stock issues."
     ),
+    "sankey": (
+        "**How to read:** Your ASIN's journey from search to purchase. At each stage, "
+        "the green flow continues to the next step; the red flow is dropped customers. "
+        "Hover any link to see the exact count.\n\n"
+        "**Action:** Find the widest red flow — that's your biggest leak. "
+        "Search → Impression loss = visibility problem (PPC, SEO, ranking). "
+        "Impression → Click loss = listing image/title. "
+        "Click → Cart loss = detail page content or price. "
+        "Cart → Purchase loss = checkout friction (shipping, stock, buy box)."
+    ),
     "strategy_matrix": (
         "**How to read:** Each bubble is a keyword. X = search volume (market size), "
         "Y = your impression share (visibility), bubble size = your purchase count (revenue).\n\n"
@@ -162,6 +172,105 @@ def funnel_chart(combined_report: pd.DataFrame) -> dict | None:
             },
         ],
         "color": ["#89b4fa", "#74c7ec", "#94e2d5", "#a6e3a1", "#f9e2af"],
+    }
+
+
+def asin_sankey_chart(
+    combined_report: pd.DataFrame,
+    show_dropoffs: bool = True,
+) -> dict | None:
+    """Sankey flow showing ASIN journey from search to purchase.
+
+    When show_dropoffs=False, only the "continuing" flows are shown (no red loss branches).
+    """
+    if combined_report.empty:
+        return None
+
+    row = combined_report.iloc[0]
+    search_vol = float(row.get("searchQueryVolume", 0))
+    impressions = float(row.get("asinImpressionCount", 0))
+    clicks = float(row.get("asinClickCount", 0))
+    cart_adds = float(row.get("asinCartAddCount", 0))
+    purchases = float(row.get("asinPurchaseCount", 0))
+
+    def _pct(value: float, parent: float) -> float:
+        return round(value / parent * 100, 3) if parent else 0
+
+    # Each node's % is its share of the parent stage
+    def _label(name: str, value: float, parent: float | None) -> str:
+        if parent is None:
+            return f"{name}\n{int(value):,} (100%)"
+        return f"{name}\n{int(value):,} ({_pct(value, parent)}%)"
+
+    stage_nodes = [
+        {"name": _label("Search Volume", search_vol, None), "itemStyle": {"color": "#89b4fa"}},
+        {"name": _label("Impressions", impressions, search_vol), "itemStyle": {"color": "#74c7ec"}},
+        {"name": _label("Clicks", clicks, impressions), "itemStyle": {"color": "#94e2d5"}},
+        {"name": _label("Cart Adds", cart_adds, clicks), "itemStyle": {"color": "#a6e3a1"}},
+        {"name": _label("Purchases", purchases, cart_adds), "itemStyle": {"color": "#f9e2af"}},
+    ]
+
+    green = {"color": "#a6e3a1", "opacity": 0.5}
+    red = {"color": "#f38ba8", "opacity": 0.4}
+
+    # Resolve node names by index so we don't repeat long strings
+    sv, imp, clk, atc, pur = [n["name"] for n in stage_nodes]
+
+    links = [
+        {"source": sv, "target": imp, "value": impressions, "lineStyle": green},
+        {"source": imp, "target": clk, "value": clicks, "lineStyle": green},
+        {"source": clk, "target": atc, "value": cart_adds, "lineStyle": green},
+        {"source": atc, "target": pur, "value": purchases, "lineStyle": green},
+    ]
+
+    nodes = list(stage_nodes)
+
+    if show_dropoffs:
+        lost_impression = max(0, search_vol - impressions)
+        lost_click = max(0, impressions - clicks)
+        lost_cart = max(0, clicks - cart_adds)
+        lost_purchase = max(0, cart_adds - purchases)
+
+        drop_nodes = [
+            {"name": _label("Lost (no impression)", lost_impression, search_vol), "itemStyle": {"color": "#f38ba8"}},
+            {"name": _label("Lost (no click)", lost_click, impressions), "itemStyle": {"color": "#f38ba8"}},
+            {"name": _label("Lost (no cart)", lost_cart, clicks), "itemStyle": {"color": "#f38ba8"}},
+            {"name": _label("Lost (no purchase)", lost_purchase, cart_adds), "itemStyle": {"color": "#f38ba8"}},
+        ]
+        nodes.extend(drop_nodes)
+        l_imp, l_clk, l_atc, l_pur = [n["name"] for n in drop_nodes]
+
+        links.extend([
+            {"source": sv, "target": l_imp, "value": lost_impression, "lineStyle": red},
+            {"source": imp, "target": l_clk, "value": lost_click, "lineStyle": red},
+            {"source": clk, "target": l_atc, "value": lost_cart, "lineStyle": red},
+            {"source": atc, "target": l_pur, "value": lost_purchase, "lineStyle": red},
+        ])
+
+    tooltip_formatter = JsCode("function(p) { if (p.dataType === 'edge') { return p.data.source.split('\\n')[0] + ' → ' + p.data.target.split('\\n')[0] + '<br/><b>' + p.value.toLocaleString() + '</b>'; } return '<b>' + p.name + '</b>'; }").js_code
+
+    return {
+        "tooltip": {"trigger": "item", "formatter": tooltip_formatter},
+        "toolbox": {
+            "feature": {
+                "saveAsImage": {"title": "Save as image"},
+            },
+            "right": "2%",
+            "top": "2%",
+        },
+        "series": [{
+            "type": "sankey",
+            "data": nodes,
+            "links": links,
+            "emphasis": {"focus": "adjacency"},
+            "nodeAlign": "left",
+            "nodeGap": 16,
+            "label": {"fontSize": 12, "fontWeight": "bold"},
+            "left": "3%",
+            "right": "15%",
+            "top": "3%",
+            "bottom": "3%",
+        }],
     }
 
 

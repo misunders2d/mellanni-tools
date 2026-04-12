@@ -283,6 +283,7 @@ if "sqp" in st.session_state:
 
         from modules.sqp_analytics import (
             HELP,
+            asin_sankey_chart,
             build_sqp_report,
             cart_abandonment_chart,
             funnel_chart,
@@ -343,6 +344,21 @@ if "sqp" in st.session_state:
             radar_options = radar_charts(df=radar_data_df)
             if radar_options:
                 st_echarts(options=radar_options)
+
+        # ASIN Sankey flow (full width, under funnel row)
+        st.subheader("ASIN Customer Journey")
+        with st.expander("What does this mean?", icon=":material/help:"):
+            st.markdown(HELP["sankey"])
+        show_dropoffs = st.checkbox(
+            "Show drop-offs",
+            value=True,
+            help="Toggle to hide the red drop-off branches and see only the continuing flow",
+        )
+        sankey_opts = asin_sankey_chart(
+            st.session_state.combined_report, show_dropoffs=show_dropoffs
+        )
+        if sankey_opts:
+            st_echarts(options=sankey_opts, height="500px")
 
         st.divider()
 
