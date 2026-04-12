@@ -9,7 +9,7 @@ from reports import all_orders_report, process_reports
 from streamlit_echarts import st_echarts
 
 from data import pantone_to_hex
-from login import require_login, sales_users
+from login import require_login, require_role
 from modules.filter_modules import filter_dictionary
 
 pacific = ZoneInfo("America/Los_Angeles")
@@ -18,11 +18,7 @@ utc = ZoneInfo("UTC")
 st.set_page_config(page_title="Sales hourly", page_icon="media/logo.ico", layout="wide")
 require_login()
 
-if st.user.email not in sales_users:
-    st.toast(
-        f"User {st.user.email} does not have access to sales data. Contact Sergey for details"
-    )
-    st.stop()
+require_role("admin", "sales")
 
 
 ### Logic ###

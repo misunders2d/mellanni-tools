@@ -8,7 +8,7 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 from numpy import nan
 
-from login import require_login, sales_users
+from login import require_login, require_role
 from modules.sales_charts import render_sales_chart
 
 os.makedirs("temp", exist_ok=True)
@@ -28,11 +28,7 @@ GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
 )
 
-if st.user.email not in sales_users:
-    st.toast(
-        f"User {st.user.email} does not have access to sales data. Contact Sergey for details"
-    )
-    st.stop()
+require_role("admin", "sales")
 
 collection_area, size_area, color_area = st.columns([2, 1, 1])
 (

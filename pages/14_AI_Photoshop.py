@@ -296,7 +296,7 @@ with photoshop_tab:
         label="Select thinking effort", options=["MINIMAL", "HIGH"]
     )
     resolution = resolution_col.selectbox(
-        label="Select resolution", options=["1K", "512", "2K", "4K"]
+        label="Select resolution", options=["512", "1K", "2K", "4K"]
     )
     prompt_kwargs: dict[str, Any] = {}
 
