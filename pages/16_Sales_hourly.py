@@ -6,10 +6,10 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 from reports import all_orders_report, process_reports
-from streamlit_echarts import st_echarts
+from streamlit_echarts import JsCode, st_echarts
 
 from data import pantone_to_hex
-from login import require_login, sales_users
+from login import require_login, require_role
 from modules.filter_modules import filter_dictionary
 
 pacific = ZoneInfo("America/Los_Angeles")
@@ -18,11 +18,7 @@ utc = ZoneInfo("UTC")
 st.set_page_config(page_title="Sales hourly", page_icon="media/logo.ico", layout="wide")
 require_login()
 
-if st.user.email not in sales_users:
-    st.toast(
-        f"User {st.user.email} does not have access to sales data. Contact Sergey for details"
-    )
-    st.stop()
+require_role("admin", "sales")
 
 
 ### Logic ###
@@ -53,12 +49,20 @@ def read_from_text(report_str: str) -> pd.DataFrame:
 
 
 async def get_orders_data(start_time: datetime, end_time: datetime):
-    response = await all_orders_report(
-        days=None, dataStartTime=start_time, dataEndTime=end_time
-    )
-    all_orders_text = await process_reports.check_and_download_report(
-        response, time_to_wait=120
-    )
+    try:
+        response = await all_orders_report(
+            days=None, dataStartTime=start_time, dataEndTime=end_time
+        )
+    except Exception as e:
+        return f"Failed to request report from Amazon SP-API: {e}"
+
+    try:
+        all_orders_text = await process_reports.check_and_download_report(
+            response, time_to_wait=120
+        )
+    except Exception as e:
+        return f"Failed to download report: {e}"
+
     if all_orders_text and isinstance(all_orders_text, str):
         return read_from_text(all_orders_text)
     return "Report could not be downloaded"
@@ -71,13 +75,17 @@ def analyze_orders(full_data: pd.DataFrame):
         .reset_index()
         .sort_values("quantity", ascending=False)
     )
-    top_skus = pd.merge(
-        top_skus,
-        st.session_state.dictionary[["sku", "asin"]],
-        how="left",
-        on="sku",
-        validate="1:m",
-    )
+    try:
+        top_skus = pd.merge(
+            top_skus,
+            st.session_state.dictionary[["sku", "asin"]],
+            how="left",
+            on="sku",
+            validate="1:m",
+        )
+    except pd.errors.MergeError as e:
+        st.error(f"Data integrity issue: duplicate SKUs detected in dictionary. {e}")
+        return top_skus, pd.DataFrame(), pd.DataFrame()
     top_skus["sku"] = (
         "https://www.amazon.com/dp/" + top_skus["asin"] + "#" + top_skus["sku"]
     )
@@ -240,6 +248,7 @@ def plot_chart(df: pd.DataFrame):
     resampled = resampled[sorted_cols]
 
     x_axis_labels = resampled.index.strftime("%b %d, %H:00").tolist()
+    hourly_totals = resampled.sum(axis=1).tolist()
     series = []
 
     # Catppuccin Mocha Palette
@@ -254,13 +263,17 @@ def plot_chart(df: pd.DataFrame):
     ]
 
     for _, col in enumerate(resampled.columns):
+        col_values = resampled[col].tolist()
         series.append(
             {
                 "name": str(col),
                 "type": "bar",
                 "stack": "total",
                 "emphasis": {"focus": "series"},
-                "data": resampled[col].tolist(),
+                "data": [
+                    {"value": v, "total": t}
+                    for v, t in zip(col_values, hourly_totals)
+                ],
                 "itemStyle": {"borderRadius": [2, 2, 0, 0]},
             }
         )
@@ -269,7 +282,7 @@ def plot_chart(df: pd.DataFrame):
         "backgroundColor": "transparent",
         "tooltip": {
             "trigger": "item",
-            "formatter": "<b>{a}</b><br/>{b}: <b>{c} units</b>",
+            "formatter": JsCode("function(params) { return '<b>' + params.seriesName + '</b><br/>' + params.name + ': <b>' + params.value + ' units</b><br/>Hour total: <b>' + params.data.total + ' units</b>'; }").js_code,
         },
         "legend": {"textStyle": {"color": "#CDD6F4"}, "type": "scroll", "top": "top"},
         "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},

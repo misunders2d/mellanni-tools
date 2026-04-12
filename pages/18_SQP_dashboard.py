@@ -31,8 +31,8 @@ dashboard_container = st.container()
 dashboard_tab, excel_tab = st.tabs(["Dashboard", "Excel"])
 dfs_container = excel_tab.container()
 coll_col, size_col, color_col = filter_container.columns([4, 2, 2])
-filter_kw_col, clear_btn_col, start_date_col, end_date_col = dates_container.columns(
-    [3, 1, 2, 2]
+filter_kw_col, clear_btn_col, start_date_col, end_date_col, run_btn_col = dates_container.columns(
+    [3, 1, 2, 2, 1]
 )
 
 end_date = end_date_col.date_input(
@@ -206,7 +206,14 @@ def run_sqp_analysis(start_date, end_date):
         st.error(e)
 
 
-st.button("Run", on_click=run_sqp_analysis, args=(start_date, end_date))
+run_btn_col.button(
+    "Run",
+    on_click=run_sqp_analysis,
+    args=(start_date, end_date),
+    type="primary",
+    use_container_width=True,
+)
+
 
 if "sqp" in st.session_state:
     sqp_to_process = (
@@ -272,49 +279,152 @@ if "sqp" in st.session_state:
         )
 
     with dashboard_tab:
+        import json as _json
+
+        from modules.sqp_analytics import (
+            HELP,
+            build_sqp_report,
+            cart_abandonment_chart,
+            funnel_chart,
+            funnel_leakage_heatmap,
+            keyword_momentum_chart,
+            missed_opportunity_chart,
+            price_position_chart,
+            share_of_voice_chart,
+            strategy_matrix,
+        )
+
+        slider_col, export_col = st.columns([3, 1])
+
+        with slider_col:
+            top_n = st.slider(
+                "Keywords to show per chart",
+                min_value=5, max_value=100, value=15, step=5,
+                help="Controls how many keywords appear in each chart (sorted by relevance to that chart)",
+            )
+
+        with export_col:
+            st.write("")  # spacer to align with slider
+            report_payload = build_sqp_report(
+                combined_report=st.session_state.combined_report,
+                query_report=st.session_state.query_report,
+                date_report=st.session_state.date_report,
+                date_query_report=st.session_state.date_query_report,
+                asins=list(pd.unique(filtered_dictionary["asin"])) if not filtered_dictionary.empty else [],
+                filters={
+                    "keyword_search": st.session_state.get("filter_search", ""),
+                    "start_date": str(start_date),
+                    "end_date": str(end_date),
+                },
+                top_n=top_n,
+            )
+            st.download_button(
+                label=":material/download: Export for AI analysis",
+                data=_json.dumps(report_payload, indent=2, default=str),
+                file_name=f"sqp_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                use_container_width=True,
+                help="Downloads a structured JSON report with all metrics and pre-computed insights, ready to send to an AI agent for analysis",
+            )
+
+        # Row 1: Conversion Funnel + Radar
+        row1_left, row1_right = st.columns(2)
+        with row1_left:
+            st.subheader("Conversion Funnel")
+            with st.expander("What does this mean?", icon=":material/help:"):
+                st.markdown(HELP["funnel"])
+            opts = funnel_chart(st.session_state.combined_report)
+            if opts:
+                st_echarts(options=opts, height="400px")
+
+        with row1_right:
+            st.subheader("ASIN vs Niche")
+            radar_data_df = st.session_state.combined_report.copy()
+            radar_options = radar_charts(df=radar_data_df)
+            if radar_options:
+                st_echarts(options=radar_options)
+
+        st.divider()
+
+        # Row 2: Strategy Matrix (full width)
+        st.subheader("Keyword Strategy Matrix")
+        with st.expander("What does this mean?", icon=":material/help:"):
+            st.markdown(HELP["strategy_matrix"])
+        opts = strategy_matrix(st.session_state.query_report)
+        if opts:
+            st_echarts(options=opts, height="500px")
+
+        st.divider()
+
+        # Row 3: Missed Opportunity + Price Position
+        row3_left, row3_right = st.columns(2)
+        with row3_left:
+            st.subheader("Missed Opportunities")
+            with st.expander("What does this mean?", icon=":material/help:"):
+                st.markdown(HELP["missed_opportunity"])
+            opts = missed_opportunity_chart(st.session_state.query_report, top_n=top_n)
+            if opts:
+                st_echarts(options=opts, height="450px")
+
+        with row3_right:
+            st.subheader("Competitive Price Position")
+            with st.expander("What does this mean?", icon=":material/help:"):
+                st.markdown(HELP["price_position"])
+            opts = price_position_chart(st.session_state.query_report)
+            if opts:
+                st_echarts(options=opts, height="450px")
+
+        st.divider()
+
+        # Row 4: Funnel Leakage Heatmap (full width)
+        st.subheader("Funnel Leakage by Keyword")
+        with st.expander("What does this mean?", icon=":material/help:"):
+            st.markdown(HELP["leakage_heatmap"])
+        opts = funnel_leakage_heatmap(st.session_state.query_report, top_n=top_n)
+        if opts:
+            st_echarts(options=opts, height="500px")
+
+        st.divider()
+
+        # Row 5: Share of Voice + Keyword Momentum (multi-week only)
+        row5_left, row5_right = st.columns(2)
+        with row5_left:
+            st.subheader("Share of Voice Over Time")
+            with st.expander("What does this mean?", icon=":material/help:"):
+                st.markdown(HELP["share_of_voice"])
+            opts = share_of_voice_chart(st.session_state.date_report)
+            if opts:
+                st_echarts(options=opts, height="400px")
+            else:
+                st.info("Select multiple weeks to see trends.")
+
+        with row5_right:
+            st.subheader("Keyword Momentum")
+            with st.expander("What does this mean?", icon=":material/help:"):
+                st.markdown(HELP["keyword_momentum"])
+            opts = keyword_momentum_chart(st.session_state.date_query_report, top_n=top_n)
+            if opts:
+                st_echarts(options=opts, height="400px")
+            else:
+                st.info("Select multiple weeks to see momentum.")
+
+        st.divider()
+
+        # Row 6: Cart Abandonment
+        st.subheader("Cart Abandonment vs Market")
+        with st.expander("What does this mean?", icon=":material/help:"):
+            st.markdown(HELP["cart_abandonment"])
+        opts = cart_abandonment_chart(st.session_state.query_report, top_n=top_n)
+        if opts:
+            st_echarts(options=opts, height="450px")
+
+        st.divider()
+
+        # Row 7: Parallel Coordinates (existing, moved to bottom)
+        st.subheader("Parallel Coordinates")
+        with st.expander("What does this mean?", icon=":material/help:"):
+            st.markdown(HELP["parallel_coordinates"])
         parallels_data_df = st.session_state.query_report.copy()
         parallel_options = parallel_coordinates_charts(df=parallels_data_df)
         if parallel_options:
             st_echarts(options=parallel_options, height="600px")
-        radar_data_df = st.session_state.combined_report.copy()
-        radar_options = radar_charts(df=radar_data_df)
-        if radar_options:
-            st_echarts(options=radar_options)
-
-        # data_df = st.session_state.date_query_report.copy()
-        # x_axis = {"type": "time", "name": "Date"}
-        # y_axis = {"type": "value", "name": "Price ($)"}
-        #
-        # dates = data_df["startDate"].tolist()
-        # searches = data_df["searchQueryVolume"].tolist()
-        #
-        # total_click_prices = data_df["totalMedianClickPrice_amount"].tolist()
-        # total_atc_prices = data_df["totalMedianCartAddPrice_amount"].tolist()
-        # total_purchase_prices = data_df["totalMedianPurchasePrice_amount"].tolist()
-        #
-        # total_click_data = list(zip(dates, total_click_prices, searches))
-        # total_atc_data = list(zip(dates, total_atc_prices, searches))
-        # total_purchase_data = list(zip(dates, total_purchase_prices, searches))
-        #
-        # series = [
-        #     {
-        #         "name": "Click Price",
-        #         "type": "scatter",
-        #         "data": total_click_data,
-        #         "itemStyle": {"color": "#5470c6", "opacity": 0.5},  # Blue
-        #     },
-        #     {
-        #         "name": "ATC Price",
-        #         "type": "scatter",
-        #         "data": total_atc_data,
-        #         "itemStyle": {"color": "#91cc75", "opacity": 0.5},  # Green
-        #     },
-        #     {
-        #         "name": "Purchase Price",
-        #         "type": "scatter",
-        #         "data": total_purchase_data,
-        #         "itemStyle": {"color": "#fac858", "opacity": 0.5},  # Yellow/Orange
-        #     },
-        # ]
-        # scatter_options = scatter_charts(x_axis=x_axis, y_axis=y_axis, series=series)
-        # st_echarts(options=scatter_options)
