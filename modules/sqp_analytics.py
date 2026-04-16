@@ -94,11 +94,11 @@ HELP = {
     ),
     "cart_abandonment": (
         "**How to read:** For each keyword, two bars — your ASIN's cart-abandonment rate "
-        "(color-coded: green = low, red = high) and the niche's rate for that same keyword "
-        "(gray). The dashed line shows the niche average across the shown keywords.\n\n"
-        "**Action:** When your bar is noticeably longer than the niche bar for the same keyword, "
-        "you're losing more customers at checkout than competitors on that query — investigate "
-        "price shock, shipping cost, delivery time, stock issues, or Buy Box loss."
+        "(green = below the niche for that keyword, red = above) and the niche's rate for "
+        "that same keyword (gray). The dashed line shows the niche average across the shown keywords.\n\n"
+        "**Action:** Red bars mean you're losing more customers at checkout than competitors "
+        "on that query — investigate price shock, shipping cost, delivery time, stock issues, "
+        "or Buy Box loss."
     ),
 }
 
@@ -646,6 +646,16 @@ def cart_abandonment_chart(query_report: pd.DataFrame, top_n: int = 15) -> dict 
     asin_values = df["asinAbandonment"].tolist()
     market_values = df["marketAbandonment"].tolist()
 
+    good = "#a6e3a1"
+    bad = "#f38ba8"
+    asin_data = [
+        {
+            "value": float(a),
+            "itemStyle": {"color": bad if a > m else good, "borderRadius": [0, 4, 4, 0]},
+        }
+        for a, m in zip(asin_values, market_values)
+    ]
+
     return {
         "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}, "valueFormatter": JsCode("function(v) { return v + '%'; }").js_code},
         "legend": {"data": ["Your ASIN", "Niche"], "top": 0, "right": 10},
@@ -657,8 +667,8 @@ def cart_abandonment_chart(query_report: pd.DataFrame, top_n: int = 15) -> dict 
             {
                 "name": "Your ASIN",
                 "type": "bar",
-                "data": [float(a) for a in asin_values],
-                "itemStyle": {"borderRadius": [0, 4, 4, 0]},
+                "data": asin_data,
+                "itemStyle": {"color": good},
                 "markLine": {
                     "silent": True,
                     "symbol": "none",
@@ -674,14 +684,6 @@ def cart_abandonment_chart(query_report: pd.DataFrame, top_n: int = 15) -> dict 
                 "itemStyle": {"color": "#94a3b8", "borderRadius": [0, 4, 4, 0], "opacity": 0.75},
             },
         ],
-        "visualMap": {
-            "show": False,
-            "seriesIndex": 0,
-            "dimension": 0,
-            "min": 0,
-            "max": 100,
-            "inRange": {"color": ["#a6e3a1", "#f9e2af", "#f38ba8"]},
-        },
     }
 
 
