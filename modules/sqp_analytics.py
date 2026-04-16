@@ -93,12 +93,12 @@ HELP = {
         "Color indicates search volume tier: blue = high volume, red = low volume."
     ),
     "cart_abandonment": (
-        "**How to read:** Each bar shows the percentage of cart adds that did NOT convert "
-        "to purchases, compared to the market average (dashed line). Bars above the line "
-        "mean you lose more customers at checkout than competitors.\n\n"
-        "**Action:** High abandonment vs market suggests price shock at checkout (shipping costs, "
-        "delivery time), stock issues, or a better offer appearing at the last moment. "
-        "Check your Buy Box percentage and competitor pricing."
+        "**How to read:** For each keyword, two bars — your ASIN's cart-abandonment rate "
+        "(color-coded: green = low, red = high) and the niche's rate for that same keyword "
+        "(gray). The dashed line shows the niche average across the shown keywords.\n\n"
+        "**Action:** When your bar is noticeably longer than the niche bar for the same keyword, "
+        "you're losing more customers at checkout than competitors on that query — investigate "
+        "price shock, shipping cost, delivery time, stock issues, or Buy Box loss."
     ),
 }
 
@@ -647,29 +647,36 @@ def cart_abandonment_chart(query_report: pd.DataFrame, top_n: int = 15) -> dict 
     market_values = df["marketAbandonment"].tolist()
 
     return {
-        "tooltip": {"formatter": JsCode("function(p) { if (p.componentType === 'markLine') return 'Market avg: ' + p.value + '%'; return '<b>' + p.name + '</b><br/>Your ASIN: <b>' + p.value + '%</b><br/>Market: <b>' + p.data.market + '%</b>'; }").js_code},
+        "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}, "valueFormatter": JsCode("function(v) { return v + '%'; }").js_code},
+        "legend": {"data": ["Your ASIN", "Niche"], "top": 0, "right": 10},
         "title": {"text": "Cart abandonment rate by keyword (top by volume)", "textStyle": {"fontSize": 13, "fontWeight": "normal"}},
         "xAxis": {"type": "value", "name": "Abandonment %", "axisLabel": {"formatter": "{value}%"}},
         "yAxis": {"type": "category", "data": keywords, "inverse": True, "axisLabel": {"fontSize": 11}},
-        "grid": {"left": "22%", "right": "10%", "top": "8%", "bottom": "5%"},
-        "series": [{
-            "name": "Your ASIN",
-            "type": "bar",
-            "data": [
-                {"value": float(a), "market": float(m)}
-                for a, m in zip(asin_values, market_values)
-            ],
-            "itemStyle": {"borderRadius": [0, 4, 4, 0]},
-            "markLine": {
-                "silent": True,
-                "symbol": "none",
-                "lineStyle": {"type": "dashed", "color": "#cdd6f4", "width": 2},
-                "label": {"formatter": "Market avg: {c}%", "position": "end"},
-                "data": [{"xAxis": market_avg}],
+        "grid": {"left": "22%", "right": "10%", "top": "12%", "bottom": "5%"},
+        "series": [
+            {
+                "name": "Your ASIN",
+                "type": "bar",
+                "data": [float(a) for a in asin_values],
+                "itemStyle": {"borderRadius": [0, 4, 4, 0]},
+                "markLine": {
+                    "silent": True,
+                    "symbol": "none",
+                    "lineStyle": {"type": "dashed", "color": "#cdd6f4", "width": 2},
+                    "label": {"formatter": "Niche avg: {c}%", "position": "end"},
+                    "data": [{"xAxis": market_avg}],
+                },
             },
-        }],
+            {
+                "name": "Niche",
+                "type": "bar",
+                "data": [float(m) for m in market_values],
+                "itemStyle": {"color": "#94a3b8", "borderRadius": [0, 4, 4, 0], "opacity": 0.75},
+            },
+        ],
         "visualMap": {
             "show": False,
+            "seriesIndex": 0,
             "dimension": 0,
             "min": 0,
             "max": 100,
