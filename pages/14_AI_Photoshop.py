@@ -15,6 +15,8 @@ from openai import OpenAI
 from PIL import Image
 from streamlit_image_comparison import image_comparison
 
+from login import get_current_user
+
 st.set_page_config(
     page_title="AI photoshop",
     page_icon="media/logo.ico",
@@ -338,6 +340,22 @@ def generate_image(
     )
 
 
+try:
+    _user = get_current_user() if st.user.is_logged_in else None
+except Exception:
+    _user = None
+_roles = (_user or {}).get("roles") or []
+has_photoshop_role = "photoshop" in _roles
+RESTRICTED_HELP = (
+    "2K and higher resolutions require the 'photoshop' role. Ask Sergey for access."
+)
+
+GEMINI_RESOLUTION_OPTIONS_FULL = ["512", "1K", "2K", "4K"]
+GEMINI_RESOLUTION_OPTIONS_LOW = ["512", "1K"]
+OPENAI_SIZES_LOW = {
+    k: v for k, v in OPENAI_SIZES.items() if "2K" not in k and "4K" not in k
+}
+
 image_model = st.radio(
     "Image model",
     options=[MODEL_NANOBANANA, MODEL_GPT_IMAGE],
@@ -398,6 +416,9 @@ with bedroom_tab:
                     )
                 else:
                     final_image, total_cost = generation
+                    if not isinstance(final_image, Image.Image):
+                        st.warning(str(final_image))
+                        st.stop()
                     base_image_colum.image(base_image)
                     result_image_colum.image(
                         final_image,
@@ -448,14 +469,23 @@ with photoshop_tab:
             label="Select thinking effort", options=["MINIMAL", "HIGH"]
         )
         resolution = resolution_col.selectbox(
-            label="Select resolution", options=["512", "1K", "2K", "4K"]
+            label="Select resolution",
+            options=(
+                GEMINI_RESOLUTION_OPTIONS_FULL
+                if has_photoshop_role
+                else GEMINI_RESOLUTION_OPTIONS_LOW
+            ),
+            help=None if has_photoshop_role else RESTRICTED_HELP,
         )
     else:
         prompt_input_col, size_col, quality_col = selector_row.columns([4, 1, 1])
+        sizes_available = OPENAI_SIZES if has_photoshop_role else OPENAI_SIZES_LOW
         openai_size_label = size_col.selectbox(
-            label="Select size", options=list(OPENAI_SIZES.keys())
+            label="Select size",
+            options=list(sizes_available.keys()),
+            help=None if has_photoshop_role else RESTRICTED_HELP,
         )
-        openai_size = OPENAI_SIZES[openai_size_label]
+        openai_size = sizes_available[openai_size_label]
         openai_quality = quality_col.selectbox(
             label="Select quality", options=OPENAI_QUALITIES
         )
@@ -508,12 +538,16 @@ with photoshop_tab:
                     "Failed to generate the decor suggestions. Please try again."
                 )
             else:
-                slot = (
-                    "gemini_result"
-                    if image_model == MODEL_NANOBANANA
-                    else "openai_result"
-                )
-                st.session_state[slot] = generation
+                final_image, _ = generation
+                if not isinstance(final_image, Image.Image):
+                    result_cols.warning(str(final_image))
+                else:
+                    slot = (
+                        "gemini_result"
+                        if image_model == MODEL_NANOBANANA
+                        else "openai_result"
+                    )
+                    st.session_state[slot] = generation
 
     gemini_col, openai_col = result_cols.columns(2)
     if st.session_state.gemini_result is not None:
