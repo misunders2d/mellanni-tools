@@ -99,7 +99,7 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
                     )
                 )
 
-                parsed = parse_response(rpc_response)
+                parsed = parse_response(rpc_response, api_key=a2a_api_key)
 
                 if parsed["error"]:
                     st.error(f"Agent error: {parsed['error']}")

@@ -86,8 +86,36 @@ async def send_message(
         return resp.json()
 
 
-def parse_response(rpc_response: dict) -> dict:
+def _route_blob(mime: str, data: bytes, result: dict) -> None:
+    """Route decoded binary data into the right result bucket by mime type."""
+    if "image" in mime:
+        result["images"].append(data)
+    elif "html" in mime:
+        result["html"].append(data.decode("utf-8", errors="replace"))
+    elif "csv" in mime:
+        result["tables"].append(data.decode("utf-8", errors="replace"))
+
+
+def _fetch_uri(uri: str, api_key: str | None) -> bytes | None:
+    """Fetch a FileWithUri target. Returns None on failure."""
+    headers = {"x-a2a-api-key": api_key} if api_key else {}
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            resp = client.get(uri, headers=headers)
+            resp.raise_for_status()
+            return resp.content
+    except Exception as e:
+        logger.warning("Failed to fetch file uri %s: %s", uri, e)
+        return None
+
+
+def parse_response(rpc_response: dict, api_key: str | None = None) -> dict:
     """Parse an A2A JSON-RPC response into structured parts.
+
+    Handles both Google ADK's `inlineData` parts and the A2A-standard
+    `FilePart` shape (`{"file": {"bytes": ..., "mimeType": ...}}` or
+    `{"file": {"uri": ..., "mimeType": ...}}`). URI-backed files are
+    fetched using the provided api_key.
 
     Returns:
         {
@@ -100,6 +128,8 @@ def parse_response(rpc_response: dict) -> dict:
             "error": str | None,   # Error message if any
         }
     """
+    import base64
+
     result = {
         "text": "",
         "images": [],
@@ -134,26 +164,36 @@ def parse_response(rpc_response: dict) -> dict:
         for part in artifact.get("parts", []):
             if "text" in part:
                 result["text"] += part["text"]
-            elif "inlineData" in part:
+                continue
+
+            # Google ADK / Gemini-style inline data.
+            if "inlineData" in part:
                 inline = part["inlineData"]
                 mime = inline.get("mimeType", "")
-                import base64
-
                 try:
                     data = base64.b64decode(inline["data"])
                 except Exception:
-                    data = inline["data"]
+                    raw = inline.get("data", "")
+                    data = raw.encode("utf-8") if isinstance(raw, str) else raw
+                _route_blob(mime, data, result)
+                continue
 
-                if "image" in mime:
-                    result["images"].append(data)
-                elif "html" in mime:
-                    if isinstance(data, bytes):
-                        data = data.decode("utf-8")
-                    result["html"].append(data)
-                elif "csv" in mime:
-                    if isinstance(data, bytes):
-                        data = data.decode("utf-8")
-                    result["tables"].append(data)
+            # A2A-standard FilePart. ADK's agent_to_a2a converter emits this
+            # for any binary content (base64 bytes) or referenced file (uri).
+            if "file" in part:
+                file_obj = part["file"] or {}
+                mime = file_obj.get("mimeType", "")
+                if "bytes" in file_obj and file_obj["bytes"] is not None:
+                    try:
+                        data = base64.b64decode(file_obj["bytes"])
+                    except Exception as e:
+                        logger.warning("Failed to decode file.bytes: %s", e)
+                        continue
+                    _route_blob(mime, data, result)
+                elif "uri" in file_obj and file_obj["uri"]:
+                    data = _fetch_uri(file_obj["uri"], api_key)
+                    if data is not None:
+                        _route_blob(mime, data, result)
 
     return result
 
