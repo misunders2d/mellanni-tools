@@ -24,6 +24,10 @@ st.set_page_config(
 
 if "current_prompt" not in st.session_state:
     st.session_state.current_prompt = ""
+if "gemini_result" not in st.session_state:
+    st.session_state.gemini_result = None
+if "openai_result" not in st.session_state:
+    st.session_state.openai_result = None
 IMAGE_MODEL = "gemini-3.1-flash-image-preview"  # "gemini-2.5-flash-image"
 OPENAI_IMAGE_MODEL = "gpt-image-2"
 
@@ -504,9 +508,28 @@ with photoshop_tab:
                     "Failed to generate the decor suggestions. Please try again."
                 )
             else:
-                result, total_cost = generation
-                result_cols.image(result)
-                result_cols.write(f"Total cost for the generation: ${total_cost:.5f}")
+                slot = (
+                    "gemini_result"
+                    if image_model == MODEL_NANOBANANA
+                    else "openai_result"
+                )
+                st.session_state[slot] = generation
+
+    gemini_col, openai_col = result_cols.columns(2)
+    if st.session_state.gemini_result is not None:
+        img, cost = st.session_state.gemini_result
+        gemini_col.image(img, caption="Nanobanana (Gemini)")
+        gemini_col.write(f"Cost: ${cost:.5f}")
+        if gemini_col.button("Clear Gemini", key="clear_gemini"):
+            st.session_state.gemini_result = None
+            st.rerun()
+    if st.session_state.openai_result is not None:
+        img, cost = st.session_state.openai_result
+        openai_col.image(img, caption="GPT Image (OpenAI)")
+        openai_col.write(f"Cost: ${cost:.5f}")
+        if openai_col.button("Clear OpenAI", key="clear_openai"):
+            st.session_state.openai_result = None
+            st.rerun()
     if result_cols.button(label="Help me write", type="secondary"):
         improve_kwargs = dict(prompt_kwargs)
         improve_kwargs["master_prompt"] = (
