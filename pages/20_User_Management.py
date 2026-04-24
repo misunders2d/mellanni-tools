@@ -164,14 +164,15 @@ with users_tab:
                 default=user_roles,
                 key=f"roles_{uid}",
                 label_visibility="collapsed",
-                disabled=is_super,
             )
-            if sorted(new_roles) != sorted(user_roles) and not is_super:
-                if new_roles:
+            if sorted(new_roles) != sorted(user_roles):
+                if is_super and "admin" not in new_roles:
+                    st.toast("Super-admins cannot remove their own 'admin' role.")
+                elif not new_roles:
+                    st.toast("Users must have at least one role.")
+                else:
                     update_user(uid, {"roles": new_roles})
                     st.rerun()
-                else:
-                    st.toast("Users must have at least one role.")
 
             is_active = user["is_active"]
             new_active = col_active.toggle(
