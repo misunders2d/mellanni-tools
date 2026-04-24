@@ -23,7 +23,11 @@ def is_similar(query, target, threshold: int = 70):
 
 
 def filter_dictionary(
-    coll_target=None, size_target=None, color_target=None, clear_btn_target=None
+    coll_target=None,
+    size_target=None,
+    color_target=None,
+    clear_btn_target=None,
+    disabled: bool = False,
 ) -> pd.DataFrame:
     """
     Filters the dictionary based on selected collection, size or color
@@ -78,12 +82,21 @@ def filter_dictionary(
         options=opt_col,
         key="sel_col",
         placeholder="Select collection(s)",
+        disabled=disabled,
     )
     size_target.multiselect(
-        "Sizes", options=opt_size, key="sel_size", placeholder="Select size(s)"
+        "Sizes",
+        options=opt_size,
+        key="sel_size",
+        placeholder="Select size(s)",
+        disabled=disabled,
     )
     color_target.multiselect(
-        "Colors", options=opt_color, key="sel_color", placeholder="Select color(s)"
+        "Colors",
+        options=opt_color,
+        key="sel_color",
+        placeholder="Select color(s)",
+        disabled=disabled,
     )
     if clear_btn_target:
 

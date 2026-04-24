@@ -1,4 +1,5 @@
 import os
+import re
 
 import pandas as pd
 import streamlit as st
@@ -9,6 +10,7 @@ from google.oauth2 import service_account
 from numpy import nan
 
 from login import require_login, require_role
+from modules.filter_modules import filter_dictionary
 from modules.sales_charts import render_sales_chart
 
 os.makedirs("temp", exist_ok=True)
@@ -30,7 +32,7 @@ GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
 
 require_role("admin", "sales")
 
-collection_area, size_area, color_area = st.columns([2, 1, 1])
+collection_area, size_area, color_area, sku_area = st.columns([2, 1, 1, 2])
 (
     date_from_picker,
     date_to_picker,
@@ -313,9 +315,7 @@ def filtered_sales(
     sessions_df: pd.DataFrame,
     ads_df: pd.DataFrame,
     forecast_df: pd.DataFrame,
-    sel_collection,
-    sel_size,
-    sel_color,
+    target_asins,
     available_inv,
     include_events,
     date_range,
@@ -350,18 +350,10 @@ def filtered_sales(
         forecast_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
     ]
 
-    if sel_collection:
-        sales_df = sales_df.loc[sales_df["collection"].isin(sel_collection)]
-        sessions_df = sessions_df.loc[sessions_df["collection"].isin(sel_collection)]
-        ads_df = ads_df.loc[ads_df["collection"].isin(sel_collection)]
-    if sel_size:
-        sales_df = sales_df.loc[sales_df["size"].isin(sel_size)]
-        sessions_df = sessions_df.loc[sessions_df["size"].isin(sel_size)]
-        ads_df = ads_df.loc[ads_df["size"].isin(sel_size)]
-    if sel_color:
-        sales_df = sales_df.loc[sales_df["color"].isin(sel_color)]
-        sessions_df = sessions_df.loc[sessions_df["color"].isin(sel_color)]
-        ads_df = ads_df.loc[ads_df["color"].isin(sel_color)]
+    if target_asins is not None:
+        sales_df = sales_df.loc[sales_df["asin"].isin(target_asins)]
+        sessions_df = sessions_df.loc[sessions_df["asin"].isin(target_asins)]
+        ads_df = ads_df.loc[ads_df["asin"].isin(target_asins)]
 
     # merge sales_df with forecast_df
     sales_asins = sales_df["asin"].unique().tolist()
@@ -603,9 +595,6 @@ if (
     and ads is not None
     and forecast is not None
 ):
-    collections = sales["collection"].unique()
-    sizes = sales["size"].unique()
-    colors = sales["color"].unique()
     min_date = sales["date"].min()
     max_date = sales["date"].max()
     date_range = (
@@ -647,24 +636,58 @@ if (
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
     show_lds = lds_checkbox.checkbox("Show LDs/BDs?", value=False)
     available_inv = inv_checkbox.checkbox("Show only available inventory", value=True)
-    sel_collection = collection_area.multiselect(
-        label="Collections", options=collections, placeholder="Select product(s)"
+
+    sku_text = sku_area.text_area(
+        "Filter by SKU / ASIN",
+        placeholder="Paste SKUs or ASINs (one per line or comma-separated)",
+        height=68,
+        key="sales_trends_sku_filter",
+        help="When populated, collection/size/color selectors are ignored.",
     )
-    sel_size = size_area.multiselect(
-        label="Sizes", options=sizes, placeholder="Select size(s)"
+    # Split on any mix of commas / whitespace / newlines / tabs.
+    sku_tokens = [t for t in re.split(r"[,\s]+", sku_text) if t]
+    unique_tokens = list(dict.fromkeys(sku_tokens))
+
+    filtered_dict = filter_dictionary(
+        coll_target=collection_area,
+        size_target=size_area,
+        color_target=color_area,
+        disabled=bool(sku_tokens),
     )
-    sel_color = color_area.multiselect(
-        label="Colors", options=colors, placeholder="Select color(s)"
-    )
+    if sku_tokens:
+        full_dict = st.session_state.dictionary
+        sku_match = full_dict["sku"].isin(unique_tokens)
+        asin_match = full_dict["asin"].isin(unique_tokens)
+        filtered_dict = full_dict.loc[sku_match | asin_match]
+        matched_tokens = {
+            t
+            for t in unique_tokens
+            if t in full_dict["sku"].values or t in full_dict["asin"].values
+        }
+        unmatched = [t for t in unique_tokens if t not in matched_tokens]
+        caption = f"Matched {len(matched_tokens)} of {len(unique_tokens)} pasted token(s)"
+        if unmatched:
+            preview = ", ".join(unmatched[:5])
+            if len(unmatched) > 5:
+                preview += f", +{len(unmatched) - 5} more"
+            caption += f". Unmatched: {preview}"
+        sku_area.caption(caption)
+        target_asins = filtered_dict["asin"].dropna().unique().tolist()
+    elif (
+        st.session_state.get("sel_col")
+        or st.session_state.get("sel_size")
+        or st.session_state.get("sel_color")
+    ):
+        target_asins = filtered_dict["asin"].dropna().unique().tolist()
+    else:
+        target_asins = None
 
     combined, combined_previous, asin_sales, ads_visible, ads_previous = filtered_sales(
         sales.copy(),
         sessions.copy(),
         ads.copy(),
         forecast.copy(),
-        sel_collection,
-        sel_size,
-        sel_color,
+        target_asins,
         available_inv,
         include_events,
         date_range,
