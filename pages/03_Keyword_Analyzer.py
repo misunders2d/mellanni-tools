@@ -28,7 +28,9 @@ user_email = st.user.email
 kw_filter_area, slider_area, button_area = st.columns(
     [3, 7, 2], vertical_alignment="center", gap="medium"
 )
-sqp_tab, kw_tab = st.tabs(["SQP results", "Keywords stats"])
+sqp_tab, kw_tab, datadive_tab = st.tabs(
+    ["SQP results", "Keywords stats", "DataDive"]
+)
 kw_plot_area = kw_tab.empty()
 kw_df1, kw_df2 = kw_tab.columns([1, 1], gap="small")
 export_kws = kw_tab.checkbox(
@@ -1002,3 +1004,343 @@ if selected_dates and "bq_data" in st.session_state:
             ["date", "collection", "search_term"], ascending=[False, True, True]
         )
         st.data_editor(daily_kws, hide_index=True)
+
+
+########## DataDive tab ----------------------------------------------------
+from datetime import date, timedelta
+
+from modules import datadive_client as dd
+
+DD_MARKETPLACES = ["com", "ca", "co.uk", "com.mx", "in", "fr", "de", "es", "it", "co.jp"]
+DD_AI_PROMPTS = ["cosmo", "ranking-juice", "nlp", "cosmo-rufus"]
+
+
+def _dd_records(payload):
+    """Best-effort extraction of a list of records from a DataDive response."""
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        # canonical wrappers first
+        for key in (
+            "data",
+            "items",
+            "results",
+            "records",
+            "niches",
+            "rankRadars",
+            "keywords",
+            "competitors",
+            "roots",
+            "rankingJuices",
+            "ranking_juices",
+        ):
+            val = payload.get(key)
+            if isinstance(val, list):
+                return val
+        # nested {"data": {"items": [...]}} / {"data": {<key>: [...]}}
+        nested = payload.get("data")
+        if isinstance(nested, dict):
+            for val in nested.values():
+                if isinstance(val, list):
+                    return val
+        # last resort — first list-valued key on the top level
+        for val in payload.values():
+            if isinstance(val, list):
+                return val
+    return []
+
+
+def _dd_show(payload, *, key_hint: str = ""):
+    records = _dd_records(payload)
+    if records:
+        try:
+            df = pd.json_normalize(records)
+            st.dataframe(df, hide_index=True, width="stretch")
+            return
+        except Exception:
+            pass
+    st.json(payload)
+
+
+with datadive_tab:
+    if "DATADIVE_API_KEY" not in st.secrets:
+        st.warning(
+            "DataDive API is not configured. Add `DATADIVE_API_KEY` to "
+            ".streamlit/secrets.toml to enable this tab."
+        )
+    else:
+        section = st.radio(
+            "Section",
+            options=["Niches", "Rank Radars", "Dives"],
+            horizontal=True,
+            key="dd_section",
+        )
+
+        # ----- Niches ---------------------------------------------------
+        if section == "Niches":
+            page_col, size_col, _ = st.columns([1, 1, 4])
+            page = page_col.number_input(
+                "Page", min_value=1, value=1, step=1, key="dd_niches_page"
+            )
+            size = size_col.number_input(
+                "Page size",
+                min_value=1,
+                max_value=200,
+                value=50,
+                step=10,
+                key="dd_niches_size",
+            )
+            try:
+                niches_payload = dd.list_niches(current_page=int(page), page_size=int(size))
+            except Exception as e:
+                st.error(f"Failed to list niches: {e}")
+                niches_payload = None
+
+            if niches_payload is not None:
+                niches = _dd_records(niches_payload)
+                if not niches:
+                    st.info("No niches returned.")
+                    st.json(niches_payload)
+                else:
+                    label_to_id = {}
+                    for n in niches:
+                        nid = n.get("nicheId") or n.get("id") or n.get("_id") or ""
+                        name = (
+                            n.get("heroKeyword")
+                            or n.get("name")
+                            or n.get("title")
+                            or nid
+                        )
+                        label_to_id[f"{name}  —  {nid}"] = nid
+                    selected_label = st.selectbox(
+                        "Select a niche", options=list(label_to_id.keys()), key="dd_niche_pick"
+                    )
+                    niche_id = label_to_id.get(selected_label, "")
+
+                    detail_tabs = st.tabs(
+                        [
+                            "All niches",
+                            "Keywords",
+                            "Competitors",
+                            "Roots",
+                            "Ranking juices",
+                            "AI Copywriter",
+                            "Delete",
+                        ]
+                    )
+
+                    with detail_tabs[0]:
+                        _dd_show(niches_payload)
+
+                    if niche_id:
+                        with detail_tabs[1]:
+                            try:
+                                _dd_show(dd.get_niche_keywords(niche_id))
+                            except Exception as e:
+                                st.error(f"Failed: {e}")
+                        with detail_tabs[2]:
+                            try:
+                                _dd_show(dd.get_niche_competitors(niche_id))
+                            except Exception as e:
+                                st.error(f"Failed: {e}")
+                        with detail_tabs[3]:
+                            try:
+                                _dd_show(dd.get_niche_roots(niche_id))
+                            except Exception as e:
+                                st.error(f"Failed: {e}")
+                        with detail_tabs[4]:
+                            try:
+                                _dd_show(dd.get_niche_ranking_juices(niche_id))
+                            except Exception as e:
+                                st.error(f"Failed: {e}")
+                        with detail_tabs[5]:
+                            ai_prompt = st.selectbox(
+                                "Prompt", options=DD_AI_PROMPTS, key="dd_ai_prompt"
+                            )
+                            ai_title = st.text_input("Title", key="dd_ai_title")
+                            ai_desc = st.text_area("Description", key="dd_ai_desc")
+                            ai_bullets = st.text_area(
+                                "Bullets (one per line)", key="dd_ai_bullets"
+                            )
+                            if st.button("Run AI Copywriter", key="dd_ai_run"):
+                                listing = {
+                                    "title": ai_title,
+                                    "description": ai_desc,
+                                    "bullets": ai_bullets,
+                                }
+                                with st.spinner("Calling AI Copywriter..."):
+                                    try:
+                                        result = dd.ai_copywriter(
+                                            niche_id, ai_prompt, listing
+                                        )
+                                        st.json(result)
+                                    except Exception as e:
+                                        st.error(f"Failed: {e}")
+                        with detail_tabs[6]:
+                            st.info(
+                                "Niche deletion is disabled in the UI. "
+                                "Delete from the DataDive dashboard if needed."
+                            )
+                            st.button(
+                                "Delete niche",
+                                disabled=True,
+                                key="dd_niche_del_btn",
+                            )
+
+        # ----- Rank Radars ---------------------------------------------
+        elif section == "Rank Radars":
+            list_col, create_col = st.columns(2)
+
+            with list_col:
+                st.subheader("Existing Rank Radars")
+                f_niche = st.text_input(
+                    "Filter by niche ID (optional)", key="dd_rr_niche"
+                )
+                f_status = st.text_input(
+                    "Filter by status (optional)", key="dd_rr_status"
+                )
+                f_search = st.text_input(
+                    "Search text (optional)", key="dd_rr_search"
+                )
+                try:
+                    rr_payload = dd.list_rank_radars(
+                        niche_id=f_niche or None,
+                        status=f_status or None,
+                        search_text=f_search or None,
+                    )
+                except Exception as e:
+                    st.error(f"Failed to list rank radars: {e}")
+                    rr_payload = None
+
+                if rr_payload is not None:
+                    radars = _dd_records(rr_payload)
+                    if not radars:
+                        st.info("No rank radars returned.")
+                        st.json(rr_payload)
+                    else:
+                        rr_label_to_id = {}
+                        for r in radars:
+                            rid = (
+                                r.get("rankRadarId")
+                                or r.get("id")
+                                or r.get("_id")
+                                or ""
+                            )
+                            asin = r.get("asin") or r.get("seedAsin") or ""
+                            label_bits = [b for b in [asin, rid] if b]
+                            rr_label_to_id[" — ".join(label_bits) or rid] = rid
+                        rr_selected_label = st.selectbox(
+                            "Select a rank radar",
+                            options=list(rr_label_to_id.keys()),
+                            key="dd_rr_pick",
+                        )
+                        rr_id = rr_label_to_id.get(rr_selected_label, "")
+
+                        today = date.today()
+                        d_from = st.date_input(
+                            "Start date",
+                            value=today - timedelta(days=14),
+                            key="dd_rr_from",
+                        )
+                        d_to = st.date_input(
+                            "End date", value=today, key="dd_rr_to"
+                        )
+                        if rr_id and st.button(
+                            "Fetch rankings", key="dd_rr_fetch"
+                        ):
+                            try:
+                                detail = dd.get_rank_radar(
+                                    rr_id, d_from.isoformat(), d_to.isoformat()
+                                )
+                                _dd_show(detail)
+                            except Exception as e:
+                                st.error(f"Failed: {e}")
+
+                        st.divider()
+                        st.warning(
+                            f"Delete rank radar `{rr_id}`?" if rr_id else ""
+                        )
+                        rr_confirm = st.checkbox(
+                            "I understand", key="dd_rr_del_ok"
+                        )
+                        if st.button(
+                            "Delete rank radar",
+                            disabled=not (rr_id and rr_confirm),
+                            key="dd_rr_del_btn",
+                        ):
+                            try:
+                                dd.delete_rank_radar(rr_id)
+                                st.success("Deleted.")
+                                dd.list_rank_radars.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Failed: {e}")
+
+            with create_col:
+                st.subheader("Create Rank Radar")
+                new_asin = st.text_input("ASIN", key="dd_rr_new_asin")
+                new_kw_count = st.number_input(
+                    "Number of keywords",
+                    min_value=1,
+                    value=5,
+                    step=1,
+                    key="dd_rr_new_count",
+                )
+                new_niche_id = st.text_input(
+                    "Niche ID", key="dd_rr_new_niche"
+                )
+                if st.button("Create rank radar", key="dd_rr_create"):
+                    if not (new_asin and new_niche_id):
+                        st.warning("ASIN and Niche ID are required.")
+                    else:
+                        try:
+                            with st.spinner("Creating..."):
+                                result = dd.create_rank_radar(
+                                    new_asin, int(new_kw_count), new_niche_id
+                                )
+                                st.success("Created.")
+                                st.json(result)
+                                dd.list_rank_radars.clear()
+                        except Exception as e:
+                            st.error(f"Failed: {e}")
+
+        # ----- Dives ---------------------------------------------------
+        elif section == "Dives":
+            lookup_col, create_col = st.columns(2)
+
+            with lookup_col:
+                st.subheader("Look up dive status")
+                dive_id = st.text_input("Dive ID", key="dd_dive_id")
+                if dive_id and st.button("Fetch dive", key="dd_dive_fetch"):
+                    try:
+                        result = dd.get_niche_dive(dive_id)
+                        _dd_show(result)
+                    except Exception as e:
+                        st.error(f"Failed: {e}")
+
+            with create_col:
+                st.subheader("Create new Niche Dive")
+                marketplace = st.selectbox(
+                    "Marketplace", options=DD_MARKETPLACES, key="dd_dive_mkt"
+                )
+                seed_asin = st.text_input("Seed ASIN", key="dd_dive_asin")
+                num_competitors = st.number_input(
+                    "Number of competitors",
+                    min_value=2,
+                    value=5,
+                    step=1,
+                    key="dd_dive_count",
+                )
+                if st.button("Create niche dive", key="dd_dive_create"):
+                    if not seed_asin:
+                        st.warning("Seed ASIN is required.")
+                    else:
+                        try:
+                            with st.spinner("Creating..."):
+                                result = dd.create_niche_dive(
+                                    marketplace, seed_asin, int(num_competitors)
+                                )
+                                st.success("Dive created.")
+                                st.json(result)
+                        except Exception as e:
+                            st.error(f"Failed: {e}")
