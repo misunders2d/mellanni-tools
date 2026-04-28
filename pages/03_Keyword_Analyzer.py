@@ -1125,7 +1125,6 @@ with datadive_tab:
                             "Roots",
                             "Ranking juices",
                             "AI Copywriter",
-                            "Delete",
                         ]
                     )
 
@@ -1176,16 +1175,6 @@ with datadive_tab:
                                         st.json(result)
                                     except Exception as e:
                                         st.error(f"Failed: {e}")
-                        with detail_tabs[6]:
-                            st.info(
-                                "Niche deletion is disabled in the UI. "
-                                "Delete from the DataDive dashboard if needed."
-                            )
-                            st.button(
-                                "Delete niche",
-                                disabled=True,
-                                key="dd_niche_del_btn",
-                            )
 
         # ----- Rank Radars ---------------------------------------------
         elif section == "Rank Radars":
@@ -1218,17 +1207,26 @@ with datadive_tab:
                         st.info("No rank radars returned.")
                         st.json(rr_payload)
                     else:
+                        def _flat(v):
+                            if isinstance(v, dict):
+                                for k in ("asin", "value", "id", "name", "title"):
+                                    if isinstance(v.get(k), str):
+                                        return v[k]
+                                return ""
+                            return str(v) if v is not None else ""
+
                         rr_label_to_id = {}
                         for r in radars:
-                            rid = (
+                            rid = _flat(
                                 r.get("rankRadarId")
                                 or r.get("id")
                                 or r.get("_id")
                                 or ""
                             )
-                            asin = r.get("asin") or r.get("seedAsin") or ""
-                            label_bits = [b for b in [asin, rid] if b]
-                            rr_label_to_id[" — ".join(label_bits) or rid] = rid
+                            asin = _flat(r.get("asin") or r.get("seedAsin") or "")
+                            label_bits = [str(b) for b in (asin, rid) if b]
+                            label = " — ".join(label_bits) or str(rid)
+                            rr_label_to_id[label] = rid
                         rr_selected_label = st.selectbox(
                             "Select a rank radar",
                             options=list(rr_label_to_id.keys()),
@@ -1253,26 +1251,6 @@ with datadive_tab:
                                     rr_id, d_from.isoformat(), d_to.isoformat()
                                 )
                                 _dd_show(detail)
-                            except Exception as e:
-                                st.error(f"Failed: {e}")
-
-                        st.divider()
-                        st.warning(
-                            f"Delete rank radar `{rr_id}`?" if rr_id else ""
-                        )
-                        rr_confirm = st.checkbox(
-                            "I understand", key="dd_rr_del_ok"
-                        )
-                        if st.button(
-                            "Delete rank radar",
-                            disabled=not (rr_id and rr_confirm),
-                            key="dd_rr_del_btn",
-                        ):
-                            try:
-                                dd.delete_rank_radar(rr_id)
-                                st.success("Deleted.")
-                                dd.list_rank_radars.clear()
-                                st.rerun()
                             except Exception as e:
                                 st.error(f"Failed: {e}")
 
