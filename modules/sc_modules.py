@@ -182,3 +182,123 @@ def push_images_to_amazon(
             )
         )
     return results
+
+
+def extract_prices_from_listing(
+    listing_details, marketplace_id: str = "ATVPDKIKX0DER"
+) -> dict:
+    if not listing_details or not getattr(listing_details, "payload", None):
+        return {
+            "our_price": None,
+            "list_price": None,
+            "currency": None,
+            "product_type": None,
+        }
+
+    payload = listing_details.payload
+    attrs = payload.get("attributes", {}) or {}
+
+    our_price = None
+    currency = None
+    for offer in attrs.get("purchasable_offer", []) or []:
+        if offer.get("marketplace_id") and offer["marketplace_id"] != marketplace_id:
+            continue
+        if offer.get("currency"):
+            currency = offer["currency"]
+        schedule = (offer.get("our_price") or [{}])[0].get("schedule") or []
+        if schedule:
+            our_price = schedule[0].get("value_with_tax")
+        if our_price is not None:
+            break
+
+    list_price = None
+    for lp in attrs.get("list_price", []) or []:
+        if lp.get("marketplace_id") and lp["marketplace_id"] != marketplace_id:
+            continue
+        list_price = lp.get("value", lp.get("value_with_tax"))
+        if not currency:
+            currency = lp.get("currency")
+        if list_price is not None:
+            break
+
+    summaries = payload.get("summaries", []) or []
+    product_type = summaries[0].get("productType") if summaries else None
+
+    return {
+        "our_price": our_price,
+        "list_price": list_price,
+        "currency": currency or "USD",
+        "product_type": product_type,
+    }
+
+
+def get_sku_prices(sku: str) -> dict:
+    response = get_listing_details(sku, include=["attributes", "summaries"])
+    prices = extract_prices_from_listing(response)
+    prices["sku"] = sku
+    prices["found"] = response is not None
+    return prices
+
+
+def update_listing_prices(
+    sku: str,
+    product_type: str,
+    our_price=None,
+    list_price=None,
+    currency: str = "USD",
+    marketplace_id: str = "ATVPDKIKX0DER",
+) -> str:
+    time.sleep(0.2)
+    patches = []
+    applied = []
+
+    if our_price is not None:
+        patches.append(
+            {
+                "op": "replace",
+                "path": "/attributes/purchasable_offer",
+                "value": [
+                    {
+                        "marketplace_id": marketplace_id,
+                        "currency": currency,
+                        "our_price": [
+                            {"schedule": [{"value_with_tax": float(our_price)}]}
+                        ],
+                    }
+                ],
+            }
+        )
+        applied.append(f"our_price={float(our_price):.2f}")
+
+    if list_price is not None:
+        patches.append(
+            {
+                "op": "replace",
+                "path": "/attributes/list_price",
+                "value": [
+                    {
+                        "marketplace_id": marketplace_id,
+                        "currency": currency,
+                        "value": float(list_price),
+                    }
+                ],
+            }
+        )
+        applied.append(f"list_price={float(list_price):.2f}")
+
+    if not patches:
+        return f"SKIP: no prices provided for {sku}"
+
+    listings_client = ListingsItems(credentials=get_amazon_credentials())
+    body = {"productType": product_type, "patches": patches}
+
+    try:
+        response = listings_client.patch_listings_item(
+            sellerId=SELLER_ID, sku=sku, marketplaceIds=MARKETPLACE_IDS, body=body
+        )
+        return (
+            f"SUCCESS: {sku} status={response.payload['status']} "
+            f"({', '.join(applied)})"
+        )
+    except Exception as e:
+        return f"ERROR: failed to update prices for {sku}: {e}"

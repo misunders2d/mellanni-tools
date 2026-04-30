@@ -17,6 +17,7 @@ from modules.image_modules import (
     upload_image,
     upload_image_to_gcs,
 )
+from modules.pricing_ui import render_pricing_section
 from modules.sc_modules import (
     extract_sku_images,
     get_listing_details,
@@ -236,6 +237,8 @@ with st.expander(
     "Copy images from an old flat file", expanded=False, icon=":material/perm_media:"
 ):
     clone_area = st.container()
+
+render_pricing_section(dictionary, visibility)
 
 progress_bar, progress = st.progress(0.0), 0.0
 products = sorted(dictionary["collection"].unique().tolist())
