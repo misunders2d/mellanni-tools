@@ -211,6 +211,9 @@ def _normalize_part(part: Any) -> dict:
 
 def _iter_parts_from_message(message: Any):
     if isinstance(message, dict):
+        # Only yield parts from model responses (skip user/system echoes)
+        if message.get("role") != "model":
+            return
         for part in message.get("parts", []) or []:
             yield _normalize_part(part)
 
