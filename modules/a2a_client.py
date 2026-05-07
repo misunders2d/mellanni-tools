@@ -228,7 +228,7 @@ def _iter_file_refs(value: Any):
     if isinstance(value, dict):
         file_path = value.get("file_path") or value.get("path")
         if isinstance(file_path, str):
-            yield file_path, value.get("filename") or value.get("name")
+            yield file_path, value.get("filename") or value.get("name"), value.get("data_base64"), value.get("mime_type")
 
         for nested in value.values():
             if isinstance(nested, (dict, list)):
@@ -325,7 +325,12 @@ def parse_response(
 
         data_part = part.get("data")
         if data_part is not None:
-            for file_path, filename in _iter_file_refs(data_part):
+            for file_path, filename, data_b64, mime in _iter_file_refs(data_part):
+                if data_b64:
+                    decoded = _decode_blob(data_b64)
+                    if decoded:
+                        _add_file(result, data=decoded, mime=mime, name=filename)
+                    continue
                 _add_local_file_reference(result, file_path, filename)
 
     return result
