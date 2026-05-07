@@ -99,6 +99,35 @@ class ParseResponseTests(unittest.TestCase):
         self.assertEqual(parsed["html"], [html.decode("utf-8")])
         self.assertEqual(parsed["files"][0]["name"], "plot.html")
 
+    def test_task_history_file_part_is_parsed(self):
+        raw = b"\x89PNG\r\n\x1a\n"
+        response = {
+            "result": {
+                "id": "task-history",
+                "status": {"state": "completed", "message": {"parts": [{"text": "Done."}]}},
+                "history": [
+                    {
+                        "parts": [
+                            {
+                                "kind": "file",
+                                "file": {
+                                    "name": "chart.png",
+                                    "mimeType": "image/png",
+                                    "bytes": base64.b64encode(raw).decode("ascii"),
+                                },
+                            }
+                        ]
+                    }
+                ],
+            }
+        }
+
+        parsed = parse_response(response)
+
+        self.assertEqual(parsed["text"], "Done.")
+        self.assertEqual(parsed["images"], [raw])
+        self.assertEqual(parsed["files"][0]["name"], "chart.png")
+
     def test_data_part_file_path_reference_is_loaded_from_allowed_artifact_dir(self):
         os.makedirs("/tmp/plots", exist_ok=True)
         file_path = "/tmp/plots/a2a_client_test_chart.csv"

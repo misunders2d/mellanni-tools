@@ -196,6 +196,10 @@ def _iter_task_parts(task: dict):
         for message in task["messages"]:
             yield from _iter_parts_from_message(message)
 
+    if isinstance(task.get("history"), list):
+        for message in task["history"]:
+            yield from _iter_parts_from_message(message)
+
     for artifact in task.get("artifacts", []) or []:
         if not isinstance(artifact, dict):
             continue
