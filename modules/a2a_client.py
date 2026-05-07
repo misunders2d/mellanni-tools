@@ -1,6 +1,7 @@
 """A2A (Agent-to-Agent) JSON-RPC client for communicating with remote agents."""
 
 import base64
+import hashlib
 import logging
 import mimetypes
 import os
@@ -131,6 +132,10 @@ def _add_file(
 ) -> None:
     mime = mime or _guess_mime(name or uri)
     name = name or Path(urlparse(uri or "").path).name or "artifact"
+    file_key = (name, mime, hashlib.sha256(data).hexdigest())
+    if file_key in result["_file_keys"]:
+        return
+    result["_file_keys"].add(file_key)
     result["files"].append({"name": name, "mime_type": mime, "data": data})
     _route_blob(mime, data, result)
 
@@ -154,11 +159,34 @@ def _resolve_uri(uri: str, base_url: str | None = None) -> str | None:
     return None
 
 
+def _origin_tuple(uri: str) -> tuple[str, str, int | None] | None:
+    parsed = urlparse(uri)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return None
+    if parsed.port is not None:
+        port = parsed.port
+    elif parsed.scheme == "https":
+        port = 443
+    else:
+        port = 80
+    return parsed.scheme, parsed.hostname.lower(), port
+
+
+def _is_same_origin(uri: str, base_url: str | None) -> bool:
+    if not base_url:
+        return False
+    return _origin_tuple(uri) == _origin_tuple(base_url)
+
+
 def _fetch_uri(uri: str, api_key: str | None, base_url: str | None = None) -> bytes | None:
     """Fetch a FileWithUri target. Returns None on failure."""
     resolved_uri = _resolve_uri(uri, base_url)
     if not resolved_uri:
         logger.warning("Cannot fetch unsupported file uri %s", uri)
+        return None
+
+    if not _is_same_origin(resolved_uri, base_url):
+        logger.warning("Refusing to fetch external file uri %s", resolved_uri)
         return None
 
     headers = {"x-a2a-api-key": api_key} if api_key else {}
@@ -297,12 +325,14 @@ def parse_response(
         "task_id": None,
         "state": "unknown",
         "error": None,
+        "_file_keys": set(),
     }
 
     if "error" in rpc_response:
         error = rpc_response["error"]
         result["error"] = error.get("message", str(error))
         result["state"] = "failed"
+        result.pop("_file_keys", None)
         return result
 
     task = rpc_response.get("result", {})
@@ -360,6 +390,7 @@ def parse_response(
                 _add_local_file_reference(result, file_path, filename)
 
     result["text"] = _remove_markdown_images_when_files_attached(result["text"], result["files"])
+    result.pop("_file_keys", None)
     return result
 
 

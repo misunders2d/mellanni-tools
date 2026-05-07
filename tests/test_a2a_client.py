@@ -1,6 +1,7 @@
 import base64
 import os
 import unittest
+from unittest.mock import patch
 
 from modules.a2a_client import build_message_send_payload, parse_response
 
@@ -127,6 +128,86 @@ class ParseResponseTests(unittest.TestCase):
         self.assertEqual(parsed["text"], "Done.")
         self.assertEqual(parsed["images"], [raw])
         self.assertEqual(parsed["files"][0]["name"], "chart.png")
+
+    def test_duplicate_file_parts_are_rendered_once(self):
+        raw = b"\x89PNG\r\n\x1a\n"
+        file_part = {
+            "kind": "file",
+            "file": {
+                "name": "chart.png",
+                "mimeType": "image/png",
+                "bytes": base64.b64encode(raw).decode("ascii"),
+            },
+        }
+        response = {
+            "result": {
+                "id": "task-dupes",
+                "status": {"state": "completed", "message": {"parts": [file_part]}},
+                "history": [{"parts": [file_part]}],
+                "artifacts": [{"parts": [file_part]}],
+            }
+        }
+
+        parsed = parse_response(response)
+
+        self.assertEqual(len(parsed["files"]), 1)
+        self.assertEqual(parsed["images"], [raw])
+
+    def test_external_file_uri_is_rejected_without_leaking_api_key(self):
+        response = _task_with_parts(
+            [
+                {
+                    "kind": "file",
+                    "file": {
+                        "name": "chart.png",
+                        "mimeType": "image/png",
+                        "uri": "https://attacker.example/chart.png",
+                    },
+                }
+            ]
+        )
+
+        with patch("modules.a2a_client.httpx.Client") as client:
+            parsed = parse_response(
+                response,
+                api_key="secret-key",
+                base_url="https://agent.example/a2a",
+            )
+
+        client.assert_not_called()
+        self.assertEqual(parsed["files"], [])
+
+    def test_same_origin_file_uri_is_fetched_with_api_key(self):
+        raw = b"\x89PNG\r\n\x1a\n"
+        response = _task_with_parts(
+            [
+                {
+                    "kind": "file",
+                    "file": {
+                        "name": "chart.png",
+                        "mimeType": "image/png",
+                        "uri": "files/chart.png",
+                    },
+                }
+            ]
+        )
+
+        with patch("modules.a2a_client.httpx.Client") as client_class:
+            client = client_class.return_value.__enter__.return_value
+            client.get.return_value.content = raw
+            client.get.return_value.raise_for_status.return_value = None
+
+            parsed = parse_response(
+                response,
+                api_key="secret-key",
+                base_url="https://agent.example/a2a",
+            )
+
+        client.get.assert_called_once_with(
+            "https://agent.example/a2a/files/chart.png",
+            headers={"x-a2a-api-key": "secret-key"},
+        )
+        self.assertEqual(parsed["images"], [raw])
 
     def test_data_part_file_path_reference_is_loaded_from_allowed_artifact_dir(self):
         os.makedirs("/tmp/plots", exist_ok=True)
