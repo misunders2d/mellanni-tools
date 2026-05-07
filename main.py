@@ -53,15 +53,59 @@ if "a2a_context_id" not in st.session_state:
     email_prefix = user_id.split("@")[0] if "@" in user_id else user_id
     st.session_state.a2a_context_id = f"st_{email_prefix}_{uuid.uuid4().hex[:8]}"
 
+
+def _render_table(csv_text: str):
+    df = pd.read_csv(StringIO(csv_text))
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    return df
+
+
+def _render_file_artifact(file_info: dict, key_prefix: str):
+    data = file_info.get("data", b"")
+    mime = file_info.get("mime_type") or "application/octet-stream"
+    name = file_info.get("name") or "artifact"
+
+    if isinstance(data, str):
+        raw_data = data.encode("utf-8")
+    else:
+        raw_data = data
+
+    if mime.startswith("image/"):
+        st.image(raw_data, caption=name)
+    elif "html" in mime:
+        html = raw_data.decode("utf-8", errors="replace")
+        components.html(html, height=600)
+    elif "csv" in mime or name.endswith(".csv"):
+        csv_text = raw_data.decode("utf-8", errors="replace")
+        _render_table(csv_text)
+    elif mime.startswith("text/") or name.endswith((".txt", ".md", ".json")):
+        st.code(raw_data.decode("utf-8", errors="replace"))
+
+    st.download_button(
+        f"Download {name}",
+        data=raw_data,
+        file_name=name,
+        mime=mime,
+        key=f"{key_prefix}_{name}_{len(raw_data)}",
+    )
+
+
+def _render_artifact_message(message: dict, key_prefix: str):
+    artifact_type = message.get("type")
+    if artifact_type == "image":
+        st.image(message["content"])
+    elif artifact_type == "plot":
+        components.html(message["content"], height=600)
+    elif artifact_type == "table":
+        st.dataframe(message["content"], use_container_width=True, hide_index=True)
+    elif artifact_type == "file":
+        _render_file_artifact(message["content"], key_prefix)
+
+
 # --- Render chat history ---
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
     if message["role"] == "artifact":
-        if message.get("type") == "image":
-            st.image(message["content"])
-        elif message.get("type") == "plot":
-            components.html(message["content"], height=600)
-        elif message.get("type") == "table":
-            st.dataframe(message["content"], use_container_width=True, hide_index=True)
+        _render_artifact_message(message, f"history_{idx}")
     else:
         with st.chat_message(
             message["role"],
@@ -99,7 +143,11 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
                     )
                 )
 
-                parsed = parse_response(rpc_response, api_key=a2a_api_key)
+                parsed = parse_response(
+                    rpc_response,
+                    api_key=a2a_api_key,
+                    base_url=agent_url,
+                )
 
                 if parsed["error"]:
                     st.error(f"Agent error: {parsed['error']}")
@@ -114,30 +162,43 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
                             {"role": "assistant", "content": parsed["text"]}
                         )
 
-                    # Display images
-                    for img_data in parsed["images"]:
-                        st.image(img_data)
-                        st.session_state.messages.append(
-                            {"role": "artifact", "type": "image", "content": img_data}
-                        )
-
-                    # Display HTML plots
-                    for html_content in parsed["html"]:
-                        components.html(html_content, height=600)
-                        st.session_state.messages.append(
-                            {"role": "artifact", "type": "plot", "content": html_content}
-                        )
-
-                    # Display CSV tables
-                    for csv_text in parsed["tables"]:
-                        try:
-                            df = pd.read_csv(StringIO(csv_text))
-                            st.dataframe(df, use_container_width=True, hide_index=True)
+                    if parsed.get("files"):
+                        for idx, file_info in enumerate(parsed["files"]):
+                            _render_file_artifact(file_info, f"live_{idx}")
                             st.session_state.messages.append(
-                                {"role": "artifact", "type": "table", "content": df}
+                                {
+                                    "role": "artifact",
+                                    "type": "file",
+                                    "content": file_info,
+                                }
                             )
-                        except Exception:
-                            st.text(csv_text)
+                    else:
+                        # Backward-compatible handling for parser outputs that
+                        # predate the generic file bucket.
+                        for img_data in parsed["images"]:
+                            st.image(img_data)
+                            st.session_state.messages.append(
+                                {"role": "artifact", "type": "image", "content": img_data}
+                            )
+
+                        for html_content in parsed["html"]:
+                            components.html(html_content, height=600)
+                            st.session_state.messages.append(
+                                {
+                                    "role": "artifact",
+                                    "type": "plot",
+                                    "content": html_content,
+                                }
+                            )
+
+                        for csv_text in parsed["tables"]:
+                            try:
+                                df = _render_table(csv_text)
+                                st.session_state.messages.append(
+                                    {"role": "artifact", "type": "table", "content": df}
+                                )
+                            except Exception:
+                                st.text(csv_text)
 
                     # Handle input_required state
                     if parsed["state"] == "input_required":
