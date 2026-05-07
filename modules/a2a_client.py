@@ -209,32 +209,55 @@ def _normalize_part(part: Any) -> dict:
     return part
 
 
+def _part_key(part: dict) -> tuple:
+    text = part.get("text")
+    if text:
+        return ("text", text)
+    inline = _get_field(part, "inlineData", "inline_data")
+    if isinstance(inline, dict):
+        return ("inline", inline.get("data", ""))
+    file_obj = part.get("file")
+    if isinstance(file_obj, dict):
+        return ("file", file_obj.get("bytes", ""), file_obj.get("uri", ""))
+    return None
+
+
 def _iter_parts_from_message(message: Any):
     if isinstance(message, dict):
-        if message.get("role") not in ("model", "agent"):
-            return
         for part in message.get("parts", []) or []:
             yield _normalize_part(part)
 
 
 def _iter_task_parts(task: dict):
+    _seen = set()
+
+    def _dedup(parts):
+        for part in parts:
+            key = _part_key(part)
+            if key is not None and key in _seen:
+                continue
+            if key is not None:
+                _seen.add(key)
+            yield part
+
     status = task.get("status", {})
     if isinstance(status, dict):
-        yield from _iter_parts_from_message(status.get("message"))
+        yield from _dedup(_iter_parts_from_message(status.get("message")))
 
     if isinstance(task.get("messages"), list):
         for message in task["messages"]:
-            yield from _iter_parts_from_message(message)
+            yield from _dedup(_iter_parts_from_message(message))
 
     if isinstance(task.get("history"), list):
         for message in task["history"]:
-            yield from _iter_parts_from_message(message)
+            yield from _dedup(_iter_parts_from_message(message))
 
     for artifact in task.get("artifacts", []) or []:
         if not isinstance(artifact, dict):
             continue
-        for part in artifact.get("parts", []) or []:
-            yield _normalize_part(part)
+        yield from _dedup(
+            _normalize_part(part) for part in (artifact.get("parts", []) or [])
+        )
 
 
 def _decode_blob(raw: Any) -> bytes | None:
