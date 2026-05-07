@@ -284,6 +284,28 @@ class ParseResponseTests(unittest.TestCase):
 
         self.assertEqual(parsed["files"], [])
 
+    def test_user_message_text_not_echoed_in_response(self):
+        response = {
+            "result": {
+                "id": "task-echo",
+                "status": {"state": "completed", "message": {"role": "agent", "parts": [{"text": "I am bezos."}]}},
+                "messages": [
+                    {"role": "user", "parts": [{"text": "what's your name?"}]},
+                    {"role": "agent", "parts": [{"text": "I am bezos."}]},
+                ],
+                "history": [
+                    {"role": "user", "parts": [{"text": "what's your name?"}]},
+                    {"role": "agent", "parts": [{"text": "I am bezos."}]},
+                ],
+            }
+        }
+
+        parsed = parse_response(response)
+
+        self.assertEqual(parsed["text"], "I am bezos.")
+        self.assertNotIn("what's your name?", parsed["text"])
+        self.assertNotIn("user", parsed["text"])
+
 
 if __name__ == "__main__":
     unittest.main()

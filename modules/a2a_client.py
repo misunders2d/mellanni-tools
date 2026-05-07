@@ -224,6 +224,10 @@ def _part_key(part: dict) -> tuple:
 
 def _iter_parts_from_message(message: Any):
     if isinstance(message, dict):
+        # Skip user messages to prevent echoing user input back as output.
+        # Accept both "model" (ADK native) and "agent" (A2A protocol) roles.
+        if message.get("role") == "user":
+            return
         for part in message.get("parts", []) or []:
             yield _normalize_part(part)
 
