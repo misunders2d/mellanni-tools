@@ -52,6 +52,8 @@ if "a2a_context_id" not in st.session_state:
     # Use a clean context_id without special characters
     email_prefix = user_id.split("@")[0] if "@" in user_id else user_id
     st.session_state.a2a_context_id = f"st_{email_prefix}_{uuid.uuid4().hex[:8]}"
+if "a2a_pending_task_id" not in st.session_state:
+    st.session_state.a2a_pending_task_id = None
 
 
 def _render_table(csv_text: str):
@@ -140,6 +142,7 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
                         api_key=a2a_api_key,
                         message=a2a_message,
                         context_id=st.session_state.a2a_context_id,
+                        task_id=st.session_state.a2a_pending_task_id,
                     )
                 )
 
@@ -202,7 +205,10 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
 
                     # Handle input_required state
                     if parsed["state"] == "input_required":
+                        st.session_state.a2a_pending_task_id = parsed.get("task_id")
                         st.info("The agent needs more information. Please respond above.")
+                    else:
+                        st.session_state.a2a_pending_task_id = None
 
             except Exception as e:
                 error_message = f"Failed to reach the remote agent: {e}"

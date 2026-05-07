@@ -4,6 +4,7 @@ import base64
 import logging
 import mimetypes
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,8 @@ import streamlit as st
 from modules.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+_MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 
 
 def get_remote_agent() -> dict | None:
@@ -63,12 +66,27 @@ async def send_message(
     api_key: str,
     message: str,
     context_id: str | None = None,
+    task_id: str | None = None,
 ) -> dict:
     """Send a JSON-RPC message/send request to a remote A2A agent.
 
     context_id groups messages into a single session on the remote agent.
+    task_id is only for continuing an A2A task that returned input_required.
     Returns the full JSON-RPC response dict.
     """
+    payload = build_message_send_payload(message, context_id=context_id, task_id=task_id)
+
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        resp = await client.post(url, json=payload, headers=_build_headers(api_key))
+        resp.raise_for_status()
+        return resp.json()
+
+
+def build_message_send_payload(
+    message: str,
+    context_id: str | None = None,
+    task_id: str | None = None,
+) -> dict:
     message_obj = {
         "messageId": str(uuid.uuid4()),
         "role": "user",
@@ -77,6 +95,8 @@ async def send_message(
     # context_id maps to session_id on the ADK side, keeping conversation continuity
     if context_id:
         message_obj["contextId"] = context_id
+    if task_id:
+        message_obj["taskId"] = task_id
 
     payload = {
         "jsonrpc": "2.0",
@@ -84,11 +104,7 @@ async def send_message(
         "method": "message/send",
         "params": {"message": message_obj},
     }
-
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        resp = await client.post(url, json=payload, headers=_build_headers(api_key))
-        resp.raise_for_status()
-        return resp.json()
+    return payload
 
 
 def _get_field(data: dict, *names: str) -> Any:
@@ -238,6 +254,12 @@ def _iter_file_refs(value: Any):
             yield from _iter_file_refs(item)
 
 
+def _remove_markdown_images_when_files_attached(text: str, files: list[dict]) -> str:
+    if not text or not files:
+        return text
+    return _MARKDOWN_IMAGE_RE.sub("", text).strip()
+
+
 def parse_response(
     rpc_response: dict,
     api_key: str | None = None,
@@ -333,6 +355,7 @@ def parse_response(
                     continue
                 _add_local_file_reference(result, file_path, filename)
 
+    result["text"] = _remove_markdown_images_when_files_attached(result["text"], result["files"])
     return result
 
 
