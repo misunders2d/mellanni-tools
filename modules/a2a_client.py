@@ -284,7 +284,26 @@ def _is_allowed_local_artifact(path: str) -> bool:
     return any((parts[i], parts[i + 1]) in allowed_pairs for i in range(len(parts) - 1))
 
 
+_ALLOW_LOCAL_ARTIFACTS = os.environ.get("A2A_ALLOW_LOCAL_ARTIFACT_REFS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+
 def _add_local_file_reference(result: dict, file_path: str, filename: str | None = None) -> None:
+    """Read a file from the local filesystem and attach it as an artifact.
+
+    Only useful when the A2A server and this client share a filesystem
+    (local dev: both on the same machine). For remote peers — including
+    Streamlit Cloud and any cross-host deploy — the absolute paths the
+    server emits cannot resolve here, so we silently skip and rely on
+    the bytes-bearing branches (inline_data / FilePart-with-bytes) to
+    deliver the file. Opt back in by setting
+    ``A2A_ALLOW_LOCAL_ARTIFACT_REFS=true``.
+    """
+    if not _ALLOW_LOCAL_ARTIFACTS:
+        return
     if not _is_allowed_local_artifact(file_path):
         logger.warning("Ignoring local file outside allowed artifact dirs: %s", file_path)
         return
