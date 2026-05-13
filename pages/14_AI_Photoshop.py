@@ -1,5 +1,4 @@
 import base64
-import json
 from io import BytesIO
 from typing import Any
 
@@ -550,10 +549,32 @@ with photoshop_tab:
                     st.session_state[slot] = generation
 
     gemini_col, openai_col = result_cols.columns(2)
+
+    def _img_to_bytes(pil_img: Image.Image) -> tuple[bytes, str]:
+        """Convert PIL Image to bytes, preserving original format. Returns (bytes, format)."""
+        fmt = (pil_img.format or "PNG").upper()
+        if fmt == "JPEG":
+            fmt = "JPEG"
+        buf = BytesIO()
+        pil_img.save(buf, format=fmt)
+        buf.seek(0)
+        return buf.getvalue(), fmt
+
+    _MIME_MAP = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
+
     if st.session_state.gemini_result is not None:
         img, cost = st.session_state.gemini_result
         gemini_col.image(img, caption="Nanobanana (Gemini)")
         gemini_col.write(f"Cost: ${cost:.5f}")
+        img_bytes, fmt = _img_to_bytes(img)
+        ext = fmt.lower()
+        gemini_col.download_button(
+            "Download full size",
+            data=img_bytes,
+            file_name=f"nanobanana_result.{ext}",
+            mime=_MIME_MAP.get(fmt, "application/octet-stream"),
+            type="primary",
+        )
         if gemini_col.button("Clear Gemini", key="clear_gemini"):
             st.session_state.gemini_result = None
             st.rerun()
@@ -561,6 +582,15 @@ with photoshop_tab:
         img, cost = st.session_state.openai_result
         openai_col.image(img, caption="GPT Image (OpenAI)")
         openai_col.write(f"Cost: ${cost:.5f}")
+        img_bytes, fmt = _img_to_bytes(img)
+        ext = fmt.lower()
+        openai_col.download_button(
+            "Download full size",
+            data=img_bytes,
+            file_name=f"gpt_image_result.{ext}",
+            mime=_MIME_MAP.get(fmt, "application/octet-stream"),
+            type="primary",
+        )
         if openai_col.button("Clear OpenAI", key="clear_openai"):
             st.session_state.openai_result = None
             st.rerun()
