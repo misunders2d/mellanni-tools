@@ -3,7 +3,14 @@ import os
 import unittest
 from unittest.mock import patch
 
-from modules.a2a_client import build_message_send_payload, parse_response
+from modules import a2a_client
+from modules.a2a_client import (
+    build_message_send_payload,
+    parse_response,
+    _build_headers,
+    _json_rpc_error_message,
+    _json_rpc_fallback_url,
+)
 
 
 def _task_with_parts(parts):
@@ -17,15 +24,47 @@ def _task_with_parts(parts):
 
 
 class ParseResponseTests(unittest.TestCase):
+    def test_build_headers_supports_streamlit_app_token(self):
+        headers = _build_headers(app_token="app-123", client_id="mellanni-tools-streamlit")
+
+        self.assertEqual(headers["Authorization"], "Bearer app-123")
+        self.assertEqual(headers["X-A2A-Client-ID"], "mellanni-tools-streamlit")
+        self.assertEqual(headers["X-A2A-Agent-ID"], "mellanni-tools-streamlit")
+        self.assertNotIn("x-a2a-api-key", headers)
+
+    def test_json_rpc_error_message_is_extracted_from_http_error_response(self):
+        class FakeResponse:
+            def json(self):
+                return {"error": {"code": -32000, "message": "no registered agent"}}
+
+        self.assertEqual(
+            _json_rpc_error_message(FakeResponse()),
+            "JSON-RPC error -32000: no registered agent",
+        )
+
+    def test_json_rpc_fallback_url_uses_hub_alias_for_root_url(self):
+        self.assertEqual(
+            _json_rpc_fallback_url("https://agents.bezosapp.uk"),
+            "https://agents.bezosapp.uk/a2a/rpc",
+        )
+        self.assertIsNone(_json_rpc_fallback_url("https://agents.bezosapp.uk/a2a/rpc"))
+
     def test_message_payload_includes_task_id_only_when_provided(self):
-        payload = build_message_send_payload("continue", context_id="ctx-1", task_id="task-1")
+        payload = build_message_send_payload(
+            "continue",
+            context_id="ctx-1",
+            task_id="task-1",
+            metadata={"caller_id": "user@example.com"},
+        )
 
         message = payload["params"]["message"]
         self.assertEqual(message["contextId"], "ctx-1")
         self.assertEqual(message["taskId"], "task-1")
+        self.assertEqual(message["metadata"]["caller_id"], "user@example.com")
 
         payload_without_task = build_message_send_payload("new turn", context_id="ctx-1")
         self.assertNotIn("taskId", payload_without_task["params"]["message"])
+        self.assertNotIn("metadata", payload_without_task["params"]["message"])
 
     def test_file_part_bytes_are_routed_to_files_and_images(self):
         raw = b"\x89PNG\r\n\x1a\n"
@@ -205,11 +244,18 @@ class ParseResponseTests(unittest.TestCase):
 
         client.get.assert_called_once_with(
             "https://agent.example/a2a/files/chart.png",
-            headers={"x-a2a-api-key": "secret-key"},
+            headers={
+                "User-Agent": "mellanni-tools-streamlit-a2a-client",
+                "x-a2a-api-key": "secret-key",
+            },
         )
         self.assertEqual(parsed["images"], [raw])
 
     def test_data_part_file_path_reference_is_loaded_from_allowed_artifact_dir(self):
+        previous = a2a_client._ALLOW_LOCAL_ARTIFACTS
+        a2a_client._ALLOW_LOCAL_ARTIFACTS = True
+        self.addCleanup(lambda: setattr(a2a_client, "_ALLOW_LOCAL_ARTIFACTS", previous))
+
         os.makedirs("/tmp/plots", exist_ok=True)
         file_path = "/tmp/plots/a2a_client_test_chart.csv"
         raw = b"hour,units\n6,115\n"

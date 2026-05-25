@@ -2,17 +2,22 @@
 
 import base64
 import hashlib
+import json
 import logging
 import mimetypes
 import os
 import re
+import secrets as secrets_mod
+import time
 import uuid
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urlunparse
 
 import httpx
 import streamlit as st
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from modules.supabase_client import get_supabase_client
 
@@ -21,26 +26,54 @@ logger = logging.getLogger(__name__)
 _MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 
 
-def get_remote_agent() -> dict | None:
-    """Fetch the primary remote agent config from Supabase, cached in session state."""
-    if "remote_agent" in st.session_state:
-        return st.session_state["remote_agent"]
+def get_remote_agent(preferred_name: str | None = None) -> dict | None:
+    """Fetch the primary remote agent config from Supabase, cached in session state.
+
+    If preferred_name is provided, pick that active agent first and fall back to
+    the first active agent. This lets production move from Ori to the server-side
+    ``you`` agent without requiring all older rows to be disabled immediately.
+    """
+    cache_key = f"remote_agent:{preferred_name or 'default'}"
+    if cache_key in st.session_state:
+        return st.session_state[cache_key]
 
     supabase = get_supabase_client()
+
+    if preferred_name:
+        preferred = (
+            supabase.table("remote_agents")
+            .select("*")
+            .eq("is_active", True)
+            .eq("name", preferred_name.lower())
+            .limit(1)
+            .execute()
+        )
+        if preferred.data:
+            st.session_state[cache_key] = preferred.data[0]
+            return preferred.data[0]
+
     result = (
         supabase.table("remote_agents")
         .select("*")
         .eq("is_active", True)
+        .order("name")
         .limit(1)
         .execute()
     )
 
     if result.data:
-        st.session_state["remote_agent"] = result.data[0]
+        st.session_state[cache_key] = result.data[0]
         return result.data[0]
 
-    st.session_state["remote_agent"] = None
+    st.session_state[cache_key] = None
     return None
+
+
+def clear_cached_remote_agents() -> None:
+    """Clear cached remote-agent selections after admin changes."""
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("remote_agent"):
+            del st.session_state[key]
 
 
 def update_remote_agent_url(agent_name: str, new_url: str):
@@ -50,43 +83,239 @@ def update_remote_agent_url(agent_name: str, new_url: str):
         {"url": new_url.rstrip("/")}
     ).eq("name", agent_name).execute()
 
-    # Clear cached value so next call fetches fresh
-    if "remote_agent" in st.session_state:
-        del st.session_state["remote_agent"]
+    clear_cached_remote_agents()
 
 
-def _build_headers(api_key: str) -> dict:
+def _load_ed25519_private_key(pem: str | bytes) -> Ed25519PrivateKey:
+    if isinstance(pem, str):
+        pem = pem.encode("utf-8")
+    key = serialization.load_pem_private_key(pem, password=None)
+    if not isinstance(key, Ed25519PrivateKey):
+        raise ValueError("A2A signing key must be Ed25519")
+    return key
+
+
+def _sign_a2a_headers(
+    method: str,
+    path: str,
+    body: bytes,
+    *,
+    agent_id: str,
+    principal: str,
+    key_id: str,
+    private_key: Ed25519PrivateKey,
+) -> dict:
+    timestamp = str(int(time.time()))
+    nonce = secrets_mod.token_hex(16)
+    body_hash = hashlib.sha256(body).hexdigest()
+    canonical = "\n".join(
+        [method.upper(), path or "/", agent_id, principal, timestamp, nonce, body_hash]
+    ).encode("utf-8")
+    signature = private_key.sign(canonical)
     return {
-        "Content-Type": "application/json",
-        "x-a2a-api-key": api_key,
+        "X-A2A-Agent-ID": agent_id,
+        "X-A2A-Key-ID": key_id,
+        "X-A2A-Principal": principal,
+        "X-A2A-Timestamp": timestamp,
+        "X-A2A-Nonce": nonce,
+        "X-A2A-Signature": base64.b64encode(signature).decode("ascii"),
     }
+
+
+def _build_headers(
+    api_key: str | None = None,
+    app_token: str | None = None,
+    client_id: str | None = None,
+    scoped_token: str | None = None,
+    signed: dict | None = None,
+) -> dict:
+    """Build server-to-server auth headers for the remote hub/agent.
+
+    Signed scoped flow (modern): scoped_token Bearer + Ed25519 signed bundle
+    only — no legacy api_key / app_token / X-A2A-Client-ID mixed in. Falls
+    back to the legacy header set when no signing material is provided.
+    """
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "mellanni-tools-streamlit-a2a-client",
+    }
+    if signed:
+        if scoped_token:
+            headers["Authorization"] = f"Bearer {scoped_token}"
+        headers.update(signed)
+        return headers
+    if scoped_token:
+        headers["Authorization"] = f"Bearer {scoped_token}"
+    elif app_token:
+        headers["Authorization"] = f"Bearer {app_token}"
+    if api_key:
+        headers["x-a2a-api-key"] = api_key
+    if client_id:
+        headers["X-A2A-Client-ID"] = client_id
+        headers["X-A2A-Agent-ID"] = client_id
+    return headers
+
+
+def _json_rpc_fallback_url(url: str) -> str | None:
+    """Return known JSON-RPC alias for hub URLs that 404 at origin root."""
+    parsed = urlparse(url)
+    if parsed.path.rstrip("/") in {"", "/"}:
+        return urlunparse(parsed._replace(path="/a2a/rpc"))
+    return None
+
+
+def _json_rpc_error_message(resp: httpx.Response) -> str | None:
+    """Extract JSON-RPC error from non-2xx hub responses before httpx hides it."""
+    try:
+        body = resp.json()
+    except Exception:
+        return None
+    error = body.get("error") if isinstance(body, dict) else None
+    if not isinstance(error, dict):
+        return None
+    message = error.get("message") or str(error)
+    code = error.get("code")
+    if code is not None:
+        return f"JSON-RPC error {code}: {message}"
+    return f"JSON-RPC error: {message}"
+
+
+def _signed_headers_for(
+    url: str,
+    body: bytes,
+    method: str,
+    *,
+    agent_id: str | None,
+    principal: str | None,
+    key_id: str | None,
+    private_key_pem: str | bytes | None,
+) -> dict | None:
+    if not (agent_id and principal and key_id and private_key_pem):
+        return None
+    private_key = _load_ed25519_private_key(private_key_pem)
+    path = urlparse(url).path or "/"
+    return _sign_a2a_headers(
+        method,
+        path,
+        body,
+        agent_id=agent_id,
+        principal=principal,
+        key_id=key_id,
+        private_key=private_key,
+    )
+
+
+async def _post_signed_jsonrpc(
+    url: str,
+    payload: dict,
+    *,
+    api_key: str | None = None,
+    app_token: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    principal: str | None = None,
+    key_id: str | None = None,
+    private_key_pem: str | bytes | None = None,
+    scoped_token: str | None = None,
+    timeout: float = 300.0,
+) -> dict:
+    body_bytes = json.dumps(payload).encode("utf-8")
+
+    def _build(target: str) -> dict:
+        signed = _signed_headers_for(
+            target, body_bytes, "POST",
+            agent_id=agent_id, principal=principal, key_id=key_id,
+            private_key_pem=private_key_pem,
+        )
+        return _build_headers(
+            api_key=api_key, app_token=app_token, client_id=client_id,
+            scoped_token=scoped_token, signed=signed,
+        )
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(url, content=body_bytes, headers=_build(url))
+        if resp.status_code == 404:
+            fallback_url = _json_rpc_fallback_url(url)
+            if fallback_url and fallback_url != url:
+                logger.info("A2A root endpoint returned 404; retrying %s", fallback_url)
+                resp = await client.post(fallback_url, content=body_bytes, headers=_build(fallback_url))
+        rpc_error = _json_rpc_error_message(resp)
+        if rpc_error:
+            raise RuntimeError(rpc_error)
+        resp.raise_for_status()
+        return resp.json()
 
 
 async def send_message(
     url: str,
-    api_key: str,
-    message: str,
+    api_key: str | None = None,
+    message: str = "",
     context_id: str | None = None,
     task_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    app_token: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    principal: str | None = None,
+    key_id: str | None = None,
+    private_key_pem: str | bytes | None = None,
+    scoped_token: str | None = None,
 ) -> dict:
     """Send a JSON-RPC message/send request to a remote A2A agent.
 
     context_id groups messages into a single session on the remote agent.
     task_id is only for continuing an A2A task that returned input_required.
-    Returns the full JSON-RPC response dict.
+    When ``private_key_pem`` + identity params are supplied, every request is
+    Ed25519-signed per the hub's scoped-token-plus-signature scheme.
     """
-    payload = build_message_send_payload(message, context_id=context_id, task_id=task_id)
+    payload = build_message_send_payload(
+        message,
+        context_id=context_id,
+        task_id=task_id,
+        metadata=metadata,
+    )
+    return await _post_signed_jsonrpc(
+        url, payload,
+        api_key=api_key, app_token=app_token, client_id=client_id,
+        agent_id=agent_id, principal=principal, key_id=key_id,
+        private_key_pem=private_key_pem, scoped_token=scoped_token,
+    )
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        resp = await client.post(url, json=payload, headers=_build_headers(api_key))
-        resp.raise_for_status()
-        return resp.json()
+
+async def get_task(
+    url: str,
+    task_id: str,
+    *,
+    api_key: str | None = None,
+    app_token: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    principal: str | None = None,
+    key_id: str | None = None,
+    private_key_pem: str | bytes | None = None,
+    scoped_token: str | None = None,
+) -> dict:
+    """Fetch current task state via JSON-RPC ``tasks/get``."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "tasks/get",
+        "params": {"id": task_id},
+    }
+    return await _post_signed_jsonrpc(
+        url, payload,
+        api_key=api_key, app_token=app_token, client_id=client_id,
+        agent_id=agent_id, principal=principal, key_id=key_id,
+        private_key_pem=private_key_pem, scoped_token=scoped_token,
+        timeout=60.0,
+    )
 
 
 def build_message_send_payload(
     message: str,
     context_id: str | None = None,
     task_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict:
     message_obj = {
         "messageId": str(uuid.uuid4()),
@@ -98,6 +327,8 @@ def build_message_send_payload(
         message_obj["contextId"] = context_id
     if task_id:
         message_obj["taskId"] = task_id
+    if metadata:
+        message_obj["metadata"] = metadata
 
     payload = {
         "jsonrpc": "2.0",
@@ -178,7 +409,18 @@ def _is_same_origin(uri: str, base_url: str | None) -> bool:
     return _origin_tuple(uri) == _origin_tuple(base_url)
 
 
-def _fetch_uri(uri: str, api_key: str | None, base_url: str | None = None) -> bytes | None:
+def _fetch_uri(
+    uri: str,
+    api_key: str | None = None,
+    app_token: str | None = None,
+    client_id: str | None = None,
+    base_url: str | None = None,
+    agent_id: str | None = None,
+    principal: str | None = None,
+    key_id: str | None = None,
+    private_key_pem: str | bytes | None = None,
+    scoped_token: str | None = None,
+) -> bytes | None:
     """Fetch a FileWithUri target. Returns None on failure."""
     resolved_uri = _resolve_uri(uri, base_url)
     if not resolved_uri:
@@ -189,7 +431,23 @@ def _fetch_uri(uri: str, api_key: str | None, base_url: str | None = None) -> by
         logger.warning("Refusing to fetch external file uri %s", resolved_uri)
         return None
 
-    headers = {"x-a2a-api-key": api_key} if api_key else {}
+    signed = _signed_headers_for(
+        resolved_uri,
+        b"",
+        "GET",
+        agent_id=agent_id,
+        principal=principal,
+        key_id=key_id,
+        private_key_pem=private_key_pem,
+    )
+    headers = _build_headers(
+        api_key=api_key,
+        app_token=app_token,
+        client_id=client_id,
+        scoped_token=scoped_token,
+        signed=signed,
+    )
+    headers.pop("Content-Type", None)
     try:
         with httpx.Client(timeout=60.0) as client:
             resp = client.get(resolved_uri, headers=headers)
@@ -228,8 +486,15 @@ def _iter_parts_from_message(message: Any):
         # Accept both "model" (ADK native) and "agent" (A2A protocol) roles.
         if message.get("role") == "user":
             return
-        for part in message.get("parts", []) or []:
+        parts = message.get("parts") or []
+        for part in parts:
             yield _normalize_part(part)
+        # Hub fallback shape: bare {"role": "assistant", "content": "..."}
+        # with no parts array. Synthesize a text part so the parser surfaces it.
+        if not parts:
+            content = message.get("content")
+            if isinstance(content, str) and content:
+                yield {"text": content}
 
 
 def _iter_task_parts(task: dict):
@@ -343,7 +608,14 @@ def _remove_markdown_images_when_files_attached(text: str, files: list[dict]) ->
 def parse_response(
     rpc_response: dict,
     api_key: str | None = None,
+    app_token: str | None = None,
+    client_id: str | None = None,
     base_url: str | None = None,
+    agent_id: str | None = None,
+    principal: str | None = None,
+    key_id: str | None = None,
+    private_key_pem: str | bytes | None = None,
+    scoped_token: str | None = None,
 ) -> dict:
     """Parse an A2A JSON-RPC response into structured parts.
 
@@ -422,7 +694,18 @@ def parse_response(
                 continue
 
             if uri:
-                data = _fetch_uri(uri, api_key, base_url=base_url)
+                data = _fetch_uri(
+                    uri,
+                    api_key=api_key,
+                    app_token=app_token,
+                    client_id=client_id,
+                    base_url=base_url,
+                    agent_id=agent_id,
+                    principal=principal,
+                    key_id=key_id,
+                    private_key_pem=private_key_pem,
+                    scoped_token=scoped_token,
+                )
                 if data is not None:
                     _add_file(result, data=data, mime=mime, name=name, uri=uri)
                 continue

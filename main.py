@@ -8,7 +8,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from login import require_login
-from modules.a2a_client import get_remote_agent, send_message, parse_response
+import time
+
+from modules.a2a_client import get_remote_agent, get_task, send_message, parse_response
 from modules.telegram_notifier import send_telegram_message
 
 st.set_page_config(
@@ -24,14 +26,29 @@ thought_icon = ":material/lightbulb_2:"
 require_login()
 
 # --- Remote agent config ---
-remote_agent = get_remote_agent()
+PREFERRED_A2A_AGENT = "you"
+remote_agent = get_remote_agent(preferred_name=PREFERRED_A2A_AGENT)
 if not remote_agent:
     st.error("No remote agent configured. Ask an admin to set one up in User Management.")
     st.stop()
 
 agent_url = remote_agent["url"]
-agent_name = remote_agent.get("name", "Ori")
-a2a_api_key = st.secrets["a2a"]["api_key"]
+agent_name = remote_agent.get("name") or PREFERRED_A2A_AGENT
+a2a_secrets = st.secrets.get("a2a", {})
+a2a_api_key = a2a_secrets.get("api_key")
+a2a_app_token = (
+    a2a_secrets.get("app_token")
+    or a2a_secrets.get("bearer_token")
+    or a2a_secrets.get("token")
+)
+a2a_client_id = a2a_secrets.get("client_id", "mellanni-tools-streamlit")
+a2a_agent_id = a2a_secrets.get("agent_id", a2a_client_id)
+a2a_key_id = a2a_secrets.get("key_id", "mellanni-website-v1")
+a2a_private_key_pem = a2a_secrets.get("private_key_pem")
+a2a_scoped_token = a2a_secrets.get("scoped_token") or a2a_app_token
+# Signature principal is the registered client identity, not the end user.
+# End-user id travels in message metadata (caller_id/user_id below).
+a2a_principal = a2a_secrets.get("principal", "website:mellanni")
 
 # --- User info ---
 if "email" in st.user and isinstance(st.user.email, str):
@@ -119,6 +136,12 @@ for idx, message in enumerate(st.session_state.messages):
         ):
             st.markdown(message["content"])
 
+
+def _agent_needs_legacy_caller_tag(name: str) -> bool:
+    """Older Ori server used a text tag; new A2A agents read metadata."""
+    return name.strip().lower() in {"ori", "jeff"}
+
+
 # --- Chat input ---
 if prompt := st.chat_input("Ask me what I can do ;)"):
     st.chat_message("user", avatar=user_picture).markdown(prompt)
@@ -127,11 +150,22 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
     with st.chat_message(agent_name, avatar="media/jeff_avatar.jpeg"):
         with st.spinner("Thinking..."):
             try:
-                # Inject caller ID tag so Ori sets the correct user_id in session state.
-                # The tag is stripped by Ori's state_setter callback before the model sees it.
-                a2a_message = f"[__caller_id:{user_id}__]{prompt}"
+                # New A2A agents receive caller identity in message metadata.
+                # Keep Ori-compatible tag only for legacy agents that strip it server-side.
+                a2a_metadata = {
+                    "agentId": a2a_agent_id,
+                    "toAgent": "pi-remote-hub",
+                    "caller_id": user_id,
+                    "user_id": user_id,
+                    "source": "mellanni-tools-streamlit",
+                }
+                if _agent_needs_legacy_caller_tag(agent_name):
+                    a2a_message = f"[__caller_id:{user_id}__]{prompt}"
+                else:
+                    a2a_message = prompt
                 logger.info(
-                    "A2A outbound: context_id=%s, message=%s",
+                    "A2A outbound: agent=%s, context_id=%s, message=%s",
+                    agent_name,
                     st.session_state.a2a_context_id,
                     a2a_message[:100],
                 )
@@ -140,23 +174,87 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
                     send_message(
                         url=agent_url,
                         api_key=a2a_api_key,
+                        app_token=a2a_app_token,
+                        client_id=a2a_client_id,
                         message=a2a_message,
                         context_id=st.session_state.a2a_context_id,
                         task_id=st.session_state.a2a_pending_task_id,
+                        metadata=a2a_metadata,
+                        agent_id=a2a_agent_id,
+                        principal=a2a_principal,
+                        key_id=a2a_key_id,
+                        private_key_pem=a2a_private_key_pem,
+                        scoped_token=a2a_scoped_token,
                     )
                 )
 
                 parsed = parse_response(
                     rpc_response,
                     api_key=a2a_api_key,
+                    app_token=a2a_app_token,
+                    client_id=a2a_client_id,
                     base_url=agent_url,
+                    agent_id=a2a_agent_id,
+                    principal=user_id,
+                    key_id=a2a_key_id,
+                    private_key_pem=a2a_private_key_pem,
+                    scoped_token=a2a_scoped_token,
                 )
+
+                logger.info(
+                    "A2A parsed: state=%s task_id=%s",
+                    parsed.get("state"), parsed.get("task_id"),
+                )
+
+                # Hub returns submitted/working while the manager agent processes.
+                # Poll tasks/get until terminal state or timeout.
+                pending_states = {"submitted", "working"}
+                poll_deadline = time.time() + 120
+                while parsed.get("state") in pending_states and parsed.get("task_id"):
+                    if time.time() >= poll_deadline:
+                        logger.warning(
+                            "A2A poll timeout on task %s state=%s",
+                            parsed.get("task_id"), parsed.get("state"),
+                        )
+                        break
+                    time.sleep(2.0)
+                    rpc_response = asyncio.run(
+                        get_task(
+                            url=agent_url,
+                            task_id=parsed["task_id"],
+                            api_key=a2a_api_key,
+                            app_token=a2a_app_token,
+                            client_id=a2a_client_id,
+                            agent_id=a2a_agent_id,
+                            principal=a2a_principal,
+                            key_id=a2a_key_id,
+                            private_key_pem=a2a_private_key_pem,
+                            scoped_token=a2a_scoped_token,
+                        )
+                    )
+                    parsed = parse_response(
+                        rpc_response,
+                        api_key=a2a_api_key,
+                        app_token=a2a_app_token,
+                        client_id=a2a_client_id,
+                        base_url=agent_url,
+                        agent_id=a2a_agent_id,
+                        principal=a2a_principal,
+                        key_id=a2a_key_id,
+                        private_key_pem=a2a_private_key_pem,
+                        scoped_token=a2a_scoped_token,
+                    )
+                    logger.info("A2A poll: state=%s", parsed.get("state"))
 
                 if parsed["error"]:
                     st.error(f"Agent error: {parsed['error']}")
                     st.session_state.messages.append(
                         {"role": "assistant", "content": f"Error: {parsed['error']}"}
                     )
+                elif parsed["state"] in {"failed", "canceled"} and not parsed.get("text"):
+                    msg = f"Task {parsed['state']} with no payload (task_id={parsed.get('task_id')})"
+                    st.error(msg)
+                    st.session_state.messages.append({"role": "assistant", "content": msg})
                 else:
                     # Display text response
                     if parsed["text"]:
@@ -203,8 +301,8 @@ if prompt := st.chat_input("Ask me what I can do ;)"):
                             except Exception:
                                 st.text(csv_text)
 
-                    # Handle input_required state
-                    if parsed["state"] == "input_required":
+                    # Handle input_required state (A2A spec spells it with hyphen)
+                    if parsed["state"] in {"input_required", "input-required"}:
                         st.session_state.a2a_pending_task_id = parsed.get("task_id")
                         st.info("The agent needs more information. Please respond above.")
                     else:

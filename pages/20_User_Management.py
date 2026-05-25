@@ -276,7 +276,7 @@ with roles_tab:
 # ==================== REMOTE AGENTS TAB ====================
 with agents_tab:
     import asyncio
-    from modules.a2a_client import discover_agent
+    from modules.a2a_client import clear_cached_remote_agents, discover_agent
 
     def load_remote_agents() -> list[dict]:
         result = supabase.table("remote_agents").select("*").order("name").execute()
@@ -295,16 +295,17 @@ with agents_tab:
     # --- Add new agent ---
     with st.expander("Add remote agent", icon=":material/smart_toy:"):
         col_name, col_url, col_desc = st.columns([2, 3, 3])
-        agent_name = col_name.text_input("Name", placeholder="e.g. ori")
+        agent_name = col_name.text_input("Name", placeholder="e.g. you")
         agent_url = col_url.text_input("URL", placeholder="https://your-agent.example.com")
         agent_desc = col_desc.text_input(
-            "Description", placeholder="e.g. Primary Ori agent"
+            "Description", placeholder="e.g. Primary A2A agent"
         )
         if st.button("Add Agent", type="primary", key="add_agent"):
             if agent_name and agent_url:
                 if add_remote_agent(
                     agent_name.strip().lower(), agent_url.strip(), agent_desc.strip()
                 ):
+                    clear_cached_remote_agents()
                     st.success(f"Added agent '{agent_name}'")
                     st.rerun()
             else:
@@ -338,8 +339,7 @@ with agents_tab:
                     {"url": new_url.rstrip("/")}
                 ).eq("id", aid).execute()
                 # Clear cached remote agent
-                if "remote_agent" in st.session_state:
-                    del st.session_state["remote_agent"]
+                clear_cached_remote_agents()
                 st.rerun()
 
             is_active = agent["is_active"]
@@ -353,8 +353,7 @@ with agents_tab:
                 supabase.table("remote_agents").update(
                     {"is_active": new_active}
                 ).eq("id", aid).execute()
-                if "remote_agent" in st.session_state:
-                    del st.session_state["remote_agent"]
+                clear_cached_remote_agents()
                 st.rerun()
 
             # Test connection button
@@ -372,8 +371,7 @@ with agents_tab:
 
             if del_col.button(":material/delete:", key=f"del_agent_{aid}"):
                 supabase.table("remote_agents").delete().eq("id", aid).execute()
-                if "remote_agent" in st.session_state:
-                    del st.session_state["remote_agent"]
+                clear_cached_remote_agents()
                 st.rerun()
 
 # ==================== OTPs TAB ====================
