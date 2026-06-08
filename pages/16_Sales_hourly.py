@@ -10,10 +10,13 @@ from streamlit_echarts import JsCode, st_echarts
 
 from data import pantone_to_hex
 from login import require_login, require_role
+from modules import gcloud_modules as gc
 from modules.filter_modules import filter_dictionary
+from modules.gcloud_modules import bigquery
 
 pacific = ZoneInfo("America/Los_Angeles")
 utc = ZoneInfo("UTC")
+DEFAULT_SALES_CHANNELS = ("amazon.com",)
 
 st.set_page_config(page_title="Sales hourly", page_icon="media/logo.ico", layout="wide")
 require_login()
@@ -68,6 +71,69 @@ async def get_orders_data(start_time: datetime, end_time: datetime):
     return "Report could not be downloaded"
 
 
+@st.cache_data(
+    max_entries=64, show_spinner="Pulling 30-day hourly average from BigQuery..."
+)
+def get_hourly_baseline(
+    asins: tuple[str, ...], sales_channels: tuple[str, ...], as_of_date: str
+):
+    """Return avg units by Pacific hour for 30 days before as_of_date."""
+    if not asins or not sales_channels:
+        return pd.DataFrame(columns=["pacific_hour", "avg_units"])
+
+    query = """
+        WITH date_grid AS (
+            SELECT pacific_date
+            FROM UNNEST(GENERATE_DATE_ARRAY(
+                DATE_SUB(@as_of_date, INTERVAL 30 DAY),
+                DATE_SUB(@as_of_date, INTERVAL 1 DAY)
+            )) AS pacific_date
+        ),
+        hour_grid AS (
+            SELECT pacific_hour
+            FROM UNNEST(GENERATE_ARRAY(0, 23)) AS pacific_hour
+        ),
+        sales AS (
+            SELECT
+                DATE(purchase_date, "America/Los_Angeles") AS pacific_date,
+                EXTRACT(HOUR FROM DATETIME(purchase_date, "America/Los_Angeles")) AS pacific_hour,
+                SUM(quantity) AS units
+            FROM `mellanni-project-da.reports.all_orders`
+            WHERE DATE(purchase_date, "America/Los_Angeles") BETWEEN DATE_SUB(@as_of_date, INTERVAL 30 DAY)
+                AND DATE_SUB(@as_of_date, INTERVAL 1 DAY)
+                AND asin IN UNNEST(@asins)
+                AND LOWER(sales_channel) IN UNNEST(@sales_channels)
+            GROUP BY pacific_date, pacific_hour
+        )
+        SELECT
+            h.pacific_hour,
+            AVG(COALESCE(s.units, 0)) AS avg_units
+        FROM date_grid d
+        CROSS JOIN hour_grid h
+        LEFT JOIN sales s
+            ON s.pacific_date = d.pacific_date
+            AND s.pacific_hour = h.pacific_hour
+        GROUP BY h.pacific_hour
+        ORDER BY h.pacific_hour
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("asins", "STRING", list(asins)),
+            bigquery.ArrayQueryParameter(
+                "sales_channels", "STRING", [c.lower() for c in sales_channels]
+            ),
+            bigquery.ScalarQueryParameter("as_of_date", "DATE", as_of_date),
+        ]
+    )
+
+    try:
+        with gc.gcloud_connect() as client:
+            return client.query(query, job_config=job_config).to_dataframe()
+    except Exception as e:
+        st.warning(f"Failed to pull 30-day hourly average from BigQuery: {e}")
+        return pd.DataFrame(columns=["pacific_hour", "avg_units"])
+
+
 def analyze_orders(full_data: pd.DataFrame):
     top_skus = (
         full_data.groupby("sku")
@@ -81,7 +147,7 @@ def analyze_orders(full_data: pd.DataFrame):
             st.session_state.dictionary[["sku", "asin"]],
             how="left",
             on="sku",
-            validate="1:m",
+            validate="1:1",
         )
     except pd.errors.MergeError as e:
         st.error(f"Data integrity issue: duplicate SKUs detected in dictionary. {e}")
@@ -148,8 +214,74 @@ def apply_options():
             st.session_state.end_time = sunday
 
 
-def plot_chart(df: pd.DataFrame):
+def get_selected_asins(filtered_dict: pd.DataFrame) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            asin
+            for asin in filtered_dict["asin"].dropna().astype(str).unique().tolist()
+            if asin
+        )
+    )
+
+
+def normalize_sales_channels(sales_channels) -> tuple[str, ...]:
+    return tuple(
+        sorted({str(channel).strip().lower() for channel in sales_channels if channel})
+    )
+
+
+def plot_baseline_chart(hourly_baseline: pd.DataFrame):
+    if hourly_baseline.empty:
+        return
+
+    baseline_by_hour = dict(
+        zip(
+            hourly_baseline["pacific_hour"].astype(int),
+            hourly_baseline["avg_units"].astype(float),
+        )
+    )
+    x_axis_labels = [f"{hour:02d}:00" for hour in range(24)]
+    baseline_values = [round(baseline_by_hour.get(hour, 0), 1) for hour in range(24)]
+    options = {
+        "backgroundColor": "transparent",
+        "title": {
+            "text": "Last 30 days average hourly units "
+            "(excluding today, current filters)",
+            "left": "center",
+            "textStyle": {"color": "#CDD6F4"},
+        },
+        "tooltip": {
+            "trigger": "axis",
+            "formatter": "{b}: <b>{c} avg units</b>",
+        },
+        "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},
+        "xAxis": {
+            "type": "category",
+            "data": x_axis_labels,
+            "axisLabel": {"rotate": 45, "color": "#BAC2DE"},
+        },
+        "yAxis": {"type": "value", "splitLine": {"lineStyle": {"color": "#313244"}}},
+        "series": [
+            {
+                "name": "30-day avg hourly total",
+                "type": "line",
+                "smooth": True,
+                "symbol": "circle",
+                "lineStyle": {"width": 3, "type": "dashed", "color": "#f5e0dc"},
+                "areaStyle": {"opacity": 0.08, "color": "#f5e0dc"},
+                "data": baseline_values,
+            }
+        ],
+        "color": ["#f5e0dc"],
+    }
+    with chart_area:
+        st_echarts(options=options, height="450px")
+
+
+def plot_chart(df: pd.DataFrame, hourly_baseline: pd.DataFrame | None = None):
     if len(df) == 0:
+        if hourly_baseline is not None:
+            plot_baseline_chart(hourly_baseline)
         return
     coll_df = (
         df.groupby("collection")
@@ -278,6 +410,31 @@ def plot_chart(df: pd.DataFrame):
             }
         )
 
+    if hourly_baseline is not None and not hourly_baseline.empty:
+        baseline_by_hour = dict(
+            zip(
+                hourly_baseline["pacific_hour"].astype(int),
+                hourly_baseline["avg_units"].astype(float),
+            )
+        )
+        baseline_values = [
+            round(baseline_by_hour.get(ts.hour, 0), 1) for ts in resampled.index
+        ]
+        series.append(
+            {
+                "name": "30-day avg hourly total",
+                "type": "line",
+                "symbol": "none",
+                "smooth": True,
+                "z": 10,
+                "lineStyle": {"width": 3, "type": "dashed", "color": "#f5e0dc"},
+                "data": [
+                    {"value": v, "total": t}
+                    for v, t in zip(baseline_values, hourly_totals)
+                ],
+            }
+        )
+
     options = {
         "backgroundColor": "transparent",
         "tooltip": {
@@ -293,7 +450,7 @@ def plot_chart(df: pd.DataFrame):
         },
         "yAxis": {"type": "value", "splitLine": {"lineStyle": {"color": "#313244"}}},
         "series": series,
-        "color": colors,
+        "color": colors + ["#f5e0dc"],
     }
     with chart_area:
         st_echarts(options=options, height="550px")
@@ -328,6 +485,8 @@ add_chart_area = st.container()
 filtered_dict: pd.DataFrame = filter_dictionary(
     coll_target=coll_select, size_target=size_select, color_target=color_select
 )
+selected_asins = get_selected_asins(filtered_dict)
+baseline_as_of_date = str(datetime.now(pacific).date())
 start_time = start_time_col.datetime_input(
     label="Start time (Pacific)", value=st.session_state.start_time, disabled=True
 )
@@ -369,15 +528,19 @@ if "hourly_report" in st.session_state:
         sales_channel = sales_channel_select.multiselect(
             label="Sales channel",
             options=sales_channels,
-            default="Amazon.com" if "Amazon.com" in sales_channels else sales_channels,
+            default=["Amazon.com"] if "Amazon.com" in sales_channels else sales_channels,
         )
         report_filtered = st.session_state.hourly_report.copy()
+        selected_channels = normalize_sales_channels(sales_channel)
         report_filtered = report_filtered.loc[
-            (report_filtered["asin"].isin(filtered_dict["asin"].values.tolist()))
+            (report_filtered["asin"].isin(selected_asins))
             & (report_filtered["sales-channel"].isin(sales_channel))
         ]
 
-        plot_chart(report_filtered)
+        hourly_baseline = get_hourly_baseline(
+            selected_asins, selected_channels, baseline_as_of_date
+        )
+        plot_chart(report_filtered, hourly_baseline)
 
         total_units = report_filtered.quantity.sum()
         total_revenue = report_filtered["item-price"].sum()
@@ -424,3 +587,8 @@ if "hourly_report" in st.session_state:
         promo_df_area.dataframe(top_promos, hide_index=True)
     else:
         st.warning(st.session_state.hourly_report)
+else:
+    hourly_baseline = get_hourly_baseline(
+        selected_asins, DEFAULT_SALES_CHANNELS, baseline_as_of_date
+    )
+    plot_baseline_chart(hourly_baseline)
