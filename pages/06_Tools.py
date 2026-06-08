@@ -33,6 +33,7 @@ col1, col2 = st.columns([10, 3])
 require_login()
 
 user_email = st.user.email
+user_email = "ethan@mellanni.com"
 st.write(user_email)
 
 with col2:
@@ -74,14 +75,16 @@ with col1:
                 .execute()
             )
             return {
-                row["label"]: decrypt(row["encrypted_secret"])
-                for row in result.data
+                row["label"]: decrypt(row["encrypted_secret"]) for row in result.data
             }
 
         try:
             user_secrets = _load_user_otps(user_email)
             if user_secrets:
-                codes = {label: _compute_otp(secret) for label, secret in user_secrets.items()}
+                codes = {
+                    label: _compute_otp(secret)
+                    for label, secret in user_secrets.items()
+                }
                 output = "\n".join(
                     f"{k}: ".ljust(50 - len(v)) + v for k, v in sorted(codes.items())
                 )
@@ -245,7 +248,7 @@ with col1:
             for i in range(0, steps + 1):
                 file[f"step {i}"] = file["steps"].apply(lambda x: round(x[i], 2))
             for i in range(0, steps):
-                file[f"% {i+1}"] = file[f"step {i+1}"] / file[f"step {i}"] - 1
+                file[f"% {i + 1}"] = file[f"step {i + 1}"] / file[f"step {i}"] - 1
             del file["steps"]
             del file["step 0"]
             return file
@@ -297,9 +300,7 @@ with col1:
                 try:
                     kws = result["detailPageListingResponse"][
                         "generic_keyword#1.value"
-                    ][
-                        "value"
-                    ]  # .split(' ')
+                    ]["value"]  # .split(' ')
                 except:
                     kws = result["detailPageListingResponse"]["generic_keywords"][
                         "value"
