@@ -8,11 +8,6 @@ import numpy as np
 import pandas as pd
 from google.cloud import bigquery
 
-try:
-    from common.events import event_dates_list
-except Exception:  # pragma: no cover - local fallback when helper module is absent
-    event_dates_list = []
-
 
 DEFAULT_LONG_TERM_DAYS = 180
 DEFAULT_SHORT_TERM_DAYS = 14
@@ -68,7 +63,7 @@ def get_last_non_event_days(
     if num_days <= 0:
         return []
 
-    event_set = set(events if events is not None else event_dates_list)
+    event_set = set(events or [])
     days: list[date] = []
     cursor = max_date
     while len(days) < num_days:
@@ -130,6 +125,7 @@ def calculate_smart_asin_sales(
     sales_max_date_input: str | date | None = None,
     long_term_days: int = DEFAULT_LONG_TERM_DAYS,
     short_term_days: int = DEFAULT_SHORT_TERM_DAYS,
+    events: Iterable[date] | None = None,
 ) -> pd.DataFrame:
     """Calculate smart ASIN velocity: ISR-adjusted short/long avg with restock_2025 weights."""
     if sales.empty:
@@ -160,8 +156,8 @@ def calculate_smart_asin_sales(
         else (pd.to_datetime(df["date"].max()) - pd.Timedelta(days=1)).date()
     )
 
-    long_days = get_last_non_event_days(long_term_days, sales_max_date, include_events)
-    short_days = get_last_non_event_days(short_term_days, sales_max_date, include_events)
+    long_days = get_last_non_event_days(long_term_days, sales_max_date, include_events, events=events)
+    short_days = get_last_non_event_days(short_term_days, sales_max_date, include_events, events=events)
 
     long_df = df[df["date"].isin(long_days)].fillna(0)
     short_df = long_df[long_df["date"].isin(short_days)]
@@ -236,7 +232,7 @@ def normalize_dictionary(dictionary: pd.DataFrame) -> pd.DataFrame:
 
 
 def aggregate_inventory_history(inventory: pd.DataFrame) -> pd.DataFrame:
-    """ASIN-level daily inventory history. total = FBA supply + inbound shipped."""
+    """ASIN-level daily inventory history. total = Amazon Total FBA supply."""
     if inventory.empty:
         return pd.DataFrame(
             columns=["date", "asin", "available", "fba_inventory", "inbound_shipped", "total_inventory"]
@@ -261,11 +257,205 @@ def aggregate_inventory_history(inventory: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def normalize_sp_inventory_report(report: pd.DataFrame, snapshot_date: str | date | None = None) -> pd.DataFrame:
+    """Normalize GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA rows to dashboard schema."""
+    if report.empty:
+        return pd.DataFrame(columns=["date", "sku", "asin", "available", "fba_inventory", "inbound_shipped", "total_inventory"])
+
+    df = report.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    if "afn-listing-exists" in df.columns:
+        df = df[df["afn-listing-exists"].astype(str).str.upper().eq("YES")].copy()
+    required = {"sku", "asin", "afn-fulfillable-quantity", "afn-total-quantity"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"SP inventory report missing columns: {sorted(missing)}")
+
+    out = pd.DataFrame()
+    out["sku"] = df["sku"].astype(str).str.strip()
+    out["asin"] = df["asin"].astype(str).str.strip()
+    out["date"] = pd.to_datetime(snapshot_date or date.today()).date()
+    out["available"] = pd.to_numeric(df["afn-fulfillable-quantity"], errors="coerce").fillna(0)
+    out["fba_inventory"] = pd.to_numeric(df["afn-total-quantity"], errors="coerce").fillna(0)
+    out["inbound_shipped"] = (
+        pd.to_numeric(df["afn-inbound-shipped-quantity"], errors="coerce").fillna(0)
+        if "afn-inbound-shipped-quantity" in df.columns
+        else 0
+    )
+    out["total_inventory"] = out["fba_inventory"]
+    out = out[(out["sku"] != "") & (out["sku"].str.lower() != "nan") & (out["asin"] != "") & (out["asin"].str.lower() != "nan")]
+    return out.reset_index(drop=True)
+
+
+def apply_current_inventory_snapshot(inventory_history: pd.DataFrame, current_snapshot: pd.DataFrame) -> pd.DataFrame:
+    """Replace/append latest current inventory point, preserving historical BigQuery rows."""
+    if current_snapshot.empty:
+        return inventory_history.copy()
+
+    current = current_snapshot.copy()
+    current["date"] = pd.to_datetime(current["date"]).dt.date
+    for col in ["available", "fba_inventory", "inbound_shipped", "total_inventory"]:
+        if col not in current.columns:
+            current[col] = 0
+        current[col] = pd.to_numeric(current[col], errors="coerce").fillna(0)
+    current = current[["date", "asin", "available", "fba_inventory", "inbound_shipped", "total_inventory"]]
+    current_date = current["date"].max()
+
+    history = inventory_history.copy()
+    if not history.empty:
+        history["date"] = pd.to_datetime(history["date"]).dt.date
+        history = history[history["date"] < current_date]
+    combined = pd.concat([history, current], ignore_index=True)
+    return combined.sort_values(["asin", "date"]).reset_index(drop=True)
+
+
+def normalize_event_calendar(calendar: pd.DataFrame) -> pd.DataFrame:
+    """Keep operational event calendar fields and parse inclusive date ranges."""
+    cols = {str(c).strip().lower(): c for c in calendar.columns}
+    required = ["event_code", "start_date", "end_date"]
+    missing = [c for c in required if c not in cols]
+    if missing:
+        raise ValueError(f"event_calendar missing columns: {missing}")
+
+    out = calendar[[cols["event_code"], cols["start_date"], cols["end_date"]]].copy()
+    out.columns = required
+    out["event_code"] = out["event_code"].astype(str).str.strip().str.upper()
+    out["start_date"] = pd.to_datetime(out["start_date"], errors="coerce").dt.date
+    out["end_date"] = pd.to_datetime(out["end_date"], errors="coerce").dt.date
+    out = out[(out["event_code"] != "") & out["start_date"].notna() & out["end_date"].notna()]
+    out = out[out["end_date"] >= out["start_date"]]
+    return out.drop_duplicates().reset_index(drop=True)
+
+
+def expand_event_dates(calendar: pd.DataFrame) -> list[date]:
+    dates: set[date] = set()
+    if calendar.empty:
+        return []
+    for row in calendar.itertuples(index=False):
+        cursor = row.start_date
+        while cursor <= row.end_date:
+            dates.add(cursor)
+            cursor += timedelta(days=1)
+    return sorted(dates)
+
+
+def events_for_projection_date(calendar: pd.DataFrame, day: date) -> pd.DataFrame:
+    if calendar.empty:
+        return pd.DataFrame(columns=["event_code", "start_date", "end_date"])
+    return calendar[(calendar["start_date"] <= day) & (calendar["end_date"] >= day)].copy()
+
+
+def calculate_event_forecast_total(
+    asin: str,
+    avg_units: float,
+    event_code: str,
+    event_duration: int,
+    event_performance: pd.DataFrame,
+) -> float | None:
+    """Return total event-unit forecast for one ASIN/event using restock_2025 formula."""
+    if event_duration <= 0 or event_performance.empty:
+        return None
+
+    df = event_performance.copy()
+    asin_col = "ASIN" if "ASIN" in df.columns else "asin" if "asin" in df.columns else None
+    avg_col = f"Average {event_code} sales, units (total)"
+    best_col = f"Best {event_code} performance"
+    if asin_col is None or avg_col not in df.columns or best_col not in df.columns:
+        return None
+
+    match = df[df[asin_col].astype(str).str.strip() == str(asin).strip()]
+    if match.empty:
+        return None
+    row = match.iloc[0]
+    average_event = float(pd.to_numeric(pd.Series([row.get(avg_col)]), errors="coerce").fillna(0).iloc[0])
+    best_perf = float(pd.to_numeric(pd.Series([row.get(best_col)]), errors="coerce").fillna(0).iloc[0])
+
+    strong_performance = avg_units * best_perf
+    poor_performance = avg_units * event_duration * 2
+    forecast_total = (average_event + poor_performance) / 2
+    if avg_units >= 3:
+        forecast_total = ((average_event + strong_performance) / 2) * 1.2
+    return max(float(forecast_total), 0.0)
+
+
+def daily_projection_demands(
+    asin: str,
+    avg_units: float,
+    start_date: date,
+    projection_days: int,
+    event_calendar: pd.DataFrame | None = None,
+    event_performance: pd.DataFrame | None = None,
+) -> list[tuple[date, float, str]]:
+    """Build day-by-day demand schedule; event days replace baseline demand."""
+    calendar = event_calendar if event_calendar is not None else pd.DataFrame()
+    performance = event_performance if event_performance is not None else pd.DataFrame()
+    demands: list[tuple[date, float, str]] = []
+    for offset in range(1, projection_days + 1):
+        day = start_date + timedelta(days=offset)
+        demand = max(float(avg_units or 0), 0.0)
+        event_code = ""
+        overlapping = events_for_projection_date(calendar, day)
+        if not overlapping.empty:
+            candidates: list[tuple[float, str]] = []
+            for event in overlapping.itertuples(index=False):
+                duration = (event.end_date - event.start_date).days + 1
+                forecast_total = calculate_event_forecast_total(
+                    asin=asin,
+                    avg_units=demand,
+                    event_code=event.event_code,
+                    event_duration=duration,
+                    event_performance=performance,
+                )
+                if forecast_total is not None:
+                    candidates.append((forecast_total / duration, event.event_code))
+            if candidates:
+                demand, event_code = max(candidates, key=lambda item: item[0])
+        demands.append((day, demand, event_code))
+    return demands
+
+
+def project_inventory(
+    asin: str,
+    current_total: float,
+    avg_units: float,
+    start_date: date,
+    projection_days: int,
+    event_calendar: pd.DataFrame | None = None,
+    event_performance: pd.DataFrame | None = None,
+) -> tuple[list[dict], float, object, float]:
+    """Project Total FBA depletion with optional event-day demand replacement."""
+    remaining = max(float(current_total or 0), 0.0)
+    projected_rows = [{"date": start_date, "projected_inventory": remaining}]
+    stockout_days = np.inf
+    stockout_date: object = pd.NaT
+    consumed = 0.0
+
+    for index, (day, demand, _event_code) in enumerate(
+        daily_projection_demands(asin, avg_units, start_date, projection_days, event_calendar, event_performance),
+        start=1,
+    ):
+        if demand > 0 and np.isinf(stockout_days) and remaining <= demand:
+            stockout_days = (index - 1) + (remaining / demand)
+            stockout_date = start_date + timedelta(days=int(np.floor(stockout_days)))
+        consumed += demand
+        remaining = max(float(current_total or 0) - consumed, 0.0)
+        projected_rows.append({"date": day, "projected_inventory": remaining})
+
+    projected_remaining = projected_rows[-1]["projected_inventory"] if projected_rows else max(float(current_total or 0), 0.0)
+    if np.isinf(stockout_days) and avg_units > 0:
+        stockout_days = projection_days + (projected_remaining / float(avg_units))
+        stockout_date = start_date + timedelta(days=int(np.floor(stockout_days)))
+    return projected_rows, stockout_days, stockout_date, projected_remaining
+
+
 def build_restock_summary(
     sales: pd.DataFrame,
     inventory_history: pd.DataFrame,
     dictionary: pd.DataFrame,
     config: RestockConfig = RestockConfig(),
+    event_dates: Iterable[date] | None = None,
+    event_calendar: pd.DataFrame | None = None,
+    event_performance: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     if inventory_history.empty and sales.empty:
         return pd.DataFrame(columns=SUMMARY_COLUMNS)
@@ -278,6 +468,7 @@ def build_restock_summary(
         include_events=config.include_events,
         long_term_days=config.long_term_days,
         short_term_days=config.short_term_days,
+        events=event_dates,
     )
 
     latest_date = inventory_history["date"].max() if not inventory_history.empty else date.today()
@@ -315,20 +506,37 @@ def build_restock_summary(
     for col in ["available", "fba_inventory", "inbound_shipped", "total_inventory", "avg_units", "avg_dollars"]:
         summary[col] = pd.to_numeric(summary.get(col, 0), errors="coerce").fillna(0)
 
-    # Projection/stockout use Total FBA (`Inventory_Supply_at_FBA`). That field
-    # already includes shipped-to-FBA/FC transfer supply and excludes customer orders.
-    summary["days_to_stockout"] = np.where(
-        summary["avg_units"] > 0,
-        summary["fba_inventory"] / summary["avg_units"],
-        np.inf,
-    )
-    today = date.today()
-    summary["stockout_date"] = summary["days_to_stockout"].apply(
-        lambda days: today + timedelta(days=int(np.floor(days))) if np.isfinite(days) else pd.NaT
-    )
-    summary["projected_inventory_30d"] = (
-        summary["fba_inventory"] - (summary["avg_units"] * config.projection_days)
-    ).clip(lower=0)
+    # Projection/stockout use Total FBA. For SP-API current snapshots this is
+    # `afn-total-quantity`; BigQuery fallback keeps its Inventory_Supply_at_FBA meaning.
+    today = latest_date if isinstance(latest_date, date) else date.today()
+    if event_calendar is not None and not event_calendar.empty and event_performance is not None and not event_performance.empty:
+        projection_results = summary.apply(
+            lambda row: project_inventory(
+                asin=str(row["asin"]),
+                current_total=float(row.get("fba_inventory", 0) or 0),
+                avg_units=float(row.get("avg_units", 0) or 0),
+                start_date=today,
+                projection_days=config.projection_days,
+                event_calendar=event_calendar,
+                event_performance=event_performance,
+            ),
+            axis=1,
+        )
+        summary["days_to_stockout"] = [result[1] for result in projection_results]
+        summary["stockout_date"] = [result[2] for result in projection_results]
+        summary["projected_inventory_30d"] = [result[3] for result in projection_results]
+    else:
+        summary["days_to_stockout"] = np.where(
+            summary["avg_units"] > 0,
+            summary["fba_inventory"] / summary["avg_units"],
+            np.inf,
+        )
+        summary["stockout_date"] = summary["days_to_stockout"].apply(
+            lambda days: today + timedelta(days=int(np.floor(days))) if np.isfinite(days) else pd.NaT
+        )
+        summary["projected_inventory_30d"] = (
+            summary["fba_inventory"] - (summary["avg_units"] * config.projection_days)
+        ).clip(lower=0)
     summary["alert"] = summary["days_to_stockout"] < config.alert_days
 
     for col in SUMMARY_COLUMNS:
@@ -349,6 +557,8 @@ def build_chart_series(
     summary_row: pd.Series,
     history_days: int = DEFAULT_HISTORY_DAYS,
     projection_days: int = DEFAULT_PROJECTION_DAYS,
+    event_calendar: pd.DataFrame | None = None,
+    event_performance: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     actual = inventory_history[inventory_history["asin"] == asin].copy()
     if not actual.empty:
@@ -361,14 +571,15 @@ def build_chart_series(
 
     current_total = float(summary_row.get("fba_inventory", 0) or 0)
     avg_units = float(summary_row.get("avg_units", 0) or 0)
-    future_rows = []
-    for offset in range(0, projection_days + 1):
-        future_rows.append(
-            {
-                "date": max_date + timedelta(days=offset),
-                "projected_inventory": max(current_total - (avg_units * offset), 0),
-            }
-        )
+    future_rows, _days_to_stockout, _stockout_date, _projected_remaining = project_inventory(
+        asin=asin,
+        current_total=current_total,
+        avg_units=avg_units,
+        start_date=max_date,
+        projection_days=projection_days,
+        event_calendar=event_calendar,
+        event_performance=event_performance,
+    )
     future = pd.DataFrame(future_rows)
 
     actual_cols = ["date", "available", "fba_inventory", "total_inventory"]
@@ -420,7 +631,7 @@ def make_inventory_chart_options(series: pd.DataFrame, asin: str, alert: bool = 
                 "itemStyle": {"color": "#4f4f4f"},
             },
             {
-                "name": "Projected incl. shipped",
+                "name": "Projected Total FBA",
                 "type": "line",
                 "data": projected,
                 "connectNulls": False,

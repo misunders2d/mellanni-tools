@@ -8,8 +8,10 @@ import pandas as pd
 import streamlit as st
 from streamlit_echarts import st_echarts
 
+from modules import event_sheets
 from modules import gcloud_modules as gc
 from modules import restock_dashboard as rd
+from modules import spapi_inventory
 
 
 st.set_page_config(page_title="Restock", page_icon="📦", layout="wide")
@@ -17,7 +19,7 @@ st.set_page_config(page_title="Restock", page_icon="📦", layout="wide")
 
 st.title("📦 Restock")
 st.caption(
-    "Top ASINs by smart average daily sales ($). Lines: Available + Total FBA (Inventory Supply at FBA). Warehouse stock and customer-order reserves excluded."
+    "Top ASINs by smart average daily sales ($). Current inventory uses SP-API MYI report when available. Lines: Available + Total FBA."
 )
 st.markdown(
     """
@@ -40,6 +42,22 @@ def load_restock_inputs(long_term_days: int, history_days: int) -> tuple[pd.Data
     return sales, inventory, dictionary
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_sp_inventory_snapshot(cache_day: str) -> tuple[pd.DataFrame, str | None, str]:
+    result = spapi_inventory.request_inventory_report()
+    normalized = rd.normalize_sp_inventory_report(result.data, snapshot_date=cache_day)
+    current = rd.aggregate_inventory_history(normalized)
+    return current, result.report_id, result.generated_at.isoformat()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_event_inputs() -> tuple[pd.DataFrame, pd.DataFrame, list[date]]:
+    calendar = rd.normalize_event_calendar(event_sheets.read_event_calendar())
+    performance = event_sheets.read_event_performance()
+    event_dates = rd.expand_event_dates(calendar)
+    return calendar, performance, event_dates
+
+
 def format_stockout(value) -> str:
     if pd.isna(value):
         return "—"
@@ -51,7 +69,14 @@ def format_stockout(value) -> str:
         return "—"
 
 
-def render_card(row: pd.Series, inventory_history: pd.DataFrame, history_days: int, projection_days: int) -> None:
+def render_card(
+    row: pd.Series,
+    inventory_history: pd.DataFrame,
+    history_days: int,
+    projection_days: int,
+    event_calendar: pd.DataFrame,
+    event_performance: pd.DataFrame,
+) -> None:
     alert = bool(row["alert"])
     asin = str(row["asin"])
     days_left = row["days_to_stockout"]
@@ -88,6 +113,8 @@ def render_card(row: pd.Series, inventory_history: pd.DataFrame, history_days: i
         row,
         history_days=history_days,
         projection_days=projection_days,
+        event_calendar=event_calendar,
+        event_performance=event_performance,
     )
     opts = rd.make_inventory_chart_options(series, asin, alert=alert)
     st_echarts(opts, height="210px", key=f"restock_{asin}")
@@ -136,7 +163,39 @@ except Exception as exc:
     st.stop()
 
 inventory_history = rd.aggregate_inventory_history(raw_inventory_df)
-summary = rd.build_restock_summary(sales_df, inventory_history, dictionary_df, config=config)
+inventory_source = "BigQuery fallback"
+inventory_warning = ""
+sp_report_id = None
+sp_generated_at = ""
+try:
+    with st.spinner("Loading SP-API current inventory report..."):
+        sp_current_inventory, sp_report_id, sp_generated_at = load_sp_inventory_snapshot(date.today().isoformat())
+    if not sp_current_inventory.empty:
+        inventory_history = rd.apply_current_inventory_snapshot(inventory_history, sp_current_inventory)
+        inventory_source = "SP-API GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA"
+    else:
+        inventory_warning = "SP-API inventory report returned no rows; using latest BigQuery inventory."
+except Exception as exc:
+    inventory_warning = f"SP-API inventory unavailable; using latest BigQuery inventory. Error: {exc}"
+
+try:
+    event_calendar, event_performance, event_dates = load_event_inputs()
+    event_warning = ""
+except Exception as exc:
+    event_calendar = pd.DataFrame(columns=["event_code", "start_date", "end_date"])
+    event_performance = pd.DataFrame()
+    event_dates = []
+    event_warning = f"Event calendar unavailable; velocity/projection use no event dates. Error: {exc}"
+
+summary = rd.build_restock_summary(
+    sales_df,
+    inventory_history,
+    dictionary_df,
+    config=config,
+    event_dates=event_dates,
+    event_calendar=event_calendar,
+    event_performance=event_performance,
+)
 
 if summary.empty:
     st.warning("No Restock data available.")
@@ -152,9 +211,17 @@ kpi_cols[2].metric("Total FBA", f"{summary['fba_inventory'].sum():,.0f}")
 kpi_cols[3].metric("Avg $/day", f"${summary['avg_dollars'].sum():,.0f}")
 kpi_cols[4].metric("Avg units/day", f"{summary['avg_units'].sum():,.0f}")
 
+if inventory_warning:
+    st.warning(inventory_warning)
+if event_warning:
+    st.warning(event_warning)
+
 st.caption(
-    f"Latest inventory snapshot: {latest_inventory_date} · latest sales date: {latest_sales_date} · "
-    "Smart velocity uses ISR-adjusted short/long averages from restock_2025 logic."
+    f"Current inventory source: {inventory_source}"
+    f"{f' · report {sp_report_id}' if sp_report_id else ''}"
+    f"{f' · generated {sp_generated_at}' if sp_generated_at else ''} · "
+    f"latest inventory snapshot: {latest_inventory_date} · latest sales date: {latest_sales_date} · "
+    "Smart velocity uses ISR-adjusted short/long averages; event dates come from Google Sheet event_calendar."
 )
 
 search = st.text_input("Filter shown ASINs / title / collection", value="").strip().lower()
@@ -199,4 +266,11 @@ for start in range(0, len(visible), int(grid_columns)):
     cols = st.columns(int(grid_columns))
     for col, (_, row) in zip(cols, visible.iloc[start : start + int(grid_columns)].iterrows()):
         with col:
-            render_card(row, inventory_history, history_days=30, projection_days=int(projection_days))
+            render_card(
+                row,
+                inventory_history,
+                history_days=30,
+                projection_days=int(projection_days),
+                event_calendar=event_calendar,
+                event_performance=event_performance,
+            )

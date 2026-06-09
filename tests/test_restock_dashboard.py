@@ -115,3 +115,116 @@ def test_build_chart_series_next_30_days_projection():
     projected_last = series.dropna(subset=["projected_inventory"]).iloc[-1]
     assert projected_last["projected_inventory"] == 0
     assert len(series.dropna(subset=["projected_inventory"])) == 31
+
+
+def test_normalize_sp_inventory_report_maps_myi_fields():
+    raw = pd.DataFrame(
+        [
+            {
+                "sku": "S1",
+                "asin": "A1",
+                "afn-fulfillable-quantity": "7",
+                "afn-total-quantity": "12",
+                "afn-inbound-shipped-quantity": "3",
+            }
+        ]
+    )
+
+    out = rd.normalize_sp_inventory_report(raw, snapshot_date="2026-06-09")
+
+    row = out.iloc[0]
+    assert row["date"] == date(2026, 6, 9)
+    assert row["available"] == 7
+    assert row["fba_inventory"] == 12
+    assert row["total_inventory"] == 12
+    assert row["inbound_shipped"] == 3
+
+
+def test_apply_current_inventory_snapshot_replaces_bq_current_date():
+    history = pd.DataFrame(
+        [
+            {"date": date(2026, 6, 8), "asin": "A1", "available": 1, "fba_inventory": 2, "inbound_shipped": 0, "total_inventory": 2},
+            {"date": date(2026, 6, 9), "asin": "A1", "available": 3, "fba_inventory": 4, "inbound_shipped": 0, "total_inventory": 4},
+        ]
+    )
+    sp_current = pd.DataFrame(
+        [{"date": date(2026, 6, 9), "asin": "A1", "available": 10, "fba_inventory": 20, "inbound_shipped": 0, "total_inventory": 20}]
+    )
+
+    out = rd.apply_current_inventory_snapshot(history, sp_current)
+
+    assert len(out) == 2
+    assert out[out["date"] == date(2026, 6, 9)].iloc[0]["fba_inventory"] == 20
+
+
+def test_event_calendar_expands_inclusive_dates_and_ignores_extra_columns():
+    calendar = pd.DataFrame(
+        [
+            {"event_code": "pd", "event_name": "Prime", "start_date": "2026-07-10", "end_date": "2026-07-12", "notes": "ignore"},
+            {"event_code": "", "start_date": "bad", "end_date": "2026-07-12"},
+        ]
+    )
+
+    normalized = rd.normalize_event_calendar(calendar)
+    dates = rd.expand_event_dates(normalized)
+
+    assert normalized.columns.tolist() == ["event_code", "start_date", "end_date"]
+    assert normalized.iloc[0]["event_code"] == "PD"
+    assert dates == [date(2026, 7, 10), date(2026, 7, 11), date(2026, 7, 12)]
+
+
+def test_velocity_excludes_event_dates_when_toggle_off():
+    sales = pd.DataFrame(
+        [
+            {"date": "2026-06-07", "asin": "A1", "unit_sales": 10, "dollar_sales": 100},
+            {"date": "2026-06-08", "asin": "A1", "unit_sales": 90, "dollar_sales": 900},
+            {"date": "2026-06-09", "asin": "A1", "unit_sales": 0, "dollar_sales": 0},
+        ]
+    )
+    isr = pd.DataFrame([{"asin": "A1", "ISR": 1.0, "ISR_short": 1.0}])
+
+    excluded = rd.calculate_smart_asin_sales(
+        sales,
+        isr,
+        include_events=False,
+        long_term_days=2,
+        short_term_days=1,
+        events=[date(2026, 6, 8)],
+    )
+    included = rd.calculate_smart_asin_sales(
+        sales,
+        isr,
+        include_events=True,
+        long_term_days=2,
+        short_term_days=1,
+        events=[date(2026, 6, 8)],
+    )
+
+    assert excluded.iloc[0]["avg units"] == 8
+    assert included.iloc[0]["avg units"] == 74
+
+
+def test_projection_replaces_baseline_with_event_forecast_day():
+    calendar = rd.normalize_event_calendar(
+        pd.DataFrame([{"event_code": "PD", "start_date": "2026-06-10", "end_date": "2026-06-11"}])
+    )
+    performance = pd.DataFrame(
+        [{"ASIN": "A1", "Average PD sales, units (total)": 100, "Best PD performance": 40}]
+    )
+
+    rows, days_to_stockout, stockout_date, projected = rd.project_inventory(
+        asin="A1",
+        current_total=100,
+        avg_units=5,
+        start_date=date(2026, 6, 9),
+        projection_days=2,
+        event_calendar=calendar,
+        event_performance=performance,
+    )
+
+    # high-volume formula: ((100 + 5*40) / 2) * 1.2 = 180 total, /2 event days = 90/day
+    assert rows[1]["projected_inventory"] == 10
+    assert rows[2]["projected_inventory"] == 0
+    assert 1 < days_to_stockout < 2
+    assert stockout_date == date(2026, 6, 10)
+    assert projected == 0
