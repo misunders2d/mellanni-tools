@@ -34,14 +34,31 @@ st.markdown(
 )
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_restock_inputs(long_term_days: int, history_days: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def dataframe_signature(df: pd.DataFrame, columns: list[str]) -> tuple:
+    """Small stable fingerprint for cached data inputs, computed only inside cached loaders."""
+    if df.empty:
+        return (0, tuple(), 0)
+    present = [col for col in columns if col in df.columns]
+    if not present:
+        return (len(df), tuple(), 0)
+    normalized = df[present].astype(str)
+    content_hash = int(pd.util.hash_pandas_object(normalized, index=False).sum())
+    return (len(df), tuple(present), content_hash)
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_restock_inputs(cache_day: str, long_term_days: int, history_days: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, tuple]:
     days_to_pull = max(long_term_days + 90, history_days + 1)
     with gc.gcloud_connect() as client:
         sales = rd.query_dataframe(client, rd.build_sales_query(days_to_pull))
         inventory = rd.query_dataframe(client, rd.build_inventory_query(days_to_pull))
     dictionary = gc.pull_dictionary(market="US", full=False)
-    return sales, inventory, dictionary
+    input_signature = (
+        dataframe_signature(sales, ["date", "asin", "unit_sales", "dollar_sales"]),
+        dataframe_signature(inventory, ["date", "asin", "available", "fba_inventory", "inbound_shipped", "total_inventory"]),
+        dataframe_signature(dictionary, ["sku", "asin", "collection", "sub_collection", "size", "color", "short_title"]),
+    )
+    return sales, inventory, dictionary, input_signature
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -56,8 +73,8 @@ def load_sp_inventory_snapshot(
     return current, result.report_id, result.generated_at.isoformat()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_event_inputs() -> tuple[pd.DataFrame, pd.DataFrame, list[date], tuple]:
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_event_inputs(cache_day: str) -> tuple[pd.DataFrame, pd.DataFrame, list[date], tuple]:
     calendar = rd.normalize_event_calendar(event_sheets.read_event_calendar())
     performance = event_sheets.read_event_performance()
     event_dates = rd.expand_event_dates(calendar)
@@ -91,33 +108,31 @@ def event_signature(calendar: pd.DataFrame, performance: pd.DataFrame) -> tuple:
     return (calendar_sig, tuple(performance.columns.astype(str).tolist()), tuple(performance.shape), performance_hash)
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def build_restock_summary_cached(
     cache_key: tuple,
-    sales: pd.DataFrame,
-    inventory_history: pd.DataFrame,
-    dictionary: pd.DataFrame,
-    config: rd.RestockConfig,
-    event_dates: list[date],
-    event_calendar: pd.DataFrame,
-    event_performance: pd.DataFrame,
+    _sales: pd.DataFrame,
+    _inventory_history: pd.DataFrame,
+    _dictionary: pd.DataFrame,
+    _config: rd.RestockConfig,
+    _event_dates: list[date],
+    _event_calendar: pd.DataFrame,
+    _event_performance: pd.DataFrame,
     selected_asins: tuple[str, ...] | None,
 ) -> pd.DataFrame:
-    cached = st.session_state.get("restock_summary_cache")
-    if cached and cached.get("key") == cache_key:
-        return cached["summary"].copy()
-
-    summary = rd.build_restock_summary(
-        sales,
-        inventory_history,
-        dictionary,
-        config=config,
-        event_dates=event_dates,
-        event_calendar=event_calendar,
-        event_performance=event_performance,
+    # DataFrame/config args are intentionally excluded from Streamlit hashing;
+    # cache_key carries their stable signatures. This avoids re-hashing large
+    # inputs on every widget rerun while still surviving logout/login sessions.
+    return rd.build_restock_summary(
+        _sales,
+        _inventory_history,
+        _dictionary,
+        config=_config,
+        event_dates=_event_dates,
+        event_calendar=_event_calendar,
+        event_performance=_event_performance,
         selected_asins=selected_asins,
     )
-    st.session_state.restock_summary_cache = {"key": cache_key, "summary": summary.copy()}
-    return summary
 
 
 def format_variant_label(row: pd.Series) -> str:
@@ -220,13 +235,15 @@ if refresh:
     load_restock_inputs.clear()
     load_sp_inventory_snapshot.clear()
     load_event_inputs.clear()
-    st.session_state.pop("restock_summary_cache", None)
+    build_restock_summary_cached.clear()
     st.rerun()
+
+cache_day = date.today().isoformat()
 
 force_token = ""
 if force_spapi_refresh:
     load_sp_inventory_snapshot.clear()
-    st.session_state.pop("restock_summary_cache", None)
+    build_restock_summary_cached.clear()
     force_token = pd.Timestamp.utcnow().isoformat()
 
 config = rd.RestockConfig(
@@ -241,7 +258,8 @@ config = rd.RestockConfig(
 
 try:
     with st.spinner("Loading sales and inventory history..."):
-        sales_df, raw_inventory_df, dictionary_df = load_restock_inputs(
+        sales_df, raw_inventory_df, dictionary_df, input_sig = load_restock_inputs(
+            cache_day,
             int(long_term_days),
             max(30, int(projection_days)),
         )
@@ -257,7 +275,7 @@ sp_generated_at = ""
 try:
     with st.spinner("Loading SP-API current inventory report..."):
         sp_current_inventory, sp_report_id, sp_generated_at = load_sp_inventory_snapshot(
-            date.today().isoformat(),
+            cache_day,
             force_fresh=force_spapi_refresh,
             force_token=force_token,
         )
@@ -270,7 +288,7 @@ except Exception as exc:
     inventory_warning = f"SP-API inventory unavailable; using latest BigQuery inventory. Error: {exc}"
 
 try:
-    event_calendar, event_performance, event_dates, event_sig = load_event_inputs()
+    event_calendar, event_performance, event_dates, event_sig = load_event_inputs(cache_day)
     event_warning = ""
 except Exception as exc:
     event_calendar = pd.DataFrame(columns=["event_code", "start_date", "end_date"])
@@ -308,7 +326,12 @@ has_dictionary_filter = bool(
 )
 selected_asins = selected_asins_from_dictionary(filtered_dictionary) if has_dictionary_filter else None
 summary_cache_key = (
-    "__BASE_ALL_ASINS__",
+    "restock_base_summary_v3",
+    cache_day,
+    "US",
+    input_sig,
+    str(sp_report_id or ""),
+    str(sp_generated_at or ""),
     int(long_term_days),
     int(short_term_days),
     int(projection_days),
@@ -320,10 +343,9 @@ summary_cache_key = (
 )
 
 # Build the expensive per-ASIN Restock summary once per data/config version.
-# Collection/size/color filters intentionally happen after this cached base build
-# so normal filter clicks do not rerun ISR, smart-sales, or event projections.
-_summary_cache_hit = st.session_state.get("restock_summary_cache", {}).get("key") == summary_cache_key
-if _summary_cache_hit:
+# This uses st.cache_data, not session_state, so logout/login can reuse it.
+# Collection/size/color filters happen after the cached base build.
+with st.spinner("Calculating Restock base summary..."):
     base_summary = build_restock_summary_cached(
         summary_cache_key,
         sales_df,
@@ -335,19 +357,6 @@ if _summary_cache_hit:
         event_performance=event_performance,
         selected_asins=None,
     )
-else:
-    with st.spinner("Calculating Restock base summary..."):
-        base_summary = build_restock_summary_cached(
-            summary_cache_key,
-            sales_df,
-            inventory_history,
-            dictionary_df,
-            config=config,
-            event_dates=event_dates,
-            event_calendar=event_calendar,
-            event_performance=event_performance,
-            selected_asins=None,
-        )
 summary = rd.filter_summary_by_asins(base_summary, selected_asins) if has_dictionary_filter else base_summary
 
 search = st.text_input("Secondary search (ASIN / title / SKU)", value="").strip().lower()
