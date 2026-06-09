@@ -204,6 +204,34 @@ def test_velocity_excludes_event_dates_when_toggle_off():
     assert included.iloc[0]["avg units"] == 74
 
 
+def test_build_restock_summary_includes_size_and_color_metadata():
+    sales = pd.DataFrame(
+        [
+            {"date": "2026-06-07", "asin": "A1", "unit_sales": 2, "dollar_sales": 20},
+            {"date": "2026-06-08", "asin": "A1", "unit_sales": 2, "dollar_sales": 20},
+            {"date": "2026-06-09", "asin": "A1", "unit_sales": 0, "dollar_sales": 0},
+        ]
+    )
+    inv = pd.DataFrame(
+        [{"date": "2026-06-09", "asin": "A1", "available": 10, "fba_inventory": 20, "inbound_shipped": 0, "total_inventory": 20}]
+    )
+    dictionary = pd.DataFrame(
+        [{"sku": "S1", "asin": "A1", "collection": "Iconic", "sub_collection": "Sheets", "size": "King", "color": "White"}]
+    )
+
+    summary = rd.build_restock_summary(
+        sales,
+        inv,
+        dictionary,
+        rd.RestockConfig(top_n=1, long_term_days=2, short_term_days=1, include_events=True),
+    )
+
+    row = summary.iloc[0]
+    assert row["collection"] == "Iconic"
+    assert row["size"] == "King"
+    assert row["color"] == "White"
+
+
 def test_build_restock_summary_empty_selected_asins_returns_empty():
     summary = rd.build_restock_summary(
         pd.DataFrame(columns=["date", "asin", "unit_sales", "dollar_sales"]),

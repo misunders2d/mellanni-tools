@@ -31,6 +31,8 @@ SUMMARY_COLUMNS = [
     "asin",
     "collection",
     "sub_collection",
+    "size",
+    "color",
     "short_title",
     "sku_count",
     "skus",
@@ -219,7 +221,7 @@ def calculate_smart_asin_sales(
 
 
 def normalize_dictionary(dictionary: pd.DataFrame) -> pd.DataFrame:
-    needed = ["sku", "asin", "collection", "sub_collection", "short_title"]
+    needed = ["sku", "asin", "collection", "sub_collection", "size", "color", "short_title"]
     cols = [c for c in needed if c in dictionary.columns]
     df = dictionary.loc[:, cols].copy()
     for col in needed:
@@ -497,12 +499,14 @@ def build_restock_summary(
         .agg(
             collection=("collection", lambda s: _join_unique(s, limit=3)),
             sub_collection=("sub_collection", lambda s: _join_unique(s, limit=3)),
+            size=("size", lambda s: _join_unique(s, limit=3)),
+            color=("color", lambda s: _join_unique(s, limit=3)),
             short_title=("short_title", lambda s: _first_non_empty(s)),
             sku_count=("sku", "nunique"),
             skus=("sku", lambda s: _join_unique(s, limit=8)),
         )
         if not dict_norm.empty
-        else pd.DataFrame(columns=["asin", "collection", "sub_collection", "short_title", "sku_count", "skus"])
+        else pd.DataFrame(columns=["asin", "collection", "sub_collection", "size", "color", "short_title", "sku_count", "skus"])
     )
 
     summary = pd.merge(smart_sales, current_inventory, on="asin", how="left", validate="1:1")
@@ -558,7 +562,7 @@ def build_restock_summary(
 
     for col in SUMMARY_COLUMNS:
         if col not in summary.columns:
-            summary[col] = "" if col in {"collection", "sub_collection", "short_title", "skus"} else 0
+            summary[col] = "" if col in {"collection", "sub_collection", "size", "color", "short_title", "skus"} else 0
 
     return (
         summary[SUMMARY_COLUMNS]

@@ -118,6 +118,20 @@ def build_restock_summary_cached(
     return summary
 
 
+def format_variant_label(row: pd.Series) -> str:
+    collection = str(row.get("collection", "")).strip()
+    variant_bits = [
+        str(row.get("size", "")).strip(),
+        str(row.get("color", "")).strip(),
+    ]
+    variant_bits = [bit for bit in variant_bits if bit and bit.lower() != "nan"]
+    if collection and variant_bits:
+        return f"{collection} ({', '.join(variant_bits)})"
+    if collection:
+        return collection
+    return ", ".join(variant_bits)
+
+
 def format_stockout(value) -> str:
     if pd.isna(value):
         return "—"
@@ -145,15 +159,15 @@ def render_card(
     bg_color = "#fff1f1" if alert else "#ffffff"
     stockout_label = format_stockout(row["stockout_date"])
     safe_asin = html.escape(asin)
-    safe_title = html.escape(str(row.get("short_title", "")))
-    safe_collection = html.escape(str(row.get("collection", "")))
+    safe_variant = html.escape(format_variant_label(row))
+    safe_sub_collection = html.escape(str(row.get("sub_collection", "")))
 
     st.markdown(
         f"""
         <div style="border:2px solid {border_color}; background:{bg_color}; border-radius:12px; padding:10px; margin-bottom:6px;">
           <div style="font-weight:800; font-size:0.98rem; line-height:1.15; word-break:break-word;">{'🚨 ' if alert else ''}{safe_asin}</div>
-          <div style="font-size:0.74rem; color:#555; line-height:1.25; min-height:2.5rem; margin-top:4px;">{safe_title}</div>
-          <div style="font-size:0.70rem; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{safe_collection}</div>
+          <div style="font-size:0.74rem; color:#555; line-height:1.25; min-height:2.5rem; margin-top:4px;">{safe_variant}</div>
+          <div style="font-size:0.70rem; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{safe_sub_collection}</div>
           <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:8px;">
             <div><div class="restock-label">Avg $/day</div><div class="restock-value">${row['avg_dollars']:,.0f}</div></div>
             <div><div class="restock-label">Units/day</div><div class="restock-value">{row['avg_units']:,.1f}</div></div>
@@ -343,6 +357,8 @@ with st.expander("Summary table", expanded=False):
                 "asin",
                 "collection",
                 "sku_count",
+                "size",
+                "color",
                 "avg_dollars",
                 "avg_units",
                 "available",
