@@ -13,10 +13,11 @@ from modules import gcloud_modules as gc
 from modules import restock_dashboard as rd
 from modules import spapi_inventory
 from modules.filter_modules import filter_dictionary
+from login import require_login
 
 
 st.set_page_config(page_title="Restock", page_icon="📦", layout="wide")
-# Login muted for this work-in-progress page per owner request.
+require_login()
 
 st.title("📦 Restock")
 st.caption(
