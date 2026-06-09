@@ -351,10 +351,10 @@ with st.spinner("Calculating Restock base summary..."):
         sales_df,
         inventory_history,
         dictionary_df,
-        config=config,
-        event_dates=event_dates,
-        event_calendar=event_calendar,
-        event_performance=event_performance,
+        _config=config,
+        _event_dates=event_dates,
+        _event_calendar=event_calendar,
+        _event_performance=event_performance,
         selected_asins=None,
     )
 summary = rd.filter_summary_by_asins(base_summary, selected_asins) if has_dictionary_filter else base_summary
