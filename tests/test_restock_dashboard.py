@@ -204,6 +204,48 @@ def test_velocity_excludes_event_dates_when_toggle_off():
     assert included.iloc[0]["avg units"] == 74
 
 
+def test_build_restock_summary_empty_selected_asins_returns_empty():
+    summary = rd.build_restock_summary(
+        pd.DataFrame(columns=["date", "asin", "unit_sales", "dollar_sales"]),
+        pd.DataFrame(columns=["date", "asin", "available", "fba_inventory", "inbound_shipped", "total_inventory"]),
+        pd.DataFrame(columns=["sku", "asin"]),
+        selected_asins=(),
+    )
+
+    assert summary.empty
+    assert summary.columns.tolist() == rd.SUMMARY_COLUMNS
+
+
+def test_build_restock_summary_prefilters_selected_asins():
+    inv = pd.DataFrame(
+        [
+            {"date": "2026-06-09", "asin": "A1", "available": 100, "fba_inventory": 100, "inbound_shipped": 0, "total_inventory": 100},
+            {"date": "2026-06-09", "asin": "A2", "available": 100, "fba_inventory": 100, "inbound_shipped": 0, "total_inventory": 100},
+        ]
+    )
+    sales = pd.DataFrame(
+        [
+            {"date": "2026-06-07", "asin": "A1", "unit_sales": 1, "dollar_sales": 100},
+            {"date": "2026-06-08", "asin": "A1", "unit_sales": 1, "dollar_sales": 100},
+            {"date": "2026-06-09", "asin": "A1", "unit_sales": 0, "dollar_sales": 0},
+            {"date": "2026-06-07", "asin": "A2", "unit_sales": 1, "dollar_sales": 200},
+            {"date": "2026-06-08", "asin": "A2", "unit_sales": 1, "dollar_sales": 200},
+            {"date": "2026-06-09", "asin": "A2", "unit_sales": 0, "dollar_sales": 0},
+        ]
+    )
+    dictionary = pd.DataFrame([{"sku": "S1", "asin": "A1"}, {"sku": "S2", "asin": "A2"}])
+
+    summary = rd.build_restock_summary(
+        sales,
+        inv,
+        dictionary,
+        rd.RestockConfig(top_n=10, long_term_days=2, short_term_days=1, include_events=True),
+        selected_asins=("A1",),
+    )
+
+    assert summary["asin"].tolist() == ["A1"]
+
+
 def test_apply_summary_filters_red_alerts_and_dictionary_asins():
     summary = pd.DataFrame(
         [

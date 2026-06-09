@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Iterable
+from typing import Iterable, Collection
 
 import numpy as np
 import pandas as pd
@@ -456,7 +456,24 @@ def build_restock_summary(
     event_dates: Iterable[date] | None = None,
     event_calendar: pd.DataFrame | None = None,
     event_performance: pd.DataFrame | None = None,
+    selected_asins: Collection[str] | None = None,
 ) -> pd.DataFrame:
+    selected_asin_set = (
+        {str(asin).strip() for asin in selected_asins if str(asin).strip()}
+        if selected_asins is not None
+        else None
+    )
+    if selected_asin_set is not None and not selected_asin_set:
+        return pd.DataFrame(columns=SUMMARY_COLUMNS)
+
+    if selected_asin_set is not None:
+        if "asin" in sales.columns:
+            sales = sales[sales["asin"].astype(str).isin(selected_asin_set)].copy()
+        if "asin" in inventory_history.columns:
+            inventory_history = inventory_history[inventory_history["asin"].astype(str).isin(selected_asin_set)].copy()
+        if "asin" in dictionary.columns:
+            dictionary = dictionary[dictionary["asin"].astype(str).isin(selected_asin_set)].copy()
+
     if inventory_history.empty and sales.empty:
         return pd.DataFrame(columns=SUMMARY_COLUMNS)
 

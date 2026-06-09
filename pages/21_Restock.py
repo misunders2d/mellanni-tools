@@ -63,6 +63,61 @@ def load_event_inputs() -> tuple[pd.DataFrame, pd.DataFrame, list[date]]:
     return calendar, performance, event_dates
 
 
+def selected_asins_from_dictionary(dictionary: pd.DataFrame) -> tuple[str, ...]:
+    if dictionary.empty or "asin" not in dictionary.columns:
+        return tuple()
+    return tuple(
+        sorted(
+            {
+                str(asin).strip()
+                for asin in dictionary["asin"].dropna().astype(str).tolist()
+                if str(asin).strip()
+            }
+        )
+    )
+
+
+def event_signature(calendar: pd.DataFrame, performance: pd.DataFrame) -> tuple:
+    calendar_sig = tuple(
+        calendar[["event_code", "start_date", "end_date"]].astype(str).itertuples(index=False, name=None)
+    ) if not calendar.empty else tuple()
+    performance_hash = (
+        int(pd.util.hash_pandas_object(performance.astype(str), index=True).sum())
+        if not performance.empty
+        else 0
+    )
+    return (calendar_sig, tuple(performance.columns.astype(str).tolist()), tuple(performance.shape), performance_hash)
+
+
+def build_restock_summary_cached(
+    cache_key: tuple,
+    sales: pd.DataFrame,
+    inventory_history: pd.DataFrame,
+    dictionary: pd.DataFrame,
+    config: rd.RestockConfig,
+    event_dates: list[date],
+    event_calendar: pd.DataFrame,
+    event_performance: pd.DataFrame,
+    selected_asins: tuple[str, ...] | None,
+) -> pd.DataFrame:
+    cached = st.session_state.get("restock_summary_cache")
+    if cached and cached.get("key") == cache_key:
+        return cached["summary"].copy()
+
+    summary = rd.build_restock_summary(
+        sales,
+        inventory_history,
+        dictionary,
+        config=config,
+        event_dates=event_dates,
+        event_calendar=event_calendar,
+        event_performance=event_performance,
+        selected_asins=selected_asins,
+    )
+    st.session_state.restock_summary_cache = {"key": cache_key, "summary": summary.copy()}
+    return summary
+
+
 def format_stockout(value) -> str:
     if pd.isna(value):
         return "—"
@@ -151,11 +206,13 @@ if refresh:
     load_restock_inputs.clear()
     load_sp_inventory_snapshot.clear()
     load_event_inputs.clear()
+    st.session_state.pop("restock_summary_cache", None)
     st.rerun()
 
 force_token = ""
 if force_spapi_refresh:
     load_sp_inventory_snapshot.clear()
+    st.session_state.pop("restock_summary_cache", None)
     force_token = pd.Timestamp.utcnow().isoformat()
 
 config = rd.RestockConfig(
@@ -207,20 +264,6 @@ except Exception as exc:
     event_dates = []
     event_warning = f"Event calendar unavailable; velocity/projection use no event dates. Error: {exc}"
 
-summary = rd.build_restock_summary(
-    sales_df,
-    inventory_history,
-    dictionary_df,
-    config=config,
-    event_dates=event_dates,
-    event_calendar=event_calendar,
-    event_performance=event_performance,
-)
-
-if summary.empty:
-    st.warning("No Restock data available.")
-    st.stop()
-
 latest_inventory_date = inventory_history["date"].max() if not inventory_history.empty else None
 latest_sales_date = pd.to_datetime(sales_df["date"]).dt.date.max() if not sales_df.empty else None
 
@@ -245,10 +288,41 @@ filtered_dictionary = filter_dictionary(
     color_target=filter_cols[2],
     clear_btn_target=filter_cols[3],
 )
+has_dictionary_filter = bool(
+    st.session_state.get("sel_col") or st.session_state.get("sel_size") or st.session_state.get("sel_color")
+)
+selected_asins = selected_asins_from_dictionary(filtered_dictionary) if has_dictionary_filter else None
+summary_cache_key = (
+    selected_asins if selected_asins is not None else ("__ALL_ASINS__",),
+    int(long_term_days),
+    int(short_term_days),
+    int(projection_days),
+    int(alert_days),
+    bool(include_events),
+    str(latest_inventory_date),
+    str(latest_sales_date),
+    event_signature(event_calendar, event_performance),
+)
+
+if selected_asins is not None and not selected_asins:
+    summary = pd.DataFrame(columns=rd.SUMMARY_COLUMNS)
+else:
+    with st.spinner("Calculating Restock summary for selected filters..."):
+        summary = build_restock_summary_cached(
+            summary_cache_key,
+            sales_df,
+            inventory_history,
+            dictionary_df,
+            config=config,
+            event_dates=event_dates,
+            event_calendar=event_calendar,
+            event_performance=event_performance,
+            selected_asins=selected_asins,
+        )
+
 search = st.text_input("Secondary search (ASIN / title / SKU)", value="").strip().lower()
 visible = rd.apply_summary_filters(
     summary,
-    filtered_dictionary=filtered_dictionary,
     red_alerts_only=red_alerts_only,
     search=search,
 ).head(int(top_n))
