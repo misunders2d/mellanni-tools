@@ -98,3 +98,86 @@ def test_download_report_dataframe_parses_tsv():
 
     assert df.iloc[0]["sku"] == "S1"
     assert df.iloc[0]["afn-total-quantity"] == 12
+
+
+def _patch_reports(monkey_client):
+    original_reports = inv.Reports
+    original_credentials = inv.get_spapi_credentials
+    inv.Reports = lambda credentials: monkey_client
+    inv.get_spapi_credentials = lambda: {"refresh_token": "x", "lwa_app_id": "x", "lwa_client_secret": "x"}
+    return original_reports, original_credentials
+
+
+def _restore_reports(original_reports, original_credentials):
+    inv.Reports = original_reports
+    inv.get_spapi_credentials = original_credentials
+
+
+def test_request_inventory_report_reuses_same_day_by_default():
+    client = FakeReportsClient(
+        reports=[
+            {
+                "reportId": "today",
+                "reportType": inv.REPORT_TYPE_NAME,
+                "processingStatus": "DONE",
+                "createdTime": datetime.now(timezone.utc).isoformat(),
+                "reportDocumentId": "doc-today",
+            }
+        ]
+    )
+    original_reports, original_credentials = _patch_reports(client)
+    try:
+        result = inv.request_inventory_report()
+    finally:
+        _restore_reports(original_reports, original_credentials)
+
+    assert result.report_id == "today"
+    assert client.created == 0
+    assert client.downloaded == 1
+
+
+def test_request_inventory_report_force_fresh_bypasses_reusable_report():
+    client = FakeReportsClient(
+        reports=[
+            {
+                "reportId": "today",
+                "reportType": inv.REPORT_TYPE_NAME,
+                "processingStatus": "DONE",
+                "createdTime": datetime.now(timezone.utc).isoformat(),
+                "reportDocumentId": "doc-today",
+            }
+        ],
+        statuses=[{"reportId": "new-report", "processingStatus": "DONE", "reportDocumentId": "doc-new"}],
+    )
+    original_reports, original_credentials = _patch_reports(client)
+    try:
+        result = inv.request_inventory_report(force_fresh=True)
+    finally:
+        _restore_reports(original_reports, original_credentials)
+
+    assert result.report_id == "new-report"
+    assert client.created == 1
+    assert client.polled == 1
+
+
+def test_request_inventory_report_force_fresh_timeout_falls_back_to_reusable_report():
+    client = FakeReportsClient(
+        reports=[
+            {
+                "reportId": "today",
+                "reportType": inv.REPORT_TYPE_NAME,
+                "processingStatus": "DONE",
+                "createdTime": datetime.now(timezone.utc).isoformat(),
+                "reportDocumentId": "doc-today",
+            }
+        ],
+        statuses=[{"reportId": "new-report", "processingStatus": "IN_PROGRESS"}],
+    )
+    original_reports, original_credentials = _patch_reports(client)
+    try:
+        result = inv.request_inventory_report(force_fresh=True, poll_seconds=0, max_wait_seconds=0)
+    finally:
+        _restore_reports(original_reports, original_credentials)
+
+    assert result.report_id == "today"
+    assert client.created == 1

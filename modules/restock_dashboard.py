@@ -644,6 +644,39 @@ def make_inventory_chart_options(series: pd.DataFrame, asin: str, alert: bool = 
     }
 
 
+def apply_summary_filters(
+    summary: pd.DataFrame,
+    filtered_dictionary: pd.DataFrame | None = None,
+    red_alerts_only: bool = False,
+    search: str = "",
+) -> pd.DataFrame:
+    """Apply Restock visible-row filters in the same order the page displays them."""
+    visible = summary.copy()
+    if filtered_dictionary is not None and not filtered_dictionary.empty and "asin" in filtered_dictionary.columns:
+        selected_asins = {
+            str(asin).strip()
+            for asin in filtered_dictionary["asin"].dropna().astype(str).tolist()
+            if str(asin).strip()
+        }
+        if selected_asins:
+            visible = visible[visible["asin"].astype(str).isin(selected_asins)]
+
+    query = str(search or "").strip().lower()
+    if query:
+        mask = (
+            visible["asin"].astype(str).str.lower().str.contains(query, na=False)
+            | visible["short_title"].astype(str).str.lower().str.contains(query, na=False)
+            | visible["collection"].astype(str).str.lower().str.contains(query, na=False)
+            | visible["skus"].astype(str).str.lower().str.contains(query, na=False)
+        )
+        visible = visible[mask]
+
+    if red_alerts_only:
+        visible = visible[visible["alert"].astype(bool)]
+
+    return visible.reset_index(drop=True)
+
+
 def build_sales_query(days_to_pull: int) -> str:
     return f"""
         SELECT

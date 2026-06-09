@@ -204,6 +204,35 @@ def test_velocity_excludes_event_dates_when_toggle_off():
     assert included.iloc[0]["avg units"] == 74
 
 
+def test_apply_summary_filters_red_alerts_and_dictionary_asins():
+    summary = pd.DataFrame(
+        [
+            {"asin": "A1", "alert": True, "short_title": "One", "collection": "C1", "skus": "S1", "fba_inventory": 10},
+            {"asin": "A2", "alert": False, "short_title": "Two", "collection": "C2", "skus": "S2", "fba_inventory": 20},
+            {"asin": "A3", "alert": True, "short_title": "Three", "collection": "C3", "skus": "S3", "fba_inventory": 30},
+        ]
+    )
+    filtered_dict = pd.DataFrame([{"asin": "A1"}, {"asin": "A2"}])
+
+    visible = rd.apply_summary_filters(summary, filtered_dictionary=filtered_dict, red_alerts_only=True)
+
+    assert visible["asin"].tolist() == ["A1"]
+
+
+def test_apply_summary_filters_secondary_search_intersects_dictionary_filter():
+    summary = pd.DataFrame(
+        [
+            {"asin": "A1", "alert": True, "short_title": "Blue Sheet", "collection": "C1", "skus": "S1"},
+            {"asin": "A2", "alert": False, "short_title": "Gray Sheet", "collection": "C2", "skus": "S2"},
+        ]
+    )
+    filtered_dict = pd.DataFrame([{"asin": "A1"}, {"asin": "A2"}])
+
+    visible = rd.apply_summary_filters(summary, filtered_dictionary=filtered_dict, search="gray")
+
+    assert visible["asin"].tolist() == ["A2"]
+
+
 def test_projection_replaces_baseline_with_event_forecast_day():
     calendar = rd.normalize_event_calendar(
         pd.DataFrame([{"event_code": "PD", "start_date": "2026-06-10", "end_date": "2026-06-11"}])

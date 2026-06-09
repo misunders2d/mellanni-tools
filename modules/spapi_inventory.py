@@ -166,22 +166,30 @@ def request_inventory_report(
     poll_seconds: int = DEFAULT_POLL_SECONDS,
     max_wait_seconds: int = DEFAULT_TIMEOUT_SECONDS,
     marketplace_id: str = MARKETPLACE_ID_US,
+    force_fresh: bool = False,
 ) -> InventoryReportResult:
-    """Reuse today's completed MYI report when possible; otherwise create one and wait boundedly."""
+    """Reuse today's completed MYI report unless force_fresh requests a new bounded report."""
     report_client = Reports(credentials=get_spapi_credentials())
     reusable = _latest_completed_same_day_report(report_client, marketplace_id=marketplace_id)
 
-    if reusable:
+    if reusable and not force_fresh:
         status = reusable
         report_id = str(status.get("reportId") or "") or None
     else:
-        report_id = _create_inventory_report(report_client, marketplace_id)
-        status = _wait_for_report_done(
-            report_client,
-            report_id,
-            poll_seconds=poll_seconds,
-            max_wait_seconds=max_wait_seconds,
-        )
+        try:
+            report_id = _create_inventory_report(report_client, marketplace_id)
+            status = _wait_for_report_done(
+                report_client,
+                report_id,
+                poll_seconds=poll_seconds,
+                max_wait_seconds=max_wait_seconds,
+            )
+        except TimeoutError:
+            if reusable:
+                status = reusable
+                report_id = str(status.get("reportId") or "") or None
+            else:
+                raise
 
     document_id = status.get("reportDocumentId")
     if not document_id and report_id:

@@ -12,6 +12,7 @@ from modules import event_sheets
 from modules import gcloud_modules as gc
 from modules import restock_dashboard as rd
 from modules import spapi_inventory
+from modules.filter_modules import filter_dictionary
 
 
 st.set_page_config(page_title="Restock", page_icon="📦", layout="wide")
@@ -43,8 +44,12 @@ def load_restock_inputs(long_term_days: int, history_days: int) -> tuple[pd.Data
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def load_sp_inventory_snapshot(cache_day: str) -> tuple[pd.DataFrame, str | None, str]:
-    result = spapi_inventory.request_inventory_report()
+def load_sp_inventory_snapshot(
+    cache_day: str,
+    force_fresh: bool = False,
+    force_token: str = "",
+) -> tuple[pd.DataFrame, str | None, str]:
+    result = spapi_inventory.request_inventory_report(force_fresh=force_fresh)
     normalized = rd.normalize_sp_inventory_report(result.data, snapshot_date=cache_day)
     current = rd.aggregate_inventory_history(normalized)
     return current, result.report_id, result.generated_at.isoformat()
@@ -135,15 +140,26 @@ with st.sidebar:
     long_term_days = st.number_input("Long-term avg days", min_value=60, max_value=365, value=180, step=10)
     short_term_days = st.number_input("Short-term avg days", min_value=7, max_value=45, value=14, step=1)
     include_events = st.toggle("Include event days in velocity", value=False)
-    refresh = st.button("Refresh data")
+    red_alerts_only = st.toggle("Red alerts only (current filters)", value=False)
+    refresh = st.button("Refresh all data")
+    force_spapi_refresh = st.button(
+        "Force fresh SP-API inventory",
+        help="Requests a new Amazon MYI inventory report. If Amazon is still generating it, the app falls back safely.",
+    )
 
 if refresh:
     load_restock_inputs.clear()
-    st.cache_data.clear()
+    load_sp_inventory_snapshot.clear()
+    load_event_inputs.clear()
     st.rerun()
 
+force_token = ""
+if force_spapi_refresh:
+    load_sp_inventory_snapshot.clear()
+    force_token = pd.Timestamp.utcnow().isoformat()
+
 config = rd.RestockConfig(
-    top_n=int(top_n),
+    top_n=5000,
     long_term_days=int(long_term_days),
     short_term_days=int(short_term_days),
     history_days=30,
@@ -169,7 +185,11 @@ sp_report_id = None
 sp_generated_at = ""
 try:
     with st.spinner("Loading SP-API current inventory report..."):
-        sp_current_inventory, sp_report_id, sp_generated_at = load_sp_inventory_snapshot(date.today().isoformat())
+        sp_current_inventory, sp_report_id, sp_generated_at = load_sp_inventory_snapshot(
+            date.today().isoformat(),
+            force_fresh=force_spapi_refresh,
+            force_token=force_token,
+        )
     if not sp_current_inventory.empty:
         inventory_history = rd.apply_current_inventory_snapshot(inventory_history, sp_current_inventory)
         inventory_source = "SP-API GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA"
@@ -204,13 +224,6 @@ if summary.empty:
 latest_inventory_date = inventory_history["date"].max() if not inventory_history.empty else None
 latest_sales_date = pd.to_datetime(sales_df["date"]).dt.date.max() if not sales_df.empty else None
 
-kpi_cols = st.columns(5)
-kpi_cols[0].metric("ASINs shown", f"{len(summary):,}")
-kpi_cols[1].metric("Red alerts", f"{int(summary['alert'].sum()):,}")
-kpi_cols[2].metric("Total FBA", f"{summary['fba_inventory'].sum():,.0f}")
-kpi_cols[3].metric("Avg $/day", f"${summary['avg_dollars'].sum():,.0f}")
-kpi_cols[4].metric("Avg units/day", f"{summary['avg_units'].sum():,.0f}")
-
 if inventory_warning:
     st.warning(inventory_warning)
 if event_warning:
@@ -224,16 +237,28 @@ st.caption(
     "Smart velocity uses ISR-adjusted short/long averages; event dates come from Google Sheet event_calendar."
 )
 
-search = st.text_input("Filter shown ASINs / title / collection", value="").strip().lower()
-visible = summary.copy()
-if search:
-    mask = (
-        visible["asin"].astype(str).str.lower().str.contains(search, na=False)
-        | visible["short_title"].astype(str).str.lower().str.contains(search, na=False)
-        | visible["collection"].astype(str).str.lower().str.contains(search, na=False)
-        | visible["skus"].astype(str).str.lower().str.contains(search, na=False)
-    )
-    visible = visible[mask]
+st.session_state.dictionary = dictionary_df.copy()
+filter_cols = st.columns([2, 1, 1, 1])
+filtered_dictionary = filter_dictionary(
+    coll_target=filter_cols[0],
+    size_target=filter_cols[1],
+    color_target=filter_cols[2],
+    clear_btn_target=filter_cols[3],
+)
+search = st.text_input("Secondary search (ASIN / title / SKU)", value="").strip().lower()
+visible = rd.apply_summary_filters(
+    summary,
+    filtered_dictionary=filtered_dictionary,
+    red_alerts_only=red_alerts_only,
+    search=search,
+).head(int(top_n))
+
+kpi_cols = st.columns(5)
+kpi_cols[0].metric("ASINs shown", f"{len(visible):,}")
+kpi_cols[1].metric("Red alerts", f"{int(visible['alert'].sum()):,}")
+kpi_cols[2].metric("Total FBA", f"{visible['fba_inventory'].sum():,.0f}")
+kpi_cols[3].metric("Avg $/day", f"${visible['avg_dollars'].sum():,.0f}")
+kpi_cols[4].metric("Avg units/day", f"{visible['avg_units'].sum():,.0f}")
 
 with st.expander("Summary table", expanded=False):
     display = visible.copy()
