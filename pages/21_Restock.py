@@ -56,11 +56,12 @@ def load_sp_inventory_snapshot(
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def load_event_inputs() -> tuple[pd.DataFrame, pd.DataFrame, list[date]]:
+def load_event_inputs() -> tuple[pd.DataFrame, pd.DataFrame, list[date], tuple]:
     calendar = rd.normalize_event_calendar(event_sheets.read_event_calendar())
     performance = event_sheets.read_event_performance()
     event_dates = rd.expand_event_dates(calendar)
-    return calendar, performance, event_dates
+    signature = event_signature(calendar, performance)
+    return calendar, performance, event_dates, signature
 
 
 def selected_asins_from_dictionary(dictionary: pd.DataFrame) -> tuple[str, ...]:
@@ -268,12 +269,13 @@ except Exception as exc:
     inventory_warning = f"SP-API inventory unavailable; using latest BigQuery inventory. Error: {exc}"
 
 try:
-    event_calendar, event_performance, event_dates = load_event_inputs()
+    event_calendar, event_performance, event_dates, event_sig = load_event_inputs()
     event_warning = ""
 except Exception as exc:
     event_calendar = pd.DataFrame(columns=["event_code", "start_date", "end_date"])
     event_performance = pd.DataFrame()
     event_dates = []
+    event_sig = tuple()
     event_warning = f"Event calendar unavailable; velocity/projection use no event dates. Error: {exc}"
 
 latest_inventory_date = inventory_history["date"].max() if not inventory_history.empty else None
@@ -305,7 +307,7 @@ has_dictionary_filter = bool(
 )
 selected_asins = selected_asins_from_dictionary(filtered_dictionary) if has_dictionary_filter else None
 summary_cache_key = (
-    selected_asins if selected_asins is not None else ("__ALL_ASINS__",),
+    "__BASE_ALL_ASINS__",
     int(long_term_days),
     int(short_term_days),
     int(projection_days),
@@ -313,14 +315,28 @@ summary_cache_key = (
     bool(include_events),
     str(latest_inventory_date),
     str(latest_sales_date),
-    event_signature(event_calendar, event_performance),
+    event_sig,
 )
 
-if selected_asins is not None and not selected_asins:
-    summary = pd.DataFrame(columns=rd.SUMMARY_COLUMNS)
+# Build the expensive per-ASIN Restock summary once per data/config version.
+# Collection/size/color filters intentionally happen after this cached base build
+# so normal filter clicks do not rerun ISR, smart-sales, or event projections.
+_summary_cache_hit = st.session_state.get("restock_summary_cache", {}).get("key") == summary_cache_key
+if _summary_cache_hit:
+    base_summary = build_restock_summary_cached(
+        summary_cache_key,
+        sales_df,
+        inventory_history,
+        dictionary_df,
+        config=config,
+        event_dates=event_dates,
+        event_calendar=event_calendar,
+        event_performance=event_performance,
+        selected_asins=None,
+    )
 else:
-    with st.spinner("Calculating Restock summary for selected filters..."):
-        summary = build_restock_summary_cached(
+    with st.spinner("Calculating Restock base summary..."):
+        base_summary = build_restock_summary_cached(
             summary_cache_key,
             sales_df,
             inventory_history,
@@ -329,8 +345,9 @@ else:
             event_dates=event_dates,
             event_calendar=event_calendar,
             event_performance=event_performance,
-            selected_asins=selected_asins,
+            selected_asins=None,
         )
+summary = rd.filter_summary_by_asins(base_summary, selected_asins) if has_dictionary_filter else base_summary
 
 search = st.text_input("Secondary search (ASIN / title / SKU)", value="").strip().lower()
 visible = rd.apply_summary_filters(

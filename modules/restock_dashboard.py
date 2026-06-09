@@ -665,6 +665,22 @@ def make_inventory_chart_options(series: pd.DataFrame, asin: str, alert: bool = 
     }
 
 
+def filter_summary_by_asins(summary: pd.DataFrame, selected_asins: Collection[str] | None) -> pd.DataFrame:
+    """Filter an already-built per-ASIN summary without recalculating Restock metrics.
+
+    Collection/size/color filters are presentation filters over per-ASIN metrics;
+    they intentionally do not change ISR, smart velocity, or projection math.
+    """
+    if selected_asins is None:
+        return summary
+    if "asin" not in summary.columns:
+        raise ValueError("Restock summary must include an 'asin' column before ASIN filtering.")
+    selected_asin_set = {str(asin).strip() for asin in selected_asins if str(asin).strip()}
+    if not selected_asin_set:
+        return pd.DataFrame(columns=summary.columns)
+    return summary[summary["asin"].astype(str).isin(selected_asin_set)].copy()
+
+
 def apply_summary_filters(
     summary: pd.DataFrame,
     filtered_dictionary: pd.DataFrame | None = None,

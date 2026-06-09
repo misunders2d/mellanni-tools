@@ -274,6 +274,31 @@ def test_build_restock_summary_prefilters_selected_asins():
     assert summary["asin"].tolist() == ["A1"]
 
 
+def test_filter_summary_by_asins_filters_cached_summary_without_recompute_inputs():
+    summary = pd.DataFrame(
+        [
+            {"asin": "A1", "avg_dollars": 100},
+            {"asin": "A2", "avg_dollars": 200},
+            {"asin": "A3", "avg_dollars": 300},
+        ]
+    )
+
+    filtered = rd.filter_summary_by_asins(summary, ("A1", "A3"))
+    filtered_from_set = rd.filter_summary_by_asins(summary, {"A2"})
+    empty_tuple = rd.filter_summary_by_asins(summary, tuple())
+    empty_list = rd.filter_summary_by_asins(summary, [])
+    empty_index = rd.filter_summary_by_asins(summary, pd.Index([]))
+    all_rows = rd.filter_summary_by_asins(summary, None)
+
+    assert filtered["asin"].tolist() == ["A1", "A3"]
+    assert filtered_from_set["asin"].tolist() == ["A2"]
+    assert empty_tuple.empty
+    assert empty_list.empty
+    assert empty_index.empty
+    assert empty_tuple.columns.tolist() == summary.columns.tolist()
+    assert all_rows is summary
+
+
 def test_apply_summary_filters_red_alerts_and_dictionary_asins():
     summary = pd.DataFrame(
         [
