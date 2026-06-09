@@ -33,7 +33,7 @@ col1, col2 = st.columns([10, 3])
 require_login()
 
 user_email = st.user.email
-user_email = "ethan@mellanni.com"
+# user_email = "ethan@mellanni.com"
 st.write(user_email)
 
 with col2:
