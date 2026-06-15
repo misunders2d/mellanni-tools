@@ -274,6 +274,22 @@ def test_build_restock_summary_prefilters_selected_asins():
     assert summary["asin"].tolist() == ["A1"]
 
 
+def test_apply_alert_threshold_updates_cached_summary_without_rebuilding():
+    base = pd.DataFrame(
+        [
+            {"asin": "A1", "days_to_stockout": 5, "alert": False},
+            {"asin": "A2", "days_to_stockout": 20, "alert": True},
+        ]
+    )
+
+    strict = rd.apply_alert_threshold(base, 7)
+    relaxed = rd.apply_alert_threshold(base, 21)
+
+    assert strict["alert"].tolist() == [True, False]
+    assert relaxed["alert"].tolist() == [True, True]
+    assert base["alert"].tolist() == [False, True]
+
+
 def test_filter_summary_by_asins_filters_cached_summary_without_recompute_inputs():
     summary = pd.DataFrame(
         [

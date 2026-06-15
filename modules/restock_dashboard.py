@@ -665,6 +665,16 @@ def make_inventory_chart_options(series: pd.DataFrame, asin: str, alert: bool = 
     }
 
 
+def apply_alert_threshold(summary: pd.DataFrame, alert_days: int) -> pd.DataFrame:
+    """Apply UI alert threshold without rebuilding Restock base metrics."""
+    visible = summary.copy()
+    if "days_to_stockout" not in visible.columns:
+        visible["days_to_stockout"] = np.inf
+    visible["days_to_stockout"] = pd.to_numeric(visible["days_to_stockout"], errors="coerce").fillna(np.inf)
+    visible["alert"] = visible["days_to_stockout"] < int(alert_days)
+    return visible
+
+
 def filter_summary_by_asins(summary: pd.DataFrame, selected_asins: Collection[str] | None) -> pd.DataFrame:
     """Filter an already-built per-ASIN summary without recalculating Restock metrics.
 

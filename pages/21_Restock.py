@@ -19,6 +19,8 @@ from login import require_login
 st.set_page_config(page_title="Restock", page_icon="📦", layout="wide")
 require_login()
 
+BASE_PROJECTION_DAYS = 90
+
 st.title("📦 Restock")
 st.caption(
     "Top ASINs by smart average daily sales ($). Current inventory uses SP-API MYI report when available. Lines: Available + Total FBA."
@@ -207,11 +209,13 @@ def render_card(
     )
     opts = rd.make_inventory_chart_options(series, asin, alert=alert)
     st_echarts(opts, height="210px", key=f"restock_{asin}")
+    projected_values = series.get("projected_inventory", pd.Series(dtype=float)).dropna()
+    projected_remaining = float(projected_values.iloc[-1]) if not projected_values.empty else float(row.get("projected_inventory_30d", 0) or 0)
     with st.expander(f"SKUs ({int(row['sku_count'])})", expanded=False):
         st.write(row.get("skus", ""))
         st.caption(
             f"ISR: {row['isr']:.0%} long / {row['isr_short']:.0%} short · "
-            f"30d projected remaining: {row['projected_inventory_30d']:,.0f}"
+            f"{projection_days}d projected remaining: {projected_remaining:,.0f}"
         )
 
 
@@ -219,7 +223,7 @@ with st.sidebar:
     st.header("Controls")
     top_n = st.number_input("Top ASINs", min_value=4, max_value=100, value=20, step=4)
     grid_columns = st.number_input("Grid columns", min_value=1, max_value=5, value=4, step=1)
-    projection_days = st.number_input("Projection days", min_value=7, max_value=90, value=30, step=1)
+    projection_days = st.number_input("Projection days", min_value=7, max_value=BASE_PROJECTION_DAYS, value=30, step=1)
     alert_days = st.number_input("Red alert if stockout < days", min_value=1, max_value=60, value=21, step=1)
     long_term_days = st.number_input("Long-term avg days", min_value=60, max_value=365, value=180, step=10)
     short_term_days = st.number_input("Short-term avg days", min_value=7, max_value=45, value=14, step=1)
@@ -246,12 +250,14 @@ if force_spapi_refresh:
     build_restock_summary_cached.clear()
     force_token = pd.Timestamp.utcnow().isoformat()
 
+# Keep the cached base at the full UI horizon. UI projection-day changes only
+# affect visible card charts/captions, not the expensive base summary cache.
 config = rd.RestockConfig(
     top_n=5000,
     long_term_days=int(long_term_days),
     short_term_days=int(short_term_days),
     history_days=30,
-    projection_days=int(projection_days),
+    projection_days=BASE_PROJECTION_DAYS,
     alert_days=int(alert_days),
     include_events=include_events,
 )
@@ -261,7 +267,7 @@ try:
         sales_df, raw_inventory_df, dictionary_df, input_sig = load_restock_inputs(
             cache_day,
             int(long_term_days),
-            max(30, int(projection_days)),
+            30,
         )
 except Exception as exc:
     st.error(f"Could not load Restock data: {exc}")
@@ -326,7 +332,7 @@ has_dictionary_filter = bool(
 )
 selected_asins = selected_asins_from_dictionary(filtered_dictionary) if has_dictionary_filter else None
 summary_cache_key = (
-    "restock_base_summary_v3",
+    "restock_base_summary_v4",
     cache_day,
     "US",
     input_sig,
@@ -334,8 +340,7 @@ summary_cache_key = (
     str(sp_generated_at or ""),
     int(long_term_days),
     int(short_term_days),
-    int(projection_days),
-    int(alert_days),
+    BASE_PROJECTION_DAYS,
     bool(include_events),
     str(latest_inventory_date),
     str(latest_sales_date),
@@ -358,6 +363,7 @@ with st.spinner("Calculating Restock base summary..."):
         selected_asins=None,
     )
 summary = rd.filter_summary_by_asins(base_summary, selected_asins) if has_dictionary_filter else base_summary
+summary = rd.apply_alert_threshold(summary, int(alert_days))
 
 search = st.text_input("Secondary search (ASIN / title / SKU)", value="").strip().lower()
 visible = rd.apply_summary_filters(
