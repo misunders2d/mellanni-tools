@@ -152,7 +152,8 @@ def update_sc_image(
         response = listings_client.patch_listings_item(
             sellerId=SELLER_ID, sku=sku, marketplaceIds=MARKETPLACE_IDS, body=patch_body
         )
-        return f"{op.upper()} SUCCESS for {sku} with status {response.payload['status']}:\n {'\n'.join(images)}\n\n"
+        image_names = "\n".join(images)
+        return f"{op.upper()} SUCCESS for {sku} with status {response.payload['status']}:\n {image_names}\n\n"
     except Exception as e:
         return f"ERROR: failed to {op} image for {sku}:\n{e}"
 
@@ -200,15 +201,30 @@ def extract_prices_from_listing(
 
     our_price = None
     currency = None
-    for offer in attrs.get("purchasable_offer", []) or []:
-        if offer.get("marketplace_id") and offer["marketplace_id"] != marketplace_id:
-            continue
-        if offer.get("currency"):
-            currency = offer["currency"]
+    marketplace_offers = [
+        offer
+        for offer in attrs.get("purchasable_offer", []) or []
+        if not offer.get("marketplace_id") or offer["marketplace_id"] == marketplace_id
+    ]
+    preferred_offers = [
+        offer
+        for offer in marketplace_offers
+        if str(offer.get("audience") or "").upper() in {"ALL", "B2C"}
+    ]
+    fallback_offers = [
+        offer
+        for offer in marketplace_offers
+        if str(offer.get("audience") or "").upper() not in {"ALL", "B2C", "B2B"}
+    ]
+
+    # Listings can contain separate B2B and consumer offers. The pricing UI shows
+    # Seller Central's consumer price, so prefer ALL/B2C and never use B2B.
+    for offer in preferred_offers + fallback_offers:
         schedule = (offer.get("our_price") or [{}])[0].get("schedule") or []
         if schedule:
             our_price = schedule[0].get("value_with_tax")
         if our_price is not None:
+            currency = offer.get("currency") or currency
             break
 
     list_price = None
