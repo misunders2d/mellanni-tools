@@ -562,19 +562,33 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
     return asin_sales
 
 
+required_sales_cache_cols = {"change_notes", "has_sales_row"}
+sales_state = st.session_state.get("sales")
+sales_state_stale = isinstance(sales_state, pd.DataFrame) and not required_sales_cache_cols.issubset(
+    sales_state.columns
+)
+
 if (
-    "sales" not in st.session_state
+    sales_state_stale
+    or "sales" not in st.session_state
     or "sessions" not in st.session_state
     or "ads" not in st.session_state
     or "forecast" not in st.session_state
 ):
-    if (
+    cache_files_exist = (
         os.path.exists(sales_tempfile)
         and os.path.exists(sessions_tempfile)
         and os.path.exists(ads_tempfile)
         and os.path.exists(forecast_tempfile)
-    ):
-        st.session_state["sales"] = pd.read_parquet(sales_tempfile)
+    )
+    cached_sales = None
+    use_temp_cache = cache_files_exist
+    if use_temp_cache:
+        cached_sales = pd.read_parquet(sales_tempfile)
+        use_temp_cache = required_sales_cache_cols.issubset(cached_sales.columns)
+
+    if use_temp_cache and isinstance(cached_sales, pd.DataFrame):
+        st.session_state["sales"] = cached_sales
         st.session_state["sessions"] = pd.read_parquet(sessions_tempfile)
         st.session_state["ads"] = pd.read_parquet(ads_tempfile)
         st.session_state["forecast"] = pd.read_parquet(forecast_tempfile)
