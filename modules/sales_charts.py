@@ -111,9 +111,7 @@ def render_sales_chart(
     # --- Annotations (Change Notes) ---
     mark_points = []
     if show_change_notes and "change_notes" in df.columns:
-        for i, (date, note, unit_val) in enumerate(
-            zip(dates, df["change_notes"], units)
-        ):
+        for date_str, note, unit_val in zip(dates, df["change_notes"], units):
             if pd.isna(note) or note == "":
                 continue
 
@@ -130,12 +128,12 @@ def render_sales_chart(
 
             mark_points.append(
                 {
-                    "coord": [i, unit_val],
+                    "coord": [date_str, unit_val],
                     "value": "!",  # Short symbol
                     "itemStyle": {"color": "#d94e5d"},
                     "tooltip": {
                         "show": True,
-                        "formatter": f"{date}<br/>{note_str}",
+                        "formatter": f"{date_str}<br/>{note_str}",
                         "trigger": "item",  # Trigger on item hover
                         "triggerOn": "mousemove|click",
                         "position": "top",
