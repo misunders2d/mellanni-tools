@@ -114,41 +114,53 @@ def get_sales_data(
                 AND LOWER(marketplace) = 'us'
             GROUP BY date, asin
             ),
-            deduped_dict AS (
+            deduped_sku_dict AS (
             SELECT
                 sku,
-                asin,
-                ANY_VALUE(collection)  AS collection,
-                ANY_VALUE(size)        AS size,
-                ANY_VALUE(color)       AS color,
+                ARRAY_AGG(asin IGNORE NULLS ORDER BY asin LIMIT 1)[SAFE_OFFSET(0)] AS asin
             FROM mellanni-project-da.auxillary_development.dictionary
-            WHERE sku IS NOT NULL OR asin IS NOT NULL
-            GROUP BY sku, asin
+            WHERE sku IS NOT NULL
+            GROUP BY sku
             ),
             changelog_mapped AS (
             SELECT
                 DATE(sc.date) AS date,
-                sc.sku,
-                sd.collection,
-                sd.size,
-                sd.color,
+                sd.asin,
                 sc.change_type,
                 sc.notes
             FROM mellanni-project-da.auxillary_development.sku_changelog sc
-            LEFT JOIN deduped_dict sd
+            LEFT JOIN deduped_sku_dict sd
                 ON sc.sku = sd.sku
             WHERE DATE(sc.date) >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
             ),
             changelog_agg AS (
             SELECT
                 date,
-                collection,
-                size,
-                color,
-                STRING_AGG(DISTINCT CONCAT(COALESCE(change_type,''), ': ', COALESCE(notes,'')), ' | ') AS change_notes
+                asin,
+                STRING_AGG(
+                    DISTINCT IF(
+                        NULLIF(TRIM(COALESCE(notes, '')), '') IS NULL,
+                        COALESCE(change_type, ''),
+                        CONCAT(COALESCE(change_type, ''), ': ', notes)
+                    ),
+                    ' | '
+                ) AS change_notes
             FROM changelog_mapped
-            WHERE collection IS NOT NULL AND size IS NOT NULL AND color IS NOT NULL
-            GROUP BY date, collection, size, color
+            WHERE asin IS NOT NULL
+            GROUP BY date, asin
+            ),
+            sales_with_changelog AS (
+            SELECT
+                COALESCE(s.date, ca.date) AS date,
+                COALESCE(s.asin, ca.asin) AS asin,
+                COALESCE(s.units, 0) AS units,
+                COALESCE(s.net_sales, 0) AS net_sales,
+                s.asin IS NOT NULL AS has_sales_row,
+                ca.change_notes
+            FROM sales s
+            FULL OUTER JOIN changelog_agg ca
+                ON s.date = ca.date
+                AND s.asin = ca.asin
             ),
             deduped_asin_dict AS (
             SELECT
@@ -171,8 +183,9 @@ def get_sales_data(
             ts.total_units,
             inv.inventory_supply_at_fba,
             inv.available,
-            ca.change_notes
-            FROM sales s
+            s.has_sales_row,
+            s.change_notes
+            FROM sales_with_changelog s
             LEFT JOIN total_sales ts
             ON s.date = ts.date
             LEFT JOIN inventory_by_date_asin inv
@@ -180,11 +193,6 @@ def get_sales_data(
             AND s.date = inv.date
             LEFT JOIN deduped_asin_dict d
             ON s.asin = d.asin
-            LEFT JOIN changelog_agg ca
-            ON s.date = ca.date
-            AND d.collection = ca.collection
-            AND d.size = ca.size
-            AND d.color = ca.color
             ORDER BY s.date ASC, s.units DESC
             """
 
@@ -355,8 +363,12 @@ def filtered_sales(
         sessions_df = sessions_df.loc[sessions_df["asin"].isin(target_asins)]
         ads_df = ads_df.loc[ads_df["asin"].isin(target_asins)]
 
-    # merge sales_df with forecast_df
-    sales_asins = sales_df["asin"].unique().tolist()
+    # merge sales_df with forecast_df. Changelog-only rows preserve notes for
+    # ASINs with no same-day sales; don't let them expand the forecast universe.
+    if "has_sales_row" in sales_df.columns:
+        sales_asins = sales_df.loc[sales_df["has_sales_row"], "asin"].unique().tolist()
+    else:
+        sales_asins = sales_df["asin"].unique().tolist()
     forecast_asins = forecast_df[forecast_df["asin"].isin(sales_asins)].copy()
     sales_df = pd.merge(
         sales_df, forecast_asins, how="outer", on=["date", "asin"], validate="1:1"
@@ -392,6 +404,8 @@ def filtered_sales(
     sales_df["stockout"] = (
         1 - (sales_df[inv_column] / sales_df["asin_30d_avg"]).clip(upper=1)
     ) * sales_df["asin_sales_share"]
+    if "has_sales_row" in sales_df.columns:
+        sales_df.loc[~sales_df["has_sales_row"].fillna(False), "stockout"] = 0
 
     sales_df["change_notes"] = sales_df["change_notes"].fillna("")
     sales_df = sales_df.sort_values("date", ascending=True)
