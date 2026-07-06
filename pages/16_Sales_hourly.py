@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from io import StringIO
 from zoneinfo import ZoneInfo
 
@@ -11,6 +11,7 @@ from streamlit_echarts import JsCode, st_echarts
 from data import pantone_to_hex
 from login import require_login, require_role
 from modules import gcloud_modules as gc
+from modules.events import event_dates_list
 from modules.filter_modules import filter_dictionary
 from modules.gcloud_modules import bigquery
 
@@ -75,11 +76,16 @@ async def get_orders_data(start_time: datetime, end_time: datetime):
     max_entries=64, show_spinner="Pulling 30-day hourly average from BigQuery..."
 )
 def get_hourly_baseline(
-    asins: tuple[str, ...], sales_channels: tuple[str, ...], as_of_date: str
+    asins: tuple[str, ...],
+    sales_channels: tuple[str, ...],
+    as_of_date: str,
+    event_dates: tuple[str, ...],
 ):
-    """Return avg units by Pacific hour for 30 days before as_of_date."""
+    """Return avg units by Pacific hour, excluding event dates."""
     if not asins or not sales_channels:
         return pd.DataFrame(columns=["pacific_hour", "avg_units"])
+
+    bq_event_dates = [datetime.strptime(d, "%Y-%m-%d").date() for d in event_dates]
 
     query = """
         WITH date_grid AS (
@@ -88,6 +94,7 @@ def get_hourly_baseline(
                 DATE_SUB(@as_of_date, INTERVAL 30 DAY),
                 DATE_SUB(@as_of_date, INTERVAL 1 DAY)
             )) AS pacific_date
+            WHERE pacific_date NOT IN UNNEST(@event_dates)
         ),
         hour_grid AS (
             SELECT pacific_hour
@@ -101,6 +108,7 @@ def get_hourly_baseline(
             FROM `mellanni-project-da.reports.all_orders`
             WHERE DATE(purchase_date, "America/Los_Angeles") BETWEEN DATE_SUB(@as_of_date, INTERVAL 30 DAY)
                 AND DATE_SUB(@as_of_date, INTERVAL 1 DAY)
+                AND DATE(purchase_date, "America/Los_Angeles") NOT IN UNNEST(@event_dates)
                 AND asin IN UNNEST(@asins)
                 AND LOWER(sales_channel) IN UNNEST(@sales_channels)
             GROUP BY pacific_date, pacific_hour
@@ -123,6 +131,7 @@ def get_hourly_baseline(
                 "sales_channels", "STRING", [c.lower() for c in sales_channels]
             ),
             bigquery.ScalarQueryParameter("as_of_date", "DATE", as_of_date),
+            bigquery.ArrayQueryParameter("event_dates", "DATE", bq_event_dates),
         ]
     )
 
@@ -228,6 +237,20 @@ def normalize_sales_channels(sales_channels) -> tuple[str, ...]:
     return tuple(
         sorted({str(channel).strip().lower() for channel in sales_channels if channel})
     )
+
+
+def normalize_event_dates(events) -> tuple[str, ...]:
+    normalized = set()
+    for event_date in events or []:
+        if event_date is None:
+            continue
+        if isinstance(event_date, datetime):
+            normalized.add(event_date.date().isoformat())
+        elif isinstance(event_date, date):
+            normalized.add(event_date.isoformat())
+        else:
+            normalized.add(pd.to_datetime(event_date).date().isoformat())
+    return tuple(sorted(normalized))
 
 
 def plot_baseline_chart(hourly_baseline: pd.DataFrame):
@@ -487,6 +510,7 @@ filtered_dict: pd.DataFrame = filter_dictionary(
 )
 selected_asins = get_selected_asins(filtered_dict)
 baseline_as_of_date = str(datetime.now(pacific).date())
+event_dates_key = normalize_event_dates(event_dates_list)
 start_time = start_time_col.datetime_input(
     label="Start time (Pacific)", value=st.session_state.start_time, disabled=True
 )
@@ -538,7 +562,7 @@ if "hourly_report" in st.session_state:
         ]
 
         hourly_baseline = get_hourly_baseline(
-            selected_asins, selected_channels, baseline_as_of_date
+            selected_asins, selected_channels, baseline_as_of_date, event_dates_key
         )
         plot_chart(report_filtered, hourly_baseline)
 
@@ -589,6 +613,6 @@ if "hourly_report" in st.session_state:
         st.warning(st.session_state.hourly_report)
 else:
     hourly_baseline = get_hourly_baseline(
-        selected_asins, DEFAULT_SALES_CHANNELS, baseline_as_of_date
+        selected_asins, DEFAULT_SALES_CHANNELS, baseline_as_of_date, event_dates_key
     )
     plot_baseline_chart(hourly_baseline)
