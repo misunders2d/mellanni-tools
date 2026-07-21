@@ -677,6 +677,7 @@ if (
             )
             min_period = pd.Timestamp(events[event_name][0]).date()
             max_period = pd.Timestamp(events[event_name][1]).date()
+            st.caption(f"{min_period:%b %d, %Y} – {max_period:%b %d, %Y}")
             periods = event_name
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
