@@ -3,7 +3,7 @@ import re
 
 import pandas as pd
 import streamlit as st
-from common.events import event_dates_list
+from common.events import event_dates_list, events
 from dateutil.relativedelta import relativedelta
 from google.cloud import bigquery
 from google.oauth2 import service_account
@@ -337,6 +337,9 @@ def filtered_sales(
             prev_start = date_range[0] - relativedelta(weeks=1)
             prev_end = date_range[1] - relativedelta(weeks=1)
 
+        case p if p in events:
+            prev_start, prev_end = min_period, max_period
+
         case _:
             prev_start = date_range[0] - relativedelta(years=1)
             prev_end = date_range[1] - relativedelta(years=1)
@@ -516,9 +519,7 @@ def filtered_sales(
             "30-day sessions avg",
             "average selling price",
         ]
-    ].astype(
-        float
-    )
+    ].astype(float)
 
     # Apply event filtering as NULLs (gaps) instead of removing rows
     # Logic reverted: filtered_sales now removes rows for correct metrics.
@@ -564,9 +565,9 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
 
 required_sales_cache_cols = {"change_notes", "has_sales_row"}
 sales_state = st.session_state.get("sales")
-sales_state_stale = isinstance(sales_state, pd.DataFrame) and not required_sales_cache_cols.issubset(
-    sales_state.columns
-)
+sales_state_stale = isinstance(
+    sales_state, pd.DataFrame
+) and not required_sales_cache_cols.issubset(sales_state.columns)
 
 if (
     sales_state_stale
@@ -645,13 +646,14 @@ if (
     )
 
     with st.sidebar:
-        options = ["last year", "custom"]
+        options = ["last year", "custom", "prior event"]
         if (date_range[1] - date_range[0]).days == 6:
-            options = ["last week", "last year", "custom"]
+            options = ["last week", "last year", "custom", "prior event"]
         periods = st.radio("Compare periods", options=options)
-        min_period, max_period = date_range[0] - relativedelta(years=1), date_range[
-            1
-        ] - relativedelta(years=1)
+        min_period, max_period = (
+            date_range[0] - relativedelta(years=1),
+            date_range[1] - relativedelta(years=1),
+        )
         if periods == "custom":
             min_period = st.date_input(
                 "Date from", value=max_date - relativedelta(years=1, days=90)
@@ -659,6 +661,23 @@ if (
             max_period = st.date_input(
                 "Date to", value=max_date - relativedelta(years=1)
             )
+        elif periods == "prior event":
+            available_events = [
+                name
+                for name, (_start, end) in events.items()
+                if pd.Timestamp(end) <= pd.Timestamp(max_date)
+            ]
+            event_name = st.selectbox(
+                "Event",
+                options=(
+                    sorted(available_events, key=lambda n: events[n][0])
+                    or sorted(events.keys(), key=lambda n: events[n][0])
+                ),
+                key="prior_event_select",
+            )
+            min_period = pd.Timestamp(events[event_name][0]).date()
+            max_period = pd.Timestamp(events[event_name][1]).date()
+            periods = event_name
 
     include_events = events_checkbox.checkbox("Include events?", value=True)
     show_change_notes = changes_checkbox.checkbox("Show change notes?", value=True)
@@ -693,7 +712,9 @@ if (
             if t in full_dict["sku"].values or t in full_dict["asin"].values
         }
         unmatched = [t for t in unique_tokens if t not in matched_tokens]
-        caption = f"Matched {len(matched_tokens)} of {len(unique_tokens)} pasted token(s)"
+        caption = (
+            f"Matched {len(matched_tokens)} of {len(unique_tokens)} pasted token(s)"
+        )
         if unmatched:
             preview = ", ".join(unmatched[:5])
             if len(unmatched) > 5:
@@ -754,7 +775,7 @@ if (
             )
             days_this_year -= event_days
         days_last_year = (max_period - min_period).days + 1
-        if not include_events:
+        if not include_events and periods not in events:
             event_days_last_year = len(
                 [x for x in event_dates_list if min_period <= x <= max_period]
             )
@@ -825,14 +846,14 @@ if (
         units_metric.metric(
             label="Total units sold",
             value=f"{total_units_this_year:,.0f}",
-            delta=f"{total_units_this_year / total_units_last_year -1:.1%} {yoy_text}",
+            delta=f"{total_units_this_year / total_units_last_year - 1:.1%} {yoy_text}",
             chart_data=combined["units"],
             help=f"{metric_text}: {total_units_last_year:,.0f}\nForecast units: {total_forecast_this_year:,.0f}",
         )
         dollar_metric.metric(
             label="Total sales",
             value=f"${total_dollars_this_year:,.0f}",
-            delta=f"{total_dollars_this_year / total_dollars_last_year -1:.1%} {yoy_text}",
+            delta=f"{total_dollars_this_year / total_dollars_last_year - 1:.1%} {yoy_text}",
             chart_data=combined["net_sales"],
             help=f"{metric_text}: ${total_dollars_last_year:,.0f}\nForecast sales: {total_dollar_forecast_this_year:,.0f}",
         )
@@ -865,7 +886,7 @@ if (
                 if average_units_this_year > 1
                 else f"{average_units_this_year:.3f}"
             ),
-            delta=f"{average_units_this_year / average_units_last_year -1:.1%} {yoy_text}",
+            delta=f"{average_units_this_year / average_units_last_year - 1:.1%} {yoy_text}",
             chart_data=combined["30-day avg"],
             help=(
                 f"{metric_text}: {average_units_last_year:,.1f}"
@@ -876,14 +897,14 @@ if (
         avg_dollar_metric.metric(
             label="Avg sales/day",
             value=f"${average_dollars_this_year:,.0f}",
-            delta=f"{average_dollars_this_year / average_dollars_last_year -1:.1%} {yoy_text}",
+            delta=f"{average_dollars_this_year / average_dollars_last_year - 1:.1%} {yoy_text}",
             chart_data=combined["30-day sales avg"],
             help=f"{metric_text}: ${average_dollars_last_year:,.0f}",
         )
         avg_sessions_metric.metric(
             label="Avg sessions/day",
             value=f"{average_sessions_this_year:,.0f}",
-            delta=f"{average_sessions_this_year / average_sessions_last_year -1:.1%} {yoy_text}",
+            delta=f"{average_sessions_this_year / average_sessions_last_year - 1:.1%} {yoy_text}",
             chart_data=combined["30-day sessions avg"],
             help=f"{metric_text}: {average_sessions_last_year:,.0f}",
         )
@@ -891,50 +912,50 @@ if (
         ad_units_metric.metric(
             label="Total ad units sold",
             value=f"{total_ad_units_this_year:,.0f}",
-            delta=f"{total_ad_units_this_year / total_ad_units_last_year -1:.1%} {yoy_text}",
+            delta=f"{total_ad_units_this_year / total_ad_units_last_year - 1:.1%} {yoy_text}",
             help=f"{metric_text}: {total_ad_units_last_year:,.0f}",
         )
         ad_sales_metric.metric(
             label="Total ad sales",
             value=f"${total_ad_dollars_this_year:,.0f}",
-            delta=f"{total_ad_dollars_this_year / total_ad_dollars_last_year -1:.1%} {yoy_text}",
+            delta=f"{total_ad_dollars_this_year / total_ad_dollars_last_year - 1:.1%} {yoy_text}",
             help=f"{metric_text}: ${total_ad_dollars_last_year:,.0f}",
         )
         ad_spend_metric.metric(
             label="Total ad spend",
             value=f"${total_spend_this_year:,.0f}",
-            delta=f"{total_spend_this_year / total_spend_last_year -1:.1%} {yoy_text}",
+            delta=f"{total_spend_this_year / total_spend_last_year - 1:.1%} {yoy_text}",
             help=f"{metric_text}: ${total_spend_last_year:,.0f}",
         )
         ad_impressions_metric.metric(
             label="Total ad impressions",
             value=f"{total_impressions_this_year:,.0f}",
-            delta=f"{total_impressions_this_year / total_impressions_last_year -1:.1%} {yoy_text}",
+            delta=f"{total_impressions_this_year / total_impressions_last_year - 1:.1%} {yoy_text}",
             help=f"{metric_text}: {total_impressions_last_year:,.0f}",
         )
         ad_clicks_metric.metric(
             label="Total ad clicks",
             value=f"{total_clicks_this_year:,.0f}",
-            delta=f"{total_clicks_this_year / total_clicks_last_year -1:.1%} {yoy_text}",
+            delta=f"{total_clicks_this_year / total_clicks_last_year - 1:.1%} {yoy_text}",
             help=f"{metric_text}: {total_clicks_last_year:,.0f}",
         )
         ad_conversion_metric.metric(
             label="Avg ad conversion %",
             value=f"{avg_conversion_this_year:.1%}",
-            delta=f"{avg_conversion_this_year / avg_conversion_last_year -1:.1%} {yoy_text}",
+            delta=f"{avg_conversion_this_year / avg_conversion_last_year - 1:.1%} {yoy_text}",
             help=f"{metric_text}: {avg_conversion_last_year:.1%}",
         )
         ad_cpc_metric.metric(
             label="Avg CPC",
             value=f"${avg_cpc_this_year:.2f}",
-            delta=f"{avg_cpc_this_year / avg_cpc_last_year -1:.1%} {yoy_text}",
+            delta=f"{avg_cpc_this_year / avg_cpc_last_year - 1:.1%} {yoy_text}",
             delta_color="inverse",
             help=f"{metric_text}: ${avg_cpc_last_year:.2f}",
         )
         ad_acos_metric.metric(
             label="Avg ACoS",
             value=f"{avg_acos_this_year:.1%}",
-            delta=f"{avg_acos_this_year / avg_acos_last_year -1:.1%} {yoy_text}",
+            delta=f"{avg_acos_this_year / avg_acos_last_year - 1:.1%} {yoy_text}",
             delta_color="inverse",
             help=f"{metric_text}: {avg_acos_last_year:.1%}",
         )
