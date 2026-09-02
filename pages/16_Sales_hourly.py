@@ -18,6 +18,7 @@ from modules.gcloud_modules import bigquery
 pacific = ZoneInfo("America/Los_Angeles")
 utc = ZoneInfo("UTC")
 US_MARKETPLACE_ID = "ATVPDKIKX0DER"
+ORDER_DIMENSION_COLUMNS = ("collection", "size", "color")
 
 st.set_page_config(page_title="Sales hourly", page_icon="media/logo.ico", layout="wide")
 require_login()
@@ -57,12 +58,19 @@ def read_from_text(report_str: str) -> pd.DataFrame:
         .dt.tz_localize(None)
     )
     data["pacific_date"] = pd.to_datetime(data["pacific_datetime"]).dt.date
-    if "dictionary" in st.session_state:
-        dictionary = st.session_state.dictionary[
-            ["sku", "collection", "size", "color"]
-        ].copy()
-        data = pd.merge(data, dictionary, how="left", on="sku", validate="m:1")
-    return data
+    return add_order_dimensions(data)
+
+
+def add_order_dimensions(data: pd.DataFrame) -> pd.DataFrame:
+    """Add product dimensions required by order filters and charts."""
+    missing_columns = [
+        column for column in ORDER_DIMENSION_COLUMNS if column not in data.columns
+    ]
+    if not missing_columns:
+        return data
+
+    dictionary = gc.pull_dictionary()[["sku", *missing_columns]].copy()
+    return pd.merge(data, dictionary, how="left", on="sku", validate="m:1")
 
 
 async def get_orders_data(start_time: datetime, end_time: datetime):
@@ -1097,6 +1105,9 @@ st.caption(
 
 if "hourly_report" in st.session_state:
     if isinstance(st.session_state.hourly_report, pd.DataFrame):
+        st.session_state.hourly_report = add_order_dimensions(
+            st.session_state.hourly_report
+        )
         coll_select, size_select, color_select, sales_channel_select = st.columns(
             [2, 1, 2, 2]
         )
