@@ -969,7 +969,6 @@ update_pst_time(time_slot)
 
 if refresh_overview:
     get_hourly_overview.clear()
-    get_account_hourly_baseline.clear()
 
 if load_order_details:
     if (end_time - start_time).days > 8:
