@@ -162,6 +162,22 @@ def get_sales_data(
                 ON s.date = ca.date
                 AND s.asin = ca.asin
             ),
+            sales_with_inventory AS (
+            SELECT
+                COALESCE(s.date, inv.date) AS date,
+                COALESCE(s.asin, inv.asin) AS asin,
+                COALESCE(s.units, 0) AS units,
+                COALESCE(s.net_sales, 0) AS net_sales,
+                COALESCE(s.has_sales_row, FALSE) AS has_sales_row,
+                inv.asin IS NOT NULL AS has_inventory_row,
+                inv.inventory_supply_at_fba,
+                inv.available,
+                s.change_notes
+            FROM sales_with_changelog s
+            FULL OUTER JOIN inventory_by_date_asin inv
+                ON s.date = inv.date
+                AND s.asin = inv.asin
+            ),
             deduped_asin_dict AS (
             SELECT
                 asin,
@@ -181,16 +197,14 @@ def get_sales_data(
             s.units,
             s.net_sales,
             ts.total_units,
-            inv.inventory_supply_at_fba,
-            inv.available,
+            s.inventory_supply_at_fba,
+            s.available,
             s.has_sales_row,
+            s.has_inventory_row,
             s.change_notes
-            FROM sales_with_changelog s
+            FROM sales_with_inventory s
             LEFT JOIN total_sales ts
             ON s.date = ts.date
-            LEFT JOIN inventory_by_date_asin inv
-            ON s.asin = inv.asin
-            AND s.date = inv.date
             LEFT JOIN deduped_asin_dict d
             ON s.asin = d.asin
             ORDER BY s.date ASC, s.units DESC
@@ -345,80 +359,175 @@ def filtered_sales(
             prev_end = date_range[1] - relativedelta(years=1)
 
     inv_column = "available" if available_inv else "inventory_supply_at_fba"
+    history_start = min(prev_start, date_range[0]) - relativedelta(days=60)
+    history_end = max(prev_end, date_range[1])
+    calendar = pd.date_range(history_start, history_end, name="date")
+    event_dates = pd.to_datetime(event_dates_list)
 
-    sales_df = sales_df.loc[
-        sales_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
-    ]
-    sessions_df = sessions_df.loc[
-        sessions_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
-    ]
-    ads_df = ads_df.loc[
-        ads_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
-    ]
+    # Normalize copies: callers and cached frames retain their original dtypes.
+    sales_df, sessions_df, ads_df, forecast_df = (
+        frame.assign(date=pd.to_datetime(frame["date"]).dt.normalize())
+        for frame in (sales_df, sessions_df, ads_df, forecast_df)
+    )
+    if "has_sales_row" not in sales_df.columns:
+        sales_df["has_sales_row"] = True
+    observed_sales = sales_df["has_sales_row"].fillna(False)
+    if "has_inventory_row" in sales_df.columns:
+        observed_sales = observed_sales | sales_df["has_inventory_row"].fillna(
+            False
+        )
+    observed_dates = pd.concat(
+        [sales_df.loc[observed_sales, "date"], sessions_df["date"]]
+    )
+    sales_start, sales_end = observed_dates.min(), observed_dates.max()
+    sessions_start = sessions_df["date"].min()
+    sessions_end = sessions_df["date"].max()
+    sales_coverage = (calendar >= sales_start) & (calendar <= sales_end)
+    sessions_coverage = (calendar >= sessions_start) & (calendar <= sessions_end)
 
-    forecast_df["date"] = pd.to_datetime(forecast_df["date"]).dt.date
-    forecast_df = forecast_df.loc[
-        forecast_df["date"].between(prev_start - relativedelta(days=60), date_range[1])
-    ]
-
+    sales_df, sessions_df, ads_df, forecast_df = (
+        frame.loc[
+            frame["date"].between(
+                pd.Timestamp(history_start), pd.Timestamp(history_end)
+            )
+        ].copy()
+        for frame in (sales_df, sessions_df, ads_df, forecast_df)
+    )
     if target_asins is not None:
         sales_df = sales_df.loc[sales_df["asin"].isin(target_asins)]
         sessions_df = sessions_df.loc[sessions_df["asin"].isin(target_asins)]
         ads_df = ads_df.loc[ads_df["asin"].isin(target_asins)]
 
-    # merge sales_df with forecast_df. Changelog-only rows preserve notes for
-    # ASINs with no same-day sales; don't let them expand the forecast universe.
-    if "has_sales_row" in sales_df.columns:
-        sales_asins = sales_df.loc[sales_df["has_sales_row"], "asin"].unique().tolist()
-    else:
-        sales_asins = sales_df["asin"].unique().tolist()
-    forecast_asins = forecast_df[forecast_df["asin"].isin(sales_asins)].copy()
+    # Notes and inventory-only rows must not expand the forecast universe.
+    sales_asins = sales_df.loc[
+        sales_df["has_sales_row"].fillna(False), "asin"
+    ].unique()
+    forecast_asins = forecast_df.loc[forecast_df["asin"].isin(sales_asins)]
     sales_df = pd.merge(
         sales_df, forecast_asins, how="outer", on=["date", "asin"], validate="1:1"
-    )
-
-    if not include_events:
-        sales_df = sales_df.loc[~sales_df["date"].isin(event_dates_list)]
-        sessions_df = sessions_df.loc[~sessions_df["date"].isin(event_dates_list)]
-        ads_df = ads_df.loc[~ads_df["date"].isin(event_dates_list)]
-
-    asin_sessions = sessions_df.groupby("asin").agg({"sessions": "sum"}).reset_index()
-    date_sessions = sessions_df.groupby("date").agg({"sessions": "sum"}).reset_index()
-
-    # asin_ads = ads_df.groupby("asin")[['ad_spend', 'impressions', 'clicks', 'total_units',
-    #    'total_sales']].agg('sum').reset_index()
-    date_ads = (
-        ads_df.groupby("date")[
-            ["ad_spend", "impressions", "clicks", "total_units", "total_sales"]
-        ]
-        .agg("sum")
-        .reset_index()
-    )
-
-    ads_previous = date_ads[date_ads["date"].between(prev_start, prev_end)]
-    ads_visible = date_ads[date_ads["date"].between(date_range[0], date_range[1])]
-
-    sales_df["asin_30d_avg"] = sales_df.groupby("asin")["units"].transform(
-        lambda x: x.rolling(30, min_periods=1).mean()
-    )
-    sales_df["asin_sales_share"] = sales_df["asin_30d_avg"] / sales_df.groupby("date")[
-        "asin_30d_avg"
-    ].transform("sum")
-    sales_df["stockout"] = (
-        1 - (sales_df[inv_column] / sales_df["asin_30d_avg"]).clip(upper=1)
-    ) * sales_df["asin_sales_share"]
-    if "has_sales_row" in sales_df.columns:
-        sales_df.loc[~sales_df["has_sales_row"].fillna(False), "stockout"] = 0
-
+    ).sort_values(["asin", "date"])
     sales_df["change_notes"] = sales_df["change_notes"].fillna("")
-    sales_df = sales_df.sort_values("date", ascending=True)
 
-    asin_sales = sales_df.copy()
-    # asin_sales["date"] = pd.to_datetime(asin_sales["date"]).dt.date
-    asin_sales = asin_sales[asin_sales["date"].between(date_range[0], date_range[1])]
+    # Source queries return zero for inventory/notes-only rows. Future dates
+    # still have no observed sales, even when a forecast or note exists.
+    sales_df.loc[sales_df["date"] > sales_end, ["units", "net_sales"]] = float(
+        "nan"
+    )
 
+    def summarize(keep_events):
+        rows = sales_df.copy()
+        excluded = (
+            calendar.isin(event_dates) if not keep_events else calendar.isin([])
+        )
+
+        def calendar_average(units):
+            dates = rows.loc[units.index, "date"]
+            daily = pd.Series(
+                units.to_numpy(dtype=float, na_value=float("nan")), index=dates
+            )
+            daily = daily.reindex(calendar)
+            daily.loc[sales_coverage] = daily.loc[sales_coverage].fillna(0)
+            daily.loc[excluded] = float("nan")
+            # One row per calendar day; excluded events do not enter the mean.
+            return pd.Series(
+                daily.rolling(30, min_periods=1).mean().reindex(dates).to_numpy(),
+                index=units.index,
+            )
+
+        rows["asin_30d_avg"] = rows.groupby("asin")["units"].transform(
+            calendar_average
+        )
+        demand = rows.groupby("date")["asin_30d_avg"].transform("sum")
+        rows["asin_sales_share"] = rows["asin_30d_avg"].div(
+            demand.where(demand > 0)
+        )
+        rows["stockout"] = (
+            1
+            - rows[inv_column]
+            .div(rows["asin_30d_avg"].where(rows["asin_30d_avg"] > 0))
+            .clip(0, 1)
+        ) * rows["asin_sales_share"]
+        rows.loc[
+            (rows["asin_30d_avg"] == 0) & rows[inv_column].notna(), "stockout"
+        ] = 0
+        rows.loc[rows["date"] > sales_end, "stockout"] = float("nan")
+        if not keep_events:
+            rows = rows.loc[~rows["date"].isin(event_dates)]
+
+        numeric_columns = [
+            "units",
+            "forecast_units",
+            "forecast_dollar",
+            "net_sales",
+            "available",
+            "inventory_supply_at_fba",
+            "stockout",
+        ]
+        daily = (
+            rows.groupby("date")[numeric_columns]
+            .sum(min_count=1)
+            .reindex(calendar)
+        )
+        daily["change_notes"] = (
+            rows.groupby("date")["change_notes"]
+            .agg(lambda notes: ", ".join(note for note in notes.unique() if note))
+            .reindex(calendar, fill_value="")
+        )
+        daily["sessions"] = (
+            sessions_df.groupby("date")["sessions"]
+            .sum(min_count=1)
+            .reindex(calendar)
+        )
+        # Keep traffic-only dates and actual zero-sale days. Future actuals
+        # remain missing instead of being turned into forecast-period zeroes.
+        daily.loc[sales_coverage, ["units", "net_sales"]] = daily.loc[
+            sales_coverage, ["units", "net_sales"]
+        ].fillna(0)
+        daily.loc[sessions_coverage, "sessions"] = daily.loc[
+            sessions_coverage, "sessions"
+        ].fillna(0)
+        daily.loc[excluded, numeric_columns + ["sessions"]] = float("nan")
+        daily.loc[excluded, "change_notes"] = ""
+        for source, name in (
+            ("units", "30-day avg"),
+            ("net_sales", "30-day sales avg"),
+            ("sessions", "30-day sessions avg"),
+        ):
+            daily[name] = daily[source].rolling(30, min_periods=1).mean().round(1)
+        daily["average selling price"] = daily["net_sales"].div(
+            daily["units"].where(daily["units"] != 0)
+        )
+        # Preserve chart gaps for every series on excluded dates.
+        daily.loc[excluded, daily.columns != "change_notes"] = float("nan")
+        return rows, daily
+
+    sales_visible, combined = summarize(include_events)
+    previous = (
+        summarize(True)[1]
+        if periods in events and not include_events
+        else combined
+    )
+    combined_previous = previous.loc[
+        pd.Timestamp(prev_start) : pd.Timestamp(prev_end)
+    ].copy()
+    if not include_events and periods not in events:
+        combined_previous = combined_previous.loc[
+            ~combined_previous.index.isin(event_dates)
+        ]
+    combined_visible = combined.loc[
+        pd.Timestamp(date_range[0]) : pd.Timestamp(date_range[1])
+    ].copy()
+    chart_columns = combined_visible.columns.difference(["change_notes"])
+    combined_visible[chart_columns] = combined_visible[chart_columns].astype(
+        float
+    )
+
+    selected = sales_visible["date"].between(
+        pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
+    )
     asin_sales = (
-        asin_sales.groupby("asin")
+        sales_visible.loc[selected]
+        .groupby("asin")
         .agg(
             {
                 "collection": "first",
@@ -435,124 +544,59 @@ def filtered_sales(
         .reset_index()
         .sort_values("net_sales", ascending=False)
     )
-
+    selected_sessions = sessions_df.loc[
+        sessions_df["date"].between(
+            pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
+        )
+    ]
+    if not include_events:
+        selected_sessions = selected_sessions.loc[
+            ~selected_sessions["date"].isin(event_dates)
+        ]
+    asin_sessions = selected_sessions.groupby("asin", as_index=False)[
+        "sessions"
+    ].sum()
     asin_sales = pd.merge(
         asin_sales, asin_sessions, how="left", on="asin", validate="1:1"
     )
-    # asin_sales['sessions'] = asin_sales['sessions'].fillna(0)
-
-    asin_sales["sales_share"] = asin_sales["net_sales"] / asin_sales["net_sales"].sum()
-
-    date_sessions["date"] = pd.to_datetime(date_sessions["date"]).dt.date
-    combined = (
-        sales_df.groupby("date")
-        .agg(
-            {
-                "units": "sum",
-                "forecast_units": "sum",
-                "forecast_dollar": "sum",
-                "net_sales": "sum",
-                "available": "sum",
-                "inventory_supply_at_fba": "sum",
-                "stockout": "sum",
-                "change_notes": lambda x: ", ".join(
-                    [note for note in x.unique() if note]
-                ),
-            }
-        )
-        .reset_index()
+    total_sales = asin_sales["net_sales"].sum()
+    asin_sales["sales_share"] = asin_sales["net_sales"] / (
+        total_sales if total_sales != 0 else float("nan")
     )
-    combined["date"] = pd.to_datetime(combined["date"]).dt.date
-    combined = pd.merge(
-        combined, date_sessions, how="left", on="date", validate="1:1"
-    ).fillna(0)
 
-    combined["30-day avg"] = combined["units"].rolling(window=30).mean().round(1)
-    combined["30-day sales avg"] = (
-        combined["net_sales"].rolling(window=30).mean().round(1)
-    )
-    combined["30-day sessions avg"] = (
-        combined["sessions"].rolling(window=30).mean().round(1)
-    )
-    combined["average selling price"] = combined["net_sales"] / combined["units"]
-
-    combined_visible = combined.copy()
-    combined_visible["date"] = pd.to_datetime(combined_visible["date"]).dt.date
-
-    combined_previous = combined_visible[
-        combined_visible["date"].between(prev_start, prev_end)
-    ]
-    combined_visible = combined_visible[
-        combined_visible["date"].between(date_range[0], date_range[1])
-    ]
-
-    # Create a full date range from the selected date_range
-    full_date_range = pd.date_range(start=date_range[0], end=date_range[1], freq="D")
-
-    combined_visible[
+    date_ads = ads_df.groupby("date")[
         [
-            "units",
-            "forecast_units",
-            "forecast_dollar",
-            "net_sales",
-            "available",
-            "inventory_supply_at_fba",
-            "stockout",
-            "sessions",
-            "30-day avg",
-            "30-day sales avg",
-            "30-day sessions avg",
-            "average selling price",
+            "ad_spend",
+            "impressions",
+            "clicks",
+            "total_units",
+            "total_sales",
         ]
-    ] = combined_visible[
-        [
-            "units",
-            "forecast_units",
-            "forecast_dollar",
-            "net_sales",
-            "available",
-            "inventory_supply_at_fba",
-            "stockout",
-            "sessions",
-            "30-day avg",
-            "30-day sales avg",
-            "30-day sessions avg",
-            "average selling price",
-        ]
-    ].astype(float)
-
-    # Apply event filtering as NULLs (gaps) instead of removing rows
-    # Logic reverted: filtered_sales now removes rows for correct metrics.
-    # Gaps are created by reindexing below.
-    # if not include_events:
-    #     mask = combined_visible["date"].isin(event_dates_list)
-    #     cols_to_null = ["units", "sessions", "net_sales", "stockout", "available", "inventory_supply_at_fba"]
-    #     combined_visible.loc[mask, cols_to_null] = None
-
-    #     # Also apply to ads_visible
-    #     mask_ads = ads_visible["date"].isin(event_dates_list)
-    #     cols_to_null_ads = ["ad_spend", "total_sales", "impressions", "clicks"]
-    #     # Ensure columns exist before assigning
-    #     cols_existing = [c for c in cols_to_null_ads if c in ads_visible.columns]
-    #     if cols_existing:
-    #         ads_visible.loc[mask_ads, cols_existing] = None
-    # Set 'date' as the index, reindex to the full date range, and then reset index
-    combined_visible = (
-        combined_visible.set_index("date")
-        .reindex(full_date_range)  # .date)
-        .reset_index()
-        .rename(columns={"index": "date"})
+    ].sum(min_count=1)
+    ads_previous = date_ads.loc[
+        pd.Timestamp(prev_start) : pd.Timestamp(prev_end)
+    ].copy()
+    ads_visible = date_ads.reindex(
+        pd.date_range(date_range[0], date_range[1], name="date")
     )
+    if not include_events:
+        ads_visible.loc[ads_visible.index.isin(event_dates)] = float("nan")
+        if periods not in events:
+            ads_previous = ads_previous.loc[~ads_previous.index.isin(event_dates)]
 
-    ads_visible = (
-        ads_visible.set_index("date")
-        .reindex(full_date_range)  # .date)
-        .reset_index()
-        .rename(columns={"index": "date"})
-        # .fillna(0)
+    # Match the existing return contract: chart dates are timestamps; previous
+    # period dates are datetime.date values.
+    combined_previous = combined_previous.reset_index()
+    combined_previous["date"] = combined_previous["date"].dt.date
+    ads_previous = ads_previous.reset_index()
+    ads_previous["date"] = ads_previous["date"].dt.date
+    return (
+        combined_visible.reset_index(),
+        combined_previous,
+        asin_sales,
+        ads_visible.reset_index(),
+        ads_previous,
     )
-
-    return combined_visible, combined_previous, asin_sales, ads_visible, ads_previous
 
 
 def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
@@ -563,7 +607,7 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
     return asin_sales
 
 
-required_sales_cache_cols = {"change_notes", "has_sales_row"}
+required_sales_cache_cols = {"change_notes", "has_sales_row", "has_inventory_row"}
 sales_state = st.session_state.get("sales")
 sales_state_stale = isinstance(
     sales_state, pd.DataFrame
@@ -654,7 +698,10 @@ if (
             date_range[0] - relativedelta(years=1),
             date_range[1] - relativedelta(years=1),
         )
-        if periods == "custom":
+        if periods == "last week":
+            min_period = date_range[0] - relativedelta(weeks=1)
+            max_period = date_range[1] - relativedelta(weeks=1)
+        elif periods == "custom":
             min_period = st.date_input(
                 "Date from", value=max_date - relativedelta(years=1, days=90)
             )
@@ -967,6 +1014,7 @@ if (
         df_text.text(f"Top {num_top_sellers} sellers")
         asin_sales_top = _top_n_sellers(asin_sales, num_top_sellers)
         asin_sales_top["asin"] = "https://www.amazon.com/dp/" + asin_sales_top["asin"]
+        asin_sales_top["conversion"] = asin_sales_top["units"] / asin_sales_top["sessions"]
         df_area_container.data_editor(
             asin_sales_top,
             num_rows="fixed",
@@ -981,6 +1029,7 @@ if (
                 "net_sales",
                 "sales_share",
                 "sessions",
+                "conversion",
                 "available",
                 "inventory_supply_at_fba",
             ],
@@ -992,6 +1041,7 @@ if (
                 "units": st.column_config.NumberColumn(format="localized"),
                 "net_sales": st.column_config.NumberColumn(format="dollar"),
                 "sales_share": st.column_config.NumberColumn(format="percent"),
+                "conversion": st.column_config.NumberColumn(format="percent"),
                 "sessions": st.column_config.NumberColumn(format="localized"),
                 "available": st.column_config.NumberColumn(format="localized"),
                 "inventory_supply_at_fba": st.column_config.NumberColumn(
