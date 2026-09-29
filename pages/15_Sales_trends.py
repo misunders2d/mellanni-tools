@@ -2,6 +2,7 @@ import os
 import re
 
 import pandas as pd
+import pyarrow.parquet as pq
 import streamlit as st
 from common.events import event_dates_list, events
 from dateutil.relativedelta import relativedelta
@@ -12,6 +13,7 @@ from numpy import nan
 from login import require_login, require_role
 from modules.filter_modules import filter_dictionary
 from modules.sales_charts import render_sales_chart
+from modules.sales_trends import SalesTrendsData
 
 os.makedirs("temp", exist_ok=True)
 
@@ -331,345 +333,39 @@ def get_sales_data(
         return (None, None, None, None)
 
 
-# @st.cache_data(ttl=3600, show_spinner="Filtering data...")
-def filtered_sales(
-    sales_df: pd.DataFrame,
-    sessions_df: pd.DataFrame,
-    ads_df: pd.DataFrame,
-    forecast_df: pd.DataFrame,
-    target_asins,
-    available_inv,
-    include_events,
-    date_range,
-    periods,
-):
-    match periods:
-        case "custom":
-            prev_start, prev_end = min_period, max_period
-
-        case "last week":
-            prev_start = date_range[0] - relativedelta(weeks=1)
-            prev_end = date_range[1] - relativedelta(weeks=1)
-
-        case p if p in events:
-            prev_start, prev_end = min_period, max_period
-
-        case _:
-            prev_start = date_range[0] - relativedelta(years=1)
-            prev_end = date_range[1] - relativedelta(years=1)
-
-    inv_column = "available" if available_inv else "inventory_supply_at_fba"
-    history_start = min(prev_start, date_range[0]) - relativedelta(days=60)
-    history_end = max(prev_end, date_range[1])
-    calendar = pd.date_range(history_start, history_end, name="date")
-    event_dates = pd.to_datetime(event_dates_list)
-
-    # Normalize copies: callers and cached frames retain their original dtypes.
-    sales_df, sessions_df, ads_df, forecast_df = (
-        frame.assign(date=pd.to_datetime(frame["date"]).dt.normalize())
-        for frame in (sales_df, sessions_df, ads_df, forecast_df)
-    )
-    if "has_sales_row" not in sales_df.columns:
-        sales_df["has_sales_row"] = True
-    observed_sales = sales_df["has_sales_row"].fillna(False)
-    if "has_inventory_row" in sales_df.columns:
-        observed_sales = observed_sales | sales_df["has_inventory_row"].fillna(
-            False
-        )
-    observed_dates = pd.concat(
-        [sales_df.loc[observed_sales, "date"], sessions_df["date"]]
-    )
-    sales_start, sales_end = observed_dates.min(), observed_dates.max()
-    sessions_start = sessions_df["date"].min()
-    sessions_end = sessions_df["date"].max()
-    sales_coverage = (calendar >= sales_start) & (calendar <= sales_end)
-    sessions_coverage = (calendar >= sessions_start) & (calendar <= sessions_end)
-
-    sales_df, sessions_df, ads_df, forecast_df = (
-        frame.loc[
-            frame["date"].between(
-                pd.Timestamp(history_start), pd.Timestamp(history_end)
-            )
-        ].copy()
-        for frame in (sales_df, sessions_df, ads_df, forecast_df)
-    )
-    if target_asins is not None:
-        sales_df = sales_df.loc[sales_df["asin"].isin(target_asins)]
-        sessions_df = sessions_df.loc[sessions_df["asin"].isin(target_asins)]
-        ads_df = ads_df.loc[ads_df["asin"].isin(target_asins)]
-
-    # Notes and inventory-only rows must not expand the forecast universe.
-    sales_asins = sales_df.loc[
-        sales_df["has_sales_row"].fillna(False), "asin"
-    ].unique()
-    forecast_asins = forecast_df.loc[forecast_df["asin"].isin(sales_asins)]
-    sales_df = pd.merge(
-        sales_df, forecast_asins, how="outer", on=["date", "asin"], validate="1:1"
-    ).sort_values(["asin", "date"])
-    sales_df["change_notes"] = sales_df["change_notes"].fillna("")
-
-    # Source queries return zero for inventory/notes-only rows. Future dates
-    # still have no observed sales, even when a forecast or note exists.
-    sales_df.loc[sales_df["date"] > sales_end, ["units", "net_sales"]] = float(
-        "nan"
-    )
-
-    def summarize(keep_events):
-        rows = sales_df.copy()
-        excluded = (
-            calendar.isin(event_dates) if not keep_events else calendar.isin([])
-        )
-
-        def calendar_average(units):
-            dates = rows.loc[units.index, "date"]
-            daily = pd.Series(
-                units.to_numpy(dtype=float, na_value=float("nan")), index=dates
-            )
-            daily = daily.reindex(calendar)
-            daily.loc[sales_coverage] = daily.loc[sales_coverage].fillna(0)
-            daily.loc[excluded] = float("nan")
-            # One row per calendar day; excluded events do not enter the mean.
-            return pd.Series(
-                daily.rolling(30, min_periods=1).mean().reindex(dates).to_numpy(),
-                index=units.index,
-            )
-
-        rows["asin_30d_avg"] = rows.groupby("asin")["units"].transform(
-            calendar_average
-        )
-        demand = rows.groupby("date")["asin_30d_avg"].transform("sum")
-        rows["asin_sales_share"] = rows["asin_30d_avg"].div(
-            demand.where(demand > 0)
-        )
-        rows["stockout"] = (
-            1
-            - rows[inv_column]
-            .div(rows["asin_30d_avg"].where(rows["asin_30d_avg"] > 0))
-            .clip(0, 1)
-        ) * rows["asin_sales_share"]
-        rows.loc[
-            (rows["asin_30d_avg"] == 0) & rows[inv_column].notna(), "stockout"
-        ] = 0
-        rows.loc[rows["date"] > sales_end, "stockout"] = float("nan")
-        if not keep_events:
-            rows = rows.loc[~rows["date"].isin(event_dates)]
-
-        numeric_columns = [
-            "units",
-            "forecast_units",
-            "forecast_dollar",
-            "net_sales",
-            "available",
-            "inventory_supply_at_fba",
-            "stockout",
-        ]
-        daily = (
-            rows.groupby("date")[numeric_columns]
-            .sum(min_count=1)
-            .reindex(calendar)
-        )
-        daily["change_notes"] = (
-            rows.groupby("date")["change_notes"]
-            .agg(lambda notes: ", ".join(note for note in notes.unique() if note))
-            .reindex(calendar, fill_value="")
-        )
-        daily["sessions"] = (
-            sessions_df.groupby("date")["sessions"]
-            .sum(min_count=1)
-            .reindex(calendar)
-        )
-        # Keep traffic-only dates and actual zero-sale days. Future actuals
-        # remain missing instead of being turned into forecast-period zeroes.
-        daily.loc[sales_coverage, ["units", "net_sales"]] = daily.loc[
-            sales_coverage, ["units", "net_sales"]
-        ].fillna(0)
-        daily.loc[sessions_coverage, "sessions"] = daily.loc[
-            sessions_coverage, "sessions"
-        ].fillna(0)
-        daily.loc[excluded, numeric_columns + ["sessions"]] = float("nan")
-        daily.loc[excluded, "change_notes"] = ""
-        for source, name in (
-            ("units", "30-day avg"),
-            ("net_sales", "30-day sales avg"),
-            ("sessions", "30-day sessions avg"),
-        ):
-            daily[name] = daily[source].rolling(30, min_periods=1).mean().round(1)
-        daily["average selling price"] = daily["net_sales"].div(
-            daily["units"].where(daily["units"] != 0)
-        )
-        # Preserve chart gaps for every series on excluded dates.
-        daily.loc[excluded, daily.columns != "change_notes"] = float("nan")
-        return rows, daily
-
-    sales_visible, combined = summarize(include_events)
-    previous = (
-        summarize(True)[1]
-        if periods in events and not include_events
-        else combined
-    )
-    combined_previous = previous.loc[
-        pd.Timestamp(prev_start) : pd.Timestamp(prev_end)
-    ].copy()
-    if not include_events and periods not in events:
-        combined_previous = combined_previous.loc[
-            ~combined_previous.index.isin(event_dates)
-        ]
-    combined_visible = combined.loc[
-        pd.Timestamp(date_range[0]) : pd.Timestamp(date_range[1])
-    ].copy()
-    chart_columns = combined_visible.columns.difference(["change_notes"])
-    combined_visible[chart_columns] = combined_visible[chart_columns].astype(
-        float
-    )
-
-    selected = sales_visible["date"].between(
-        pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
-    )
-    asin_sales = (
-        sales_visible.loc[selected]
-        .groupby("asin")
-        .agg(
-            {
-                "collection": "first",
-                "size": "first",
-                "color": "first",
-                "units": "sum",
-                "forecast_units": "sum",
-                "forecast_dollar": "sum",
-                "net_sales": "sum",
-                "available": "last",
-                "inventory_supply_at_fba": "last",
-            }
-        )
-        .reset_index()
-        .sort_values("net_sales", ascending=False)
-    )
-    selected_sessions = sessions_df.loc[
-        sessions_df["date"].between(
-            pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
-        )
-    ]
-    if not include_events:
-        selected_sessions = selected_sessions.loc[
-            ~selected_sessions["date"].isin(event_dates)
-        ]
-    asin_sessions = selected_sessions.groupby("asin", as_index=False)[
-        "sessions"
-    ].sum()
-    asin_sales = pd.merge(
-        asin_sales, asin_sessions, how="left", on="asin", validate="1:1"
-    )
-    total_sales = asin_sales["net_sales"].sum()
-    asin_sales["sales_share"] = asin_sales["net_sales"] / (
-        total_sales if total_sales != 0 else float("nan")
-    )
-
-    date_ads = ads_df.groupby("date")[
-        [
-            "ad_spend",
-            "impressions",
-            "clicks",
-            "total_units",
-            "total_sales",
-        ]
-    ].sum(min_count=1)
-    ads_previous = date_ads.loc[
-        pd.Timestamp(prev_start) : pd.Timestamp(prev_end)
-    ].copy()
-    ads_visible = date_ads.reindex(
-        pd.date_range(date_range[0], date_range[1], name="date")
-    )
-    if not include_events:
-        ads_visible.loc[ads_visible.index.isin(event_dates)] = float("nan")
-        if periods not in events:
-            ads_previous = ads_previous.loc[~ads_previous.index.isin(event_dates)]
-
-    # Match the existing return contract: chart dates are timestamps; previous
-    # period dates are datetime.date values.
-    combined_previous = combined_previous.reset_index()
-    combined_previous["date"] = combined_previous["date"].dt.date
-    ads_previous = ads_previous.reset_index()
-    ads_previous["date"] = ads_previous["date"].dt.date
-    return (
-        combined_visible.reset_index(),
-        combined_previous,
-        asin_sales,
-        ads_visible.reset_index(),
-        ads_previous,
-    )
-
-
 def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
-    asin_sales = asin_sales.head(num_top_sellers)
+    asin_sales = asin_sales.head(num_top_sellers).copy()
     totals_asins = asin_sales.sum(numeric_only=True, axis=0)
     asin_sales.loc[:, "#"] = asin_sales.index + 1
     asin_sales = pd.concat([asin_sales, pd.DataFrame(totals_asins).T])
     return asin_sales
 
 
-required_sales_cache_cols = {"change_notes", "has_sales_row", "has_inventory_row"}
-sales_state = st.session_state.get("sales")
-sales_state_stale = isinstance(
-    sales_state, pd.DataFrame
-) and not required_sales_cache_cols.issubset(sales_state.columns)
-
-if (
-    sales_state_stale
-    or "sales" not in st.session_state
-    or "sessions" not in st.session_state
-    or "ads" not in st.session_state
-    or "forecast" not in st.session_state
-):
-    cache_files_exist = (
-        os.path.exists(sales_tempfile)
-        and os.path.exists(sessions_tempfile)
-        and os.path.exists(ads_tempfile)
-        and os.path.exists(forecast_tempfile)
-    )
-    cached_sales = None
-    use_temp_cache = cache_files_exist
-    if use_temp_cache:
-        cached_sales = pd.read_parquet(sales_tempfile)
-        use_temp_cache = required_sales_cache_cols.issubset(cached_sales.columns)
-
-    if use_temp_cache and isinstance(cached_sales, pd.DataFrame):
-        st.session_state["sales"] = cached_sales
-        st.session_state["sessions"] = pd.read_parquet(sessions_tempfile)
-        st.session_state["ads"] = pd.read_parquet(ads_tempfile)
-        st.session_state["forecast"] = pd.read_parquet(forecast_tempfile)
-    else:
-        (
-            st.session_state["sales"],
-            st.session_state["sessions"],
-            st.session_state["ads"],
-            st.session_state["forecast"],
-        ) = get_sales_data()
-        if isinstance(st.session_state["sales"], pd.DataFrame):
-            st.session_state["sales"].to_parquet(sales_tempfile, index=False)
-        if isinstance(st.session_state["sessions"], pd.DataFrame):
-            st.session_state["sessions"].to_parquet(sessions_tempfile, index=False)
-        if isinstance(st.session_state["ads"], pd.DataFrame):
-            st.session_state["ads"].to_parquet(ads_tempfile, index=False)
-        if isinstance(st.session_state["forecast"], pd.DataFrame):
-            st.session_state["forecast"].to_parquet(forecast_tempfile, index=False)
+@st.cache_resource(max_entries=1, show_spinner="Preparing sales history...")
+def load_sales_snapshot():
+    paths = (sales_tempfile, sessions_tempfile, ads_tempfile, forecast_tempfile)
+    required = {"change_notes", "has_sales_row", "has_inventory_row"}
+    cache_valid = all(os.path.exists(path) for path in paths)
+    if cache_valid:
+        # Read metadata only; the engine reads each source once below.
+        cache_valid = required.issubset(pq.read_schema(sales_tempfile).names)
+    if not cache_valid:
+        fresh = get_sales_data()
+        if any(frame is None for frame in fresh):
+            return None
+        for frame, path in zip(fresh, paths):
+            frame.to_parquet(path, index=False)
+        del fresh, frame
+    return SalesTrendsData("temp", events, event_dates_list)
 
 
-sales = st.session_state["sales"].copy()
-# sales['date'] = pd.to_datetime(sales['date']).dt.date
-sessions = st.session_state["sessions"].copy()
-# sessions['date'] = pd.to_datetime(sessions['date']).dt.date
-ads = st.session_state["ads"].copy()
-# ads['date'] = pd.to_datetime(ads['date']).dt.date
-forecast = st.session_state["forecast"].copy()
+# Release copies retained by sessions opened before this optimization.
+for key in ("sales", "sessions", "ads", "forecast"):
+    st.session_state.pop(key, None)
+snapshot = load_sales_snapshot()
 
-if (
-    sales is not None
-    and sessions is not None
-    and ads is not None
-    and forecast is not None
-):
-    min_date = sales["date"].min()
-    max_date = sales["date"].max()
+if snapshot is not None and not snapshot.frames[0].empty:
+    min_date, max_date = snapshot.date_bounds
     date_range = (
         date_from_picker.date_input(
             "Start date",
@@ -779,16 +475,13 @@ if (
     else:
         target_asins = None
 
-    combined, combined_previous, asin_sales, ads_visible, ads_previous = filtered_sales(
-        sales.copy(),
-        sessions.copy(),
-        ads.copy(),
-        forecast.copy(),
+    combined, combined_previous, asin_sales, ads_visible, ads_previous = snapshot.query(
         target_asins,
         available_inv,
         include_events,
         date_range,
         periods,
+        (min_period, max_period),
     )
 
     if not combined.empty:
@@ -1058,6 +751,7 @@ else:
 
 
 def clear_data():
+    load_sales_snapshot.clear()
     if "sales" in st.session_state:
         del st.session_state["sales"]
     if "sessions" in st.session_state:
@@ -1074,6 +768,7 @@ def clear_data():
         os.remove(forecast_tempfile)
 
 
+wipe_forecast = False
 if st.user.email in ("2djohar@gmail.com", "sergey@mellanni.com"):
     wipe_forecast = st.checkbox("Wipe forecast data cache", value=False)
 

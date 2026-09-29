@@ -1,42 +1,36 @@
-"""Exercise the page's pure calculation without Streamlit auth or live BigQuery."""
+"""Exercise the sales snapshot without Streamlit auth or live BigQuery."""
 
 import ast
+import os
 import sqlite3
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
 import pytest
-from dateutil.relativedelta import relativedelta
+import pyarrow.parquet as pq
+import streamlit as st
+from modules.sales_trends import SalesTrendsData
 
 PAGE = Path(__file__).resolve().parents[1] / "pages" / "15_Sales_trends.py"
 
 
 def load_function(previous=("2026-01-01", "2026-01-02"), events=None):
-    tree = ast.parse(PAGE.read_text())
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "filtered_sales"
-    )
     event_ranges = events or {}
-    namespace = {
-        "pd": pd,
-        "relativedelta": relativedelta,
-        "min_period": date.fromisoformat(previous[0]),
-        "max_period": date.fromisoformat(previous[1]),
-        "events": event_ranges,
-        "event_dates_list": [
-            day.date()
-            for bounds in event_ranges.values()
-            for day in pd.date_range(*bounds)
-        ],
-    }
-    exec(  # noqa: S102 - Execute only the trusted local function, without page startup.
-        compile(ast.Module(body=[function], type_ignores=[]), str(PAGE), "exec"),
-        namespace,
-    )
-    return namespace["filtered_sales"]
+    event_dates = [
+        day.date()
+        for bounds in event_ranges.values()
+        for day in pd.date_range(*bounds)
+    ]
+
+    def calculate(sales, sessions, ads, forecast, targets, available, include, dates, periods):
+        snapshot = SalesTrendsData((sales, sessions, ads, forecast), event_ranges, event_dates)
+        return snapshot.query(
+            targets, available, include, dates, periods,
+            tuple(date.fromisoformat(value) for value in previous),
+        )
+
+    return calculate
 
 
 def frames(sales, sessions=(), ads=(), forecast=()):
@@ -331,3 +325,82 @@ def test_legacy_sales_without_presence_flags_remain_supported():
     data[0] = data[0].drop(columns=["has_sales_row", "has_inventory_row"])
     visible, *_ = run(data)
     assert visible["units"].sum() == 10
+
+
+def test_date_changes_reuse_snapshot_after_source_files_are_removed(tmp_path):
+    data = frames([
+        {"date": "2026-02-01", "units": 10},
+        {"date": "2026-02-02", "units": 20},
+    ])
+    for name, frame in zip(("sales", "sessions", "ads", "forecast"), data):
+        frame.to_parquet(tmp_path / f"{name}.parquet", index=False)
+    snapshot = SalesTrendsData(tmp_path, {}, [])
+    for path in tmp_path.glob("*.parquet"):
+        path.unlink()
+    for day, units in ((date(2026, 2, 1), 10), (date(2026, 2, 2), 20)):
+        result = snapshot.query(None, True, True, (day, day))
+        assert result[0]["units"].sum() == units
+
+
+def test_cached_results_are_isolated_and_cache_is_bounded(monkeypatch):
+    snapshot = SalesTrendsData(frames([{"date": "2026-02-01"}]), {}, [])
+    selected = (date(2026, 2, 1), date(2026, 2, 1))
+    first = snapshot.query(None, True, True, selected)
+    expected = [frame.copy(deep=True) for frame in first]
+    first[0].loc[0, "units"] = -1
+    with monkeypatch.context() as patch:
+        def unexpected_calculation(*args):
+            pytest.fail("Identical parameters must reuse cached results")
+        patch.setattr(snapshot, "_query", unexpected_calculation)
+        again = snapshot.query(None, True, True, selected)
+    for left, right in zip(expected, again):
+        pd.testing.assert_frame_equal(left, right)
+    for offset in range(1, 20):
+        day = selected[0] + pd.Timedelta(days=offset)
+        snapshot.query(None, True, True, (day, day))
+    assert len(snapshot.cache) == 16
+
+
+@pytest.mark.parametrize("wipe_forecast", [False, True])
+def test_page_shares_snapshot_until_explicit_refresh(tmp_path, monkeypatch, wipe_forecast):
+    monkeypatch.chdir(tmp_path)
+    cache = tmp_path / "temp"
+    cache.mkdir()
+    data = frames([{"date": "2026-02-01"}])
+    paths = {}
+    for name, frame in zip(("sales", "sessions", "ads", "forecast"), data):
+        paths[f"{name}_tempfile"] = str(cache / f"{name}.parquet")
+        frame.to_parquet(paths[f"{name}_tempfile"], index=False)
+    refreshes = []
+
+    def fresh_data():
+        refreshes.append(True)
+        return frames([{"date": "2026-02-01", "units": 20}])
+
+    # Exercise the actual cached page loader and refresh callback without auth/BQ.
+    tree = ast.parse(PAGE.read_text())
+    functions = [
+        node for node in tree.body if isinstance(node, ast.FunctionDef)
+        and node.name in ("load_sales_snapshot", "clear_data")
+    ]
+    namespace = {
+        "os": os, "pq": pq, "st": st, "SalesTrendsData": SalesTrendsData,
+        "events": {}, "event_dates_list": [], "get_sales_data": fresh_data,
+        "wipe_forecast": wipe_forecast, **paths,
+    }
+    exec(compile(ast.Module(body=functions, type_ignores=[]), str(PAGE), "exec"), namespace)
+    load = namespace["load_sales_snapshot"]
+    load.clear()
+    try:
+        original = load()
+        assert load() is original
+        assert not refreshes
+        namespace["clear_data"]()
+        assert Path(paths["forecast_tempfile"]).exists() is not wipe_forecast
+        refreshed = load()
+        assert refreshed is not original
+        assert load() is refreshed
+        assert refreshed.frames[0]["units"].sum() == 20
+        assert refreshes == [True]
+    finally:
+        load.clear()
