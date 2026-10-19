@@ -356,6 +356,70 @@ with col1:
         if but3.button("Reset") and "asins" in st.session_state:
             del st.session_state["asins"]
 
+    with st.expander("Company Drive search", icon=":material/manage_search:"):
+        from streamlit.components.v1 import iframe
+
+        from modules import drive_search as ds
+
+        with st.form("drive_search"):
+            q_col, k_col, n_col = st.columns([6, 3, 1])
+            ds_query = q_col.text_input(
+                "Search", placeholder="e.g. pink bed sheets folded in a stack"
+            )
+            ds_kinds = k_col.multiselect("Only", ds.KINDS, placeholder="All kinds")
+            ds_limit = n_col.number_input("Results", 1, 25, 10)
+            ds_submit = st.form_submit_button("Search", icon=":material/search:")
+
+        ds_token = ds.user_token()
+        if ds_submit and ds_query.strip():
+            if not ds_token:
+                st.warning(ds.ERRORS["missing_token"])
+            else:
+                try:
+                    with st.spinner("Searching Drive..."):
+                        st.session_state["drive_search_result"] = ds.search(
+                            ds_token, ds_query, int(ds_limit), ds_kinds
+                        )
+                except ds.SearchError as e:
+                    st.session_state.pop("drive_search_result", None)
+                    st.warning(str(e))
+                    st.button("Log out", key="drive_search_logout", on_click=st.logout)
+
+        ds_result = st.session_state.get("drive_search_result")
+        if ds_result:
+            st.caption(ds_result.get("note", ""))
+            for i, r in enumerate(ds_result["results"]):
+                img_col, text_col = st.columns([1, 4])
+                thumb = ds.thumbnail(ds_token, r["file_id"]) if ds_token else None
+                if thumb:
+                    img_col.image(thumb, use_container_width=True)
+                where = r.get("timecode") or (
+                    f"page {r['page']}" if "page" in r else
+                    f"passage {r['passage']}" if "passage" in r else ""
+                )
+                weak = " · :gray[weak match]" if r.get("weak") else ""
+                text_col.markdown(
+                    f"**[{ds.md_escape(r['file_name'])}]({r['drive_link']})**  \n"
+                    f":blue-badge[{r['kind']}] {where}{weak}"
+                )
+                if r.get("excerpt"):
+                    text_col.caption(r["excerpt"][:400])
+                if r["kind"] == "audio" and r.get("timecode"):
+                    text_col.caption(f"Audio opens at the start: go to {r['timecode']}")
+                if r.get("captions_edit_link"):
+                    text_col.caption(
+                        f"No captions yet: [generate them]({r['captions_edit_link']}) "
+                        "so this video becomes searchable by speech"
+                    )
+                if r["kind"] in ("video", "audio") and text_col.toggle(
+                    "Play here", key=f"drive_play_{i}_{r['file_id']}"
+                ):
+                    iframe(
+                        f"https://drive.google.com/file/d/{r['file_id']}/preview",
+                        height=360,
+                    )
+                st.divider()
+
     with st.expander(
         "Convert GDrive links to direct links", icon=":material/add_to_drive:"
     ):
