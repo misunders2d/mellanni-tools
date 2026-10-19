@@ -253,7 +253,6 @@ def require_login():
 
     user = get_current_user()
     if user is not None:
-        mcp_sign_in()
         with st.sidebar:
             user_picture = (
                 user.get("picture_url")

@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from login import require_login
+from login import mcp_sign_in, require_login
 import time
 
 from modules.a2a_client import get_remote_agent, get_task, send_message, parse_response
@@ -24,6 +24,7 @@ show_tool_calls = False
 thought_icon = ":material/lightbulb_2:"
 
 require_login()
+mcp_sign_in()  # only here, where Google login lands: other pages never redirect mid-work
 
 # --- Remote agent config ---
 PREFERRED_A2A_AGENT = "you"
