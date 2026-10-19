@@ -357,6 +357,8 @@ with col1:
             del st.session_state["asins"]
 
     with st.expander("Company Drive search", icon=":material/manage_search:"):
+        from urllib.parse import parse_qs, quote, urlparse
+
         from streamlit.components.v1 import iframe
 
         from login import mcp_sign_in, mcp_token
@@ -425,8 +427,10 @@ with col1:
                 if file_id and r["kind"] in ("video", "audio") and text_col.toggle(
                     "Play here", key=f"drive_play_{i}_{file_id}"
                 ):
-                    iframe(
-                        f"https://drive.google.com/file/d/{file_id}/preview",
+                    start = parse_qs(urlparse(r["drive_link"]).query).get("t", [""])[0]
+                    iframe(  # Drive's player takes the same ?t= as the result's link
+                        f"https://drive.google.com/file/d/{file_id}/preview"
+                        + (f"?t={quote(start)}" if start else ""),
                         height=360,
                     )
                 st.divider()
