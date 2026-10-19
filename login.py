@@ -21,7 +21,6 @@ except ImportError:
     class StopException(Exception):
         pass
 
-from modules.gcloud_modules import pull_dictionary
 from modules.supabase_client import get_supabase_client
 
 SUPER_ADMINS = ["2djohar@gmail.com", "sergey@mellanni.com"]
@@ -42,7 +41,6 @@ except Exception as e:
         os.environ.get("gcp_service_account", "")
     )
 
-pull_dictionary()
 
 
 def get_current_user() -> dict | None:
