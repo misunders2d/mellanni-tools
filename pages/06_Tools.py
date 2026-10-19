@@ -373,9 +373,12 @@ with col1:
 
         ds_token = mcp_token()
         if not ds_token:
-            st.info("Not connected to Mellanni MCP.")
-            if st.button("Connect", key="drive_search_connect"):
-                mcp_sign_in(force=True)
+            if not (st.user.email or "").lower().endswith("@mellanni.com"):
+                st.info("Drive search needs a @mellanni.com account.")
+            else:
+                st.info("Not connected to Mellanni MCP.")
+                if st.button("Connect", key="drive_search_connect"):
+                    mcp_sign_in(force=True)
         elif ds_submit and ds_query.strip():
             try:
                 with st.spinner("Searching Drive..."):

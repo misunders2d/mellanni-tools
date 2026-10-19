@@ -9,11 +9,17 @@ from urllib.parse import urlencode
 
 import requests
 import streamlit as st
-from streamlit.proto.ForwardMsg_pb2 import ForwardMsg
-from streamlit.runtime.scriptrunner_utils.exceptions import StopException
-from streamlit.runtime.scriptrunner_utils.script_run_context import (
-    get_script_run_ctx,
-)
+try:  # Streamlit internals used by st.login itself; if a release moves them, MCP sign-in is skipped
+    from streamlit.proto.ForwardMsg_pb2 import ForwardMsg
+    from streamlit.runtime.scriptrunner_utils.exceptions import StopException
+    from streamlit.runtime.scriptrunner_utils.script_run_context import (
+        get_script_run_ctx,
+    )
+except ImportError:
+    ForwardMsg = None
+
+    class StopException(Exception):
+        pass
 
 from modules.gcloud_modules import pull_dictionary
 from modules.supabase_client import get_supabase_client
@@ -116,6 +122,7 @@ def _mcp_finish_sign_in(email: str) -> None:
     params = st.query_params
     pending = _mcp_state()["pending"].pop(params.get("state", ""), None)
     if pending is None:
+        st.query_params.clear()
         return
     try:
         if params.get("code") and pending["email"] == email:
@@ -179,12 +186,14 @@ def mcp_sign_in(force: bool = False) -> None:
     """Signs the user in to the Mellanni MCP server once after the app's Google login.
     Never blocks the app: any failure leaves the user logged in without MCP tools."""
     email = (st.user.email or "").lower()
-    if not email.endswith("@mellanni.com"):
+    if ForwardMsg is None or not email.endswith("@mellanni.com"):
         return
     try:
         if "state" in st.query_params:
             _mcp_finish_sign_in(email)
         state = _mcp_state()
+        if force:
+            state["tokens"].pop(email, None)
         if email in state["tokens"]:
             return
         if not force and time.time() - state["tried"].get(email, 0) < MCP_RETRY_S:

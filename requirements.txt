@@ -5,6 +5,7 @@ fpdf
 fuzzywuzzy
 gdown
 google-adk
+mcp
 google-api-python-client
 google-auth
 google-auth-httplib2
