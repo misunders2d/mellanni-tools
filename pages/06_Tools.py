@@ -398,17 +398,19 @@ with col1:
                     f"passage {r['passage']}" if "passage" in r else ""
                 )
                 weak = " · :gray[weak match]" if r.get("weak") else ""
+                name = ds.md_escape(r["file_name"])
                 text_col.markdown(
-                    f"**[{ds.md_escape(r['file_name'])}]({r['drive_link']})**  \n"
+                    (f"**[{name}]({link})**" if (link := ds.safe_link(r.get("drive_link"))) else f"**{name}**")
+                    + "  \n"
                     f":blue-badge[{r['kind']}] {where}{weak}"
                 )
                 if r.get("excerpt"):
-                    text_col.caption(r["excerpt"][:400])
+                    text_col.caption(ds.md_escape(r["excerpt"][:400]))
                 if r["kind"] == "audio" and r.get("timecode"):
                     text_col.caption(f"Audio opens at the start: go to {r['timecode']}")
-                if r.get("captions_edit_link"):
+                if cc_link := ds.safe_link(r.get("captions_edit_link")):
                     text_col.caption(
-                        f"No captions yet: [generate them]({r['captions_edit_link']}) "
+                        f"No captions yet: [generate them]({cc_link}) "
                         "so this video becomes searchable by speech"
                     )
                 if r["kind"] in ("video", "audio") and text_col.toggle(

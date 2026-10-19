@@ -19,8 +19,14 @@ ERRORS = {
 
 
 def md_escape(text: str) -> str:
-    """A file name safe inside a markdown link label."""
-    return "".join("\\" + c if c in "[]()*_`$~" else c for c in text)
+    """Text from Drive (names, excerpts) rendered literally in Streamlit markdown."""
+    return "".join("\\" + c if c in "\\[]()*_`$~!<>#|:{}+-=." else c for c in text)
+
+
+def safe_link(url: str | None) -> str | None:
+    """Only Google Drive/Docs links are rendered as links."""
+    ok = isinstance(url, str) and url.startswith(("https://drive.google.com/", "https://docs.google.com/"))
+    return url if ok else None
 
 
 class SearchError(Exception):
