@@ -416,6 +416,8 @@ with col1:
                     + "  \n"
                     f":blue-badge[{r['kind']}] {where}{weak}"
                 )
+                if r.get("folder"):
+                    text_col.caption(f":material/folder: {ds.md_escape(r['folder'])}")
                 if r.get("excerpt"):
                     text_col.caption(ds.md_escape(r["excerpt"][:400]))
                 if r["kind"] == "audio" and r.get("timecode"):
