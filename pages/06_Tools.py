@@ -401,7 +401,8 @@ with col1:
                 file_id = ds.safe_id(r.get("file_id"))
                 if file_id and r["kind"] in ("image", "screenshot", "video", "pdf", "doc"):
                     img_col.image(  # loaded by the browser with the user's own Google session
-                        f"https://drive.google.com/thumbnail?id={file_id}&sz=w400",
+                        f"https://drive.google.com/thumbnail?id={file_id}&sz=w400"
+                        f"&authuser={quote(st.user.email or '')}",
                         use_container_width=True,
                     )
                 where = r.get("timecode") or (
@@ -430,7 +431,8 @@ with col1:
                     start = parse_qs(urlparse(r["drive_link"]).query).get("t", [""])[0]
                     iframe(  # Drive's player takes the same ?t= as the result's link
                         f"https://drive.google.com/file/d/{file_id}/preview"
-                        + (f"?t={quote(start)}" if start else ""),
+                        f"?authuser={quote(st.user.email or '')}"
+                        + (f"&t={quote(start)}" if start else ""),
                         height=360,
                     )
                 st.divider()
