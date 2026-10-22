@@ -396,7 +396,15 @@ with col1:
         ds_result = st.session_state.get("drive_search_result")
         if ds_result:
             st.caption(ds_result.get("note", ""))
-            for i, r in enumerate(ds_result["results"]):
+            ds_sort = st.segmented_control(
+                "Sort", ["Relevance", "Newest", "Oldest"], default="Relevance", key="drive_search_sort"
+            )
+            ds_rows = ds_result["results"]
+            if ds_sort in ("Newest", "Oldest"):  # Drive's RFC 3339 UTC dates sort as text; undated go last
+                dated = [r for r in ds_rows if ds.file_date(r)]
+                dated.sort(key=ds.file_date, reverse=ds_sort == "Newest")
+                ds_rows = dated + [r for r in ds_rows if not ds.file_date(r)]
+            for i, r in enumerate(ds_rows):
                 img_col, text_col = st.columns([1, 4])
                 file_id = ds.safe_id(r.get("file_id"))
                 if file_id and r["kind"] in ("image", "screenshot", "video", "pdf", "doc"):
@@ -410,6 +418,8 @@ with col1:
                     f"passage {r['passage']}" if "passage" in r else ""
                 )
                 weak = " · :gray[weak match]" if r.get("weak") else ""
+                if day := ds.file_date(r)[:10]:
+                    where = f"{where} · {day}" if where else day
                 name = ds.md_escape(r["file_name"])
                 text_col.markdown(
                     (f"**[{name}]({link})**" if (link := ds.safe_link(r.get("drive_link"))) else f"**{name}**")

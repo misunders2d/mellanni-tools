@@ -29,6 +29,12 @@ def safe_link(url: str | None) -> str | None:
     return url if ok else None
 
 
+def file_date(result: dict) -> str:
+    """When the file was created in Drive (modified if unknown), RFC 3339; "" if neither."""
+    date = result.get("created") or result.get("modified")
+    return date if isinstance(date, str) else ""
+
+
 def safe_id(file_id: str) -> str | None:
     return file_id if isinstance(file_id, str) and _FILE_ID.match(file_id) else None
 
