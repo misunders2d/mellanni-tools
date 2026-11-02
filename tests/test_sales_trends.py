@@ -3,6 +3,8 @@
 import ast
 import os
 import sqlite3
+import sys
+import types
 from datetime import date
 from pathlib import Path
 
@@ -584,3 +586,87 @@ def test_seller_ranks_follow_display_order():
     assert table["asin"].iloc[:2].tolist() == ["B", "C"]
     assert table["#"].iloc[:2].tolist() == [1, 2]
     assert table["net_sales"].iloc[-1] == 50
+
+
+@pytest.mark.parametrize("old_module_in_memory", [False, True])
+def test_full_page_starts_after_update_with_old_module_in_memory(
+    tmp_path, monkeypatch, old_module_in_memory,
+):
+    """Exercise the real page, imports, widgets, chart, cache and Refresh button."""
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "media").symlink_to(PAGE.parents[1] / "media", target_is_directory=True)
+    cache = tmp_path / "temp"
+    cache.mkdir()
+    data = frames(
+        [{"date": "2026-02-01"}, {"date": "2026-02-02", "units": 20}],
+        [("2026-02-01", "A", 100), ("2026-02-02", "A", 200)],
+        [("2026-02-01", "A", 1, 100, 10, 1, 10)],
+        [("2026-02-03", "A", 11, 110)],
+    )
+    for name, frame in zip(("sales", "sessions", "ads", "forecast"), data):
+        write_cache(cache / f"{name}.parquet", frame)
+
+    def module(name, **attributes):
+        result = types.ModuleType(name)
+        result.__dict__.update(attributes)
+        monkeypatch.setitem(sys.modules, name, result)
+        return result
+
+    # Auth and the warehouse are external boundaries. All Sales Trends code,
+    # including imports and Streamlit rendering, runs unmodified.
+    module("login", require_login=lambda: None, require_role=lambda *roles: None)
+    event_source = module("common.events", events={}, event_dates_list=[])
+    module("common", events=event_source)
+    dictionary = pd.DataFrame({"sku": ["SKU-A"], "asin": ["A"],
+                               "collection": ["C"], "size": ["S"], "color": ["white"]})
+    module("modules.gcloud_modules", pull_dictionary=lambda: dictionary.copy())
+    queries = []
+
+    class Warehouse:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def query(self, sql):
+            queries.append(sql)
+            frame = data[(len(queries) - 1) % 4].copy()
+            return types.SimpleNamespace(to_dataframe=lambda: frame)
+
+    warehouse = module("google.cloud.bigquery", Client=Warehouse)
+    module("google.cloud", bigquery=warehouse)
+    credentials = module("google.oauth2.service_account", Credentials=types.SimpleNamespace(
+        from_service_account_info=lambda _: types.SimpleNamespace(project_id="test")))
+    module("google.oauth2", service_account=credentials)
+    monkeypatch.setattr(st, "user", types.SimpleNamespace(email="sales@example.test"))
+
+    # Python keeps imported helpers across Streamlit script reruns. Simulate
+    # the pre-update module: it has the class, but none of the new helpers.
+    if old_module_in_memory:
+        module("modules.sales_trends", SalesTrendsData=object)
+    st.cache_resource.clear()
+    try:
+        app = AppTest.from_file(PAGE, default_timeout=15)
+        app.secrets["gcp_service_account"] = {}
+        app.run()
+        assert not app.exception, [error.message for error in app.exception]
+        assert len(app.metric) == 16
+        assert app.metric[0].value == "30"
+        assert not queries
+        app.text_area[0].set_value("SKU-A").run()
+        assert not app.exception, [error.message for error in app.exception]
+        assert app.metric[0].value == "30"
+        assert not queries
+        refresh = next(button for button in app.button if button.label == "Refresh data")
+        refresh.click().run()
+        assert not app.exception, [error.message for error in app.exception]
+        assert len(queries) == 4
+        assert app.metric[0].value == "30"
+    finally:
+        st.cache_resource.clear()

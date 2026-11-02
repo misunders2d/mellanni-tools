@@ -13,7 +13,9 @@ from google.oauth2 import service_account
 from login import require_login, require_role
 from modules.filter_modules import filter_dictionary
 from modules.sales_charts import render_sales_chart
-from modules.sales_trends import SalesTrendsData, metric_delta, metric_value, safe_ratio
+# A fresh module path keeps a running Streamlit process from binding this page
+# to the old sales_trends module retained in sys.modules during deployment.
+from modules.sales_history import SalesTrendsData, metric_delta, metric_value, safe_ratio
 
 os.makedirs("temp", exist_ok=True)
 
