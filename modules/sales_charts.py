@@ -53,33 +53,16 @@ def render_sales_chart(
     # Rounding: Inventory is integer
     inventory = [int(round(x)) if pd.notna(x) else None for x in inventory]
 
-    # Stockout Data (negative values for visualization below zero line)
-    stockout_raw = pd.to_numeric(df.get("stockout", 0)).fillna(0)  # type: ignore
-    # Normalize if needed (original logic: if max > 1, divide by 100)
-    if stockout_raw.max() > 1:
-        stockout_frac = (
-            stockout_raw  # Already percentage? No, usually >1 means 20 for 20%.
-        )
-        # User said "Stockout values and axis must be in percentages".
-        # If data is 0.2 for 20%, we need to multiply by 100.
-        # If data is 20 for 20%, we keep it.
-        # Original logic: "if max > 1, divide by 100". That implies raw data was 20.
-        # But then I divided by 100 to get 0.2.
-        # Now I want to display 20%.
-        # So I should KEEP it as 20 (if > 1) or multiply by 100 (if <= 1).
-        # Let's assume raw data is percentage (0-100) if max > 1.
-        pass
-    else:
-        # If max <= 1, it's likely fraction (0.2). Convert to percentage (20).
-        stockout_frac = stockout_raw * 100.0
-
-    # Stockout Data
-    # Use positive values and inverted axis to show "hanging" chart with positive labels
-    # Rounding: Stockout % to 1 decimal
+    # Keep unknown inventory and excluded dates as gaps, including when the
+    # source has no stockout column. The sales engine supplies fractions.
+    stockout_raw = pd.to_numeric(
+        df.get("stockout", pd.Series(float("nan"), index=df.index))
+    )
+    maximum = stockout_raw.max()
+    stockout_frac = (
+        stockout_raw if pd.notna(maximum) and maximum > 1 else stockout_raw * 100.0
+    )
     stockout_y = [round(x, 1) if pd.notna(x) else None for x in stockout_frac.tolist()]
-    # But for gaps (events), we want None.
-    # If the original value was None (from upstream gap logic), it might be NaN here.
-    # Let's handle NaN in stockout_raw if we want gaps.
 
     # Ads Chart Data
     # Ads Chart Data
@@ -103,10 +86,8 @@ def render_sales_chart(
     for s, sp in zip(ad_sales, ad_spend):
         if s is not None and sp is not None and s > 0:
             acos.append(round((sp / s) * 100, 1))
-        elif s is None or sp is None:
-            acos.append(None)
         else:
-            acos.append(0)
+            acos.append(None)
 
     # --- Annotations (Change Notes) ---
     mark_points = []

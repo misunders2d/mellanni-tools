@@ -2,18 +2,18 @@ import os
 import re
 
 import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
 import streamlit as st
 from common.events import event_dates_list, events
 from dateutil.relativedelta import relativedelta
 from google.cloud import bigquery
 from google.oauth2 import service_account
-from numpy import nan
 
 from login import require_login, require_role
 from modules.filter_modules import filter_dictionary
 from modules.sales_charts import render_sales_chart
-from modules.sales_trends import SalesTrendsData
+from modules.sales_trends import SalesTrendsData, metric_delta, metric_value, safe_ratio
 
 os.makedirs("temp", exist_ok=True)
 
@@ -58,6 +58,9 @@ metrics_area = st.container()
 plot_area = st.container()
 ad_metrics_area1 = st.container()
 ad_metrics_area2 = st.container()
+ad_metrics_area2.caption(
+    "Sponsored Products · 14-day click attribution · filtered by advertised ASIN."
+)
 (
     ad_units_metric,
     ad_sales_metric,
@@ -88,22 +91,11 @@ def get_sales_data(
                 DATE(purchase_date, "America/Los_Angeles") AS date,
                 asin,
                 SUM(quantity) AS units,
-                SUM(item_price) AS gross_item_sales,
-                SUM(COALESCE(item_promotion_discount,0)) AS item_promo,
                 SUM(COALESCE(item_price,0)) - SUM(COALESCE(item_promotion_discount,0)) AS net_sales
             FROM mellanni-project-da.reports.all_orders
             WHERE DATE(purchase_date, "America/Los_Angeles") >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
                 AND LOWER(sales_channel) = 'amazon.com'
             GROUP BY date, asin
-            ),
-            total_sales AS (
-            SELECT
-                DATE(purchase_date, "America/Los_Angeles") AS date,
-                SUM(quantity) AS total_units,
-            FROM mellanni-project-da.reports.all_orders
-            WHERE DATE(purchase_date, "America/Los_Angeles") >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
-                AND LOWER(sales_channel) = 'amazon.com'
-            GROUP BY date
             ),
             inventory_by_date_asin AS (
             SELECT
@@ -198,108 +190,43 @@ def get_sales_data(
             d.color,
             s.units,
             s.net_sales,
-            ts.total_units,
             s.inventory_supply_at_fba,
             s.available,
             s.has_sales_row,
             s.has_inventory_row,
             s.change_notes
             FROM sales_with_inventory s
-            LEFT JOIN total_sales ts
-            ON s.date = ts.date
             LEFT JOIN deduped_asin_dict d
             ON s.asin = d.asin
             ORDER BY s.date ASC, s.units DESC
             """
 
     sessions_query = f"""
-            WITH sessions as (
             SELECT
                 DATE(date) AS date,
                 childAsin AS asin,
                 SUM(sessions) AS sessions
             FROM mellanni-project-da.reports.business_report_asin
-            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE(), INTERVAL {interval})
+            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
                 AND LOWER(country_code) = 'us'
             GROUP BY date, asin
-            ),
-            deduped_dict AS (
-            SELECT
-                asin,
-                ANY_VALUE(collection)  AS collection,
-                ANY_VALUE(size)        AS size,
-                ANY_VALUE(color)       AS color,
-            FROM mellanni-project-da.auxillary_development.dictionary
-            WHERE asin IS NOT NULL
-            GROUP BY asin
-            )
-            SELECT
-            s.date,
-            s.asin,
-            s.sessions,
-            d.collection,
-            d.size,
-            d.color,
-            FROM sessions s
-            LEFT JOIN deduped_dict d
-            ON s.asin = d.asin
-            ORDER BY s.date ASC, s.sessions DESC
-
+            ORDER BY date ASC
             """
 
     ads_query = f"""
-            WITH advertised AS (
             SELECT
                 DATE(date) AS date,
                 advertisedAsin AS asin,
-                SUM(spend) AS ad_spend,  -- Switched to 'spend' (total ad cost per schema); revert to 'cost' if intended
+                SUM(spend) AS ad_spend,
                 SUM(impressions) AS impressions,
                 SUM(clicks) AS clicks,
-                SUM(unitsSoldSameSku14d) AS same_units,
-                SUM(attributedSalesSameSku14d) AS same_sales
+                SUM(unitsSoldClicks14d) AS total_units,
+                SUM(sales14d) AS total_sales
             FROM mellanni-project-da.reports.AdvertisedProduct
-            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE(), INTERVAL {interval})
+            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL {interval})
                 AND LOWER(country_code) = 'us'
             GROUP BY date, asin
-            ),
-            purchased AS (
-            SELECT
-                DATE(date) AS date,
-                purchasedAsin AS asin,
-                SUM(unitsSoldOtherSku14d) AS other_units,
-                SUM(salesOtherSku14d) AS other_sales
-            FROM mellanni-project-da.reports.PurchasedProduct
-            WHERE DATE(date) >= DATE_SUB(CURRENT_DATE(), INTERVAL {interval})
-                AND LOWER(country_code) = 'us'
-            GROUP BY date, asin
-            ),
-            deduped_dict AS (
-            SELECT
-                asin,
-                ANY_VALUE(collection) AS collection,
-                ANY_VALUE(size) AS size,
-                ANY_VALUE(color) AS color
-            FROM mellanni-project-da.auxillary_development.dictionary
-            WHERE asin IS NOT NULL
-            GROUP BY asin
-            )
-            SELECT
-            COALESCE(a.date, p.date) AS date,
-            COALESCE(a.asin, p.asin) AS asin,
-            a.ad_spend,
-            a.impressions,
-            a.clicks,
-            COALESCE(a.same_units, 0) + COALESCE(p.other_units, 0) AS total_units,
-            COALESCE(a.same_sales, 0) + COALESCE(p.other_sales, 0) AS total_sales,
-            d.collection,
-            d.size,
-            d.color
-            FROM advertised a
-            FULL OUTER JOIN purchased p
-            ON a.date = p.date AND a.asin = p.asin
-            LEFT JOIN deduped_dict d
-            ON COALESCE(a.asin, p.asin) = d.asin
-            ORDER BY date ASC, asin;    
+            ORDER BY date ASC, asin
     """
 
     forecast_query = "SELECT date, asin, units as forecast_units, dollar as forecast_dollar FROM mellanni-project-da.daily_reports.forecast ORDER BY date, asin"
@@ -334,7 +261,7 @@ def get_sales_data(
 
 
 def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFrame:
-    asin_sales = asin_sales.head(num_top_sellers).copy()
+    asin_sales = asin_sales.head(num_top_sellers).reset_index(drop=True).copy()
     totals_asins = asin_sales.sum(numeric_only=True, axis=0)
     asin_sales.loc[:, "#"] = asin_sales.index + 1
     asin_sales = pd.concat([asin_sales, pd.DataFrame(totals_asins).T])
@@ -347,15 +274,41 @@ def load_sales_snapshot():
     required = {"change_notes", "has_sales_row", "has_inventory_row"}
     cache_valid = all(os.path.exists(path) for path in paths)
     if cache_valid:
-        # Read metadata only; the engine reads each source once below.
-        cache_valid = required.issubset(pq.read_schema(sales_tempfile).names)
+        try:
+            # Version every file so old attribution cannot silently reuse
+            # incompatible source data.
+            schemas = [pq.read_schema(path) for path in paths]
+            generation = (schemas[0].metadata or {}).get(b"sales_trends_generation")
+            cache_valid = (
+                generation is not None
+                and required.issubset(schemas[0].names)
+                and all(
+                    (schema.metadata or {}).get(b"sales_trends_version") == b"2"
+                    and (schema.metadata or {}).get(b"sales_trends_generation") == generation
+                    for schema in schemas
+                )
+            )
+        except (OSError, pa.ArrowInvalid):
+            cache_valid = False
     if not cache_valid:
         fresh = get_sales_data()
         if any(frame is None for frame in fresh):
             return None
+        generation = os.urandom(16)
         for frame, path in zip(fresh, paths):
-            frame.to_parquet(path, index=False)
-        del fresh, frame
+            table = pa.Table.from_pandas(frame, preserve_index=False)
+            metadata = {
+                **(table.schema.metadata or {}), b"sales_trends_version": b"2",
+                b"sales_trends_generation": generation,
+            }
+            temporary = f"{path}.{generation.hex()}.tmp"
+            try:
+                pq.write_table(table.replace_schema_metadata(metadata), temporary)
+                os.replace(temporary, path)
+            finally:
+                if os.path.exists(temporary):
+                    os.remove(temporary)
+        del fresh, frame, table
     return SalesTrendsData("temp", events, event_dates_list)
 
 
@@ -366,10 +319,12 @@ snapshot = load_sales_snapshot()
 
 if snapshot is not None and not snapshot.frames[0].empty:
     min_date, max_date = snapshot.date_bounds
+    cached_at = snapshot.cached_at.tz_convert("America/Los_Angeles")
+    st.caption(f"Data refreshed {cached_at:%b %d, %Y %H:%M %Z}. Use Refresh data to reload.")
     date_range = (
         date_from_picker.date_input(
             "Start date",
-            value=max_date - pd.Timedelta(days=90),
+            value=max(min_date, max_date - pd.Timedelta(days=90)),
             min_value=min_date,
             max_value=max_date,
             width=150,
@@ -487,95 +442,55 @@ if snapshot is not None and not snapshot.frames[0].empty:
     if not combined.empty:
         with plot_area:
             render_sales_chart(
-                combined.copy(),
-                ads_visible.copy(),
+                combined,
+                ads_visible,
                 show_change_notes=show_change_notes,
                 show_lds=show_lds,
                 available_inv=available_inv,
             )
 
         # absolute numbers metrics
-        total_units_this_year = combined["units"].sum()
-        total_units_last_year = combined_previous["units"].sum()
-        total_dollars_this_year = combined["net_sales"].sum()
-        total_dollars_last_year = combined_previous["net_sales"].sum()
-        average_price_this_year = total_dollars_this_year / total_units_this_year
-        average_price_last_year = total_dollars_last_year / total_units_last_year
-        sessions_this_year = combined["sessions"].sum()
-        sessions_last_year = combined_previous["sessions"].sum()
-        conversion_this_year = total_units_this_year / sessions_this_year
-        conversion_last_year = total_units_last_year / sessions_last_year
-        total_forecast_this_year = combined["forecast_units"].sum()
-        total_dollar_forecast_this_year = combined["forecast_dollar"].sum()
+        total_units_this_year = combined["units"].sum(min_count=1)
+        total_units_last_year = combined_previous["units"].sum(min_count=1)
+        total_dollars_this_year = combined["net_sales"].sum(min_count=1)
+        total_dollars_last_year = combined_previous["net_sales"].sum(min_count=1)
+        average_price_this_year = safe_ratio(total_dollars_this_year, total_units_this_year)
+        average_price_last_year = safe_ratio(total_dollars_last_year, total_units_last_year)
+        sessions_this_year = combined["sessions"].sum(min_count=1)
+        sessions_last_year = combined_previous["sessions"].sum(min_count=1)
+        conversion_this_year = safe_ratio(total_units_this_year, sessions_this_year)
+        conversion_last_year = safe_ratio(total_units_last_year, sessions_last_year)
+        total_forecast_this_year = combined["forecast_units"].sum(min_count=1)
+        total_dollar_forecast_this_year = combined["forecast_dollar"].sum(min_count=1)
 
-        # average numbers metrics
-        days_this_year = (date_range[1] - date_range[0]).days + 1
-        if not include_events:
-            event_days = len(
-                [x for x in event_dates_list if date_range[0] <= x <= date_range[1]]
-            )
-            days_this_year -= event_days
-        days_last_year = (max_period - min_period).days + 1
-        if not include_events and periods not in events:
-            event_days_last_year = len(
-                [x for x in event_dates_list if min_period <= x <= max_period]
-            )
-            days_last_year -= event_days_last_year
-
-        average_units_this_year = combined["units"].sum() / days_this_year
-        average_units_last_year = combined_previous["units"].sum() / days_last_year
-        average_dollars_this_year = combined["net_sales"].sum() / days_this_year
-        average_dollars_last_year = (
-            combined_previous["net_sales"].sum() / days_last_year
-        )
-        average_sessions_this_year = combined["sessions"].sum() / days_this_year
-        average_sessions_last_year = (
-            combined_previous["sessions"].sum() / days_last_year
-        )
+        # Missing future/source dates and excluded events are NaN. Observed
+        # calendar days with zero sales remain zero and count in these averages.
+        average_units_this_year = combined["units"].mean()
+        average_units_last_year = combined_previous["units"].mean()
+        average_dollars_this_year = combined["net_sales"].mean()
+        average_dollars_last_year = combined_previous["net_sales"].mean()
+        average_sessions_this_year = combined["sessions"].mean()
+        average_sessions_last_year = combined_previous["sessions"].mean()
 
         # ads metrics
-        total_ad_units_this_year = ads_visible["total_units"].sum()
-        total_ad_units_last_year = ads_previous["total_units"].sum()
-        total_ad_dollars_this_year = ads_visible["total_sales"].sum()
-        total_ad_dollars_last_year = ads_previous["total_sales"].sum()
+        total_ad_units_this_year = ads_visible["total_units"].sum(min_count=1)
+        total_ad_units_last_year = ads_previous["total_units"].sum(min_count=1)
+        total_ad_dollars_this_year = ads_visible["total_sales"].sum(min_count=1)
+        total_ad_dollars_last_year = ads_previous["total_sales"].sum(min_count=1)
 
-        total_spend_this_year = ads_visible["ad_spend"].sum()
-        total_spend_last_year = ads_previous["ad_spend"].sum()
-        total_impressions_this_year = ads_visible["impressions"].sum()
-        total_impressions_last_year = ads_previous["impressions"].sum()
-        total_clicks_this_year = ads_visible["clicks"].sum()
-        total_clicks_last_year = ads_previous["clicks"].sum()
+        total_spend_this_year = ads_visible["ad_spend"].sum(min_count=1)
+        total_spend_last_year = ads_previous["ad_spend"].sum(min_count=1)
+        total_impressions_this_year = ads_visible["impressions"].sum(min_count=1)
+        total_impressions_last_year = ads_previous["impressions"].sum(min_count=1)
+        total_clicks_this_year = ads_visible["clicks"].sum(min_count=1)
+        total_clicks_last_year = ads_previous["clicks"].sum(min_count=1)
 
-        avg_conversion_this_year = (
-            total_ad_units_this_year / total_clicks_this_year
-            if total_clicks_this_year > 0
-            else nan
-        )
-        avg_conversion_last_year = (
-            total_ad_units_last_year / total_clicks_last_year
-            if total_clicks_last_year > 0
-            else nan
-        )
-        avg_cpc_this_year = (
-            total_spend_this_year / total_clicks_this_year
-            if total_clicks_this_year > 0
-            else nan
-        )
-        avg_cpc_last_year = (
-            total_spend_last_year / total_clicks_last_year
-            if total_clicks_last_year > 0
-            else nan
-        )
-        avg_acos_this_year = (
-            total_spend_this_year / total_ad_dollars_this_year
-            if total_ad_dollars_this_year > 0
-            else nan
-        )
-        avg_acos_last_year = (
-            total_spend_last_year / total_ad_dollars_last_year
-            if total_ad_dollars_last_year > 0
-            else nan
-        )
+        avg_conversion_this_year = safe_ratio(total_ad_units_this_year, total_clicks_this_year)
+        avg_conversion_last_year = safe_ratio(total_ad_units_last_year, total_clicks_last_year)
+        avg_cpc_this_year = safe_ratio(total_spend_this_year, total_clicks_this_year)
+        avg_cpc_last_year = safe_ratio(total_spend_last_year, total_clicks_last_year)
+        avg_acos_this_year = safe_ratio(total_spend_this_year, total_ad_dollars_this_year)
+        avg_acos_last_year = safe_ratio(total_spend_last_year, total_ad_dollars_last_year)
 
         metric_text = (
             f"{min_period} - {max_period}"
@@ -586,119 +501,119 @@ if snapshot is not None and not snapshot.frames[0].empty:
 
         units_metric.metric(
             label="Total units sold",
-            value=f"{total_units_this_year:,.0f}",
-            delta=f"{total_units_this_year / total_units_last_year - 1:.1%} {yoy_text}",
+            value=metric_value(total_units_this_year, ',.0f'),
+            delta=metric_delta(total_units_this_year, total_units_last_year, yoy_text),
             chart_data=combined["units"],
-            help=f"{metric_text}: {total_units_last_year:,.0f}\nForecast units: {total_forecast_this_year:,.0f}",
+            help=f"{metric_text}: {metric_value(total_units_last_year, ',.0f')}\nForecast units: {metric_value(total_forecast_this_year, ',.0f')}",
         )
         dollar_metric.metric(
             label="Total sales",
-            value=f"${total_dollars_this_year:,.0f}",
-            delta=f"{total_dollars_this_year / total_dollars_last_year - 1:.1%} {yoy_text}",
+            value=metric_value(total_dollars_this_year, ',.0f', '$'),
+            delta=metric_delta(total_dollars_this_year, total_dollars_last_year, yoy_text),
             chart_data=combined["net_sales"],
-            help=f"{metric_text}: ${total_dollars_last_year:,.0f}\nForecast sales: {total_dollar_forecast_this_year:,.0f}",
+            help=f"{metric_text}: {metric_value(total_dollars_last_year, ',.0f', '$')}\nForecast sales: {metric_value(total_dollar_forecast_this_year, ',.0f')}",
         )
         price_metric.metric(
             label="Average price",
-            value=f"${average_price_this_year:,.2f}",
-            delta=f"{average_price_this_year / average_price_last_year - 1:.1%} {yoy_text}",
-            chart_data=combined["net_sales"] / combined["units"],
-            help=f"{metric_text}: ${average_price_last_year:,.2f}",
+            value=metric_value(average_price_this_year, ',.2f', '$'),
+            delta=metric_delta(average_price_this_year, average_price_last_year, yoy_text),
+            chart_data=combined["average selling price"],
+            help=f"{metric_text}: {metric_value(average_price_last_year, ',.2f', '$')}",
         )
         sessions_metric.metric(
             label="Total sessions",
-            value=f"{sessions_this_year:,.0f}",
-            delta=f"{sessions_this_year / sessions_last_year - 1:.1%} {yoy_text}",
+            value=metric_value(sessions_this_year, ',.0f'),
+            delta=metric_delta(sessions_this_year, sessions_last_year, yoy_text),
             chart_data=combined["sessions"],
-            help=f"{metric_text}: {sessions_last_year:,.0f}",
+            help=f"{metric_text}: {metric_value(sessions_last_year, ',.0f')}",
         )
         conversion_metric.metric(
             label="Conversion %",
-            value=f"{conversion_this_year:.1%}",
-            delta=f"{conversion_this_year / conversion_last_year - 1:.1%} {yoy_text}",
-            chart_data=(combined["units"] / combined["sessions"] * 100).round(1),
-            help=f"{metric_text}: {conversion_last_year:.1%}",
+            value=metric_value(conversion_this_year, '.1%'),
+            delta=metric_delta(conversion_this_year, conversion_last_year, yoy_text),
+            chart_data=(combined["units"].div(combined["sessions"].where(combined["sessions"] > 0)) * 100).round(1),
+            help=f"{metric_text}: {metric_value(conversion_last_year, '.1%')}",
         )
 
         avg_units_metric.metric(
             label="Avg units/day",
             value=(
-                f"{average_units_this_year:,.1f}"
-                if average_units_this_year > 1
-                else f"{average_units_this_year:.3f}"
+                metric_value(average_units_this_year, ',.1f')
+                if pd.notna(average_units_this_year) and average_units_this_year > 1
+                else metric_value(average_units_this_year, '.3f')
             ),
-            delta=f"{average_units_this_year / average_units_last_year - 1:.1%} {yoy_text}",
+            delta=metric_delta(average_units_this_year, average_units_last_year, yoy_text),
             chart_data=combined["30-day avg"],
             help=(
-                f"{metric_text}: {average_units_last_year:,.1f}"
-                if average_units_last_year > 1
-                else f"{metric_text}: {average_units_last_year:,.3f}"
+                f"{metric_text}: {metric_value(average_units_last_year, ',.1f')}"
+                if pd.notna(average_units_last_year) and average_units_last_year > 1
+                else f"{metric_text}: {metric_value(average_units_last_year, ',.3f')}"
             ),
         )
         avg_dollar_metric.metric(
             label="Avg sales/day",
-            value=f"${average_dollars_this_year:,.0f}",
-            delta=f"{average_dollars_this_year / average_dollars_last_year - 1:.1%} {yoy_text}",
+            value=metric_value(average_dollars_this_year, ',.0f', '$'),
+            delta=metric_delta(average_dollars_this_year, average_dollars_last_year, yoy_text),
             chart_data=combined["30-day sales avg"],
-            help=f"{metric_text}: ${average_dollars_last_year:,.0f}",
+            help=f"{metric_text}: {metric_value(average_dollars_last_year, ',.0f', '$')}",
         )
         avg_sessions_metric.metric(
             label="Avg sessions/day",
-            value=f"{average_sessions_this_year:,.0f}",
-            delta=f"{average_sessions_this_year / average_sessions_last_year - 1:.1%} {yoy_text}",
+            value=metric_value(average_sessions_this_year, ',.0f'),
+            delta=metric_delta(average_sessions_this_year, average_sessions_last_year, yoy_text),
             chart_data=combined["30-day sessions avg"],
-            help=f"{metric_text}: {average_sessions_last_year:,.0f}",
+            help=f"{metric_text}: {metric_value(average_sessions_last_year, ',.0f')}",
         )
 
         ad_units_metric.metric(
             label="Total ad units sold",
-            value=f"{total_ad_units_this_year:,.0f}",
-            delta=f"{total_ad_units_this_year / total_ad_units_last_year - 1:.1%} {yoy_text}",
-            help=f"{metric_text}: {total_ad_units_last_year:,.0f}",
+            value=metric_value(total_ad_units_this_year, ',.0f'),
+            delta=metric_delta(total_ad_units_this_year, total_ad_units_last_year, yoy_text),
+            help=f"{metric_text}: {metric_value(total_ad_units_last_year, ',.0f')}",
         )
         ad_sales_metric.metric(
             label="Total ad sales",
-            value=f"${total_ad_dollars_this_year:,.0f}",
-            delta=f"{total_ad_dollars_this_year / total_ad_dollars_last_year - 1:.1%} {yoy_text}",
-            help=f"{metric_text}: ${total_ad_dollars_last_year:,.0f}",
+            value=metric_value(total_ad_dollars_this_year, ',.0f', '$'),
+            delta=metric_delta(total_ad_dollars_this_year, total_ad_dollars_last_year, yoy_text),
+            help=f"{metric_text}: {metric_value(total_ad_dollars_last_year, ',.0f', '$')}",
         )
         ad_spend_metric.metric(
             label="Total ad spend",
-            value=f"${total_spend_this_year:,.0f}",
-            delta=f"{total_spend_this_year / total_spend_last_year - 1:.1%} {yoy_text}",
-            help=f"{metric_text}: ${total_spend_last_year:,.0f}",
+            value=metric_value(total_spend_this_year, ',.0f', '$'),
+            delta=metric_delta(total_spend_this_year, total_spend_last_year, yoy_text),
+            help=f"{metric_text}: {metric_value(total_spend_last_year, ',.0f', '$')}",
         )
         ad_impressions_metric.metric(
             label="Total ad impressions",
-            value=f"{total_impressions_this_year:,.0f}",
-            delta=f"{total_impressions_this_year / total_impressions_last_year - 1:.1%} {yoy_text}",
-            help=f"{metric_text}: {total_impressions_last_year:,.0f}",
+            value=metric_value(total_impressions_this_year, ',.0f'),
+            delta=metric_delta(total_impressions_this_year, total_impressions_last_year, yoy_text),
+            help=f"{metric_text}: {metric_value(total_impressions_last_year, ',.0f')}",
         )
         ad_clicks_metric.metric(
             label="Total ad clicks",
-            value=f"{total_clicks_this_year:,.0f}",
-            delta=f"{total_clicks_this_year / total_clicks_last_year - 1:.1%} {yoy_text}",
-            help=f"{metric_text}: {total_clicks_last_year:,.0f}",
+            value=metric_value(total_clicks_this_year, ',.0f'),
+            delta=metric_delta(total_clicks_this_year, total_clicks_last_year, yoy_text),
+            help=f"{metric_text}: {metric_value(total_clicks_last_year, ',.0f')}",
         )
         ad_conversion_metric.metric(
             label="Avg ad conversion %",
-            value=f"{avg_conversion_this_year:.1%}",
-            delta=f"{avg_conversion_this_year / avg_conversion_last_year - 1:.1%} {yoy_text}",
-            help=f"{metric_text}: {avg_conversion_last_year:.1%}",
+            value=metric_value(avg_conversion_this_year, '.1%'),
+            delta=metric_delta(avg_conversion_this_year, avg_conversion_last_year, yoy_text),
+            help=f"{metric_text}: {metric_value(avg_conversion_last_year, '.1%')}",
         )
         ad_cpc_metric.metric(
             label="Avg CPC",
-            value=f"${avg_cpc_this_year:.2f}",
-            delta=f"{avg_cpc_this_year / avg_cpc_last_year - 1:.1%} {yoy_text}",
+            value=metric_value(avg_cpc_this_year, '.2f', '$'),
+            delta=metric_delta(avg_cpc_this_year, avg_cpc_last_year, yoy_text),
             delta_color="inverse",
-            help=f"{metric_text}: ${avg_cpc_last_year:.2f}",
+            help=f"{metric_text}: {metric_value(avg_cpc_last_year, '.2f', '$')}",
         )
         ad_acos_metric.metric(
             label="Avg ACoS",
-            value=f"{avg_acos_this_year:.1%}",
-            delta=f"{avg_acos_this_year / avg_acos_last_year - 1:.1%} {yoy_text}",
+            value=metric_value(avg_acos_this_year, '.1%'),
+            delta=metric_delta(avg_acos_this_year, avg_acos_last_year, yoy_text),
             delta_color="inverse",
-            help=f"{metric_text}: {avg_acos_last_year:.1%}",
+            help=f"{metric_text}: {metric_value(avg_acos_last_year, '.1%')}",
         )
 
         num_top_sellers = df_top_sellers.number_input(
@@ -707,7 +622,9 @@ if snapshot is not None and not snapshot.frames[0].empty:
         df_text.text(f"Top {num_top_sellers} sellers")
         asin_sales_top = _top_n_sellers(asin_sales, num_top_sellers)
         asin_sales_top["asin"] = "https://www.amazon.com/dp/" + asin_sales_top["asin"]
-        asin_sales_top["conversion"] = asin_sales_top["units"] / asin_sales_top["sessions"]
+        asin_sales_top["conversion"] = asin_sales_top["units"].div(
+            asin_sales_top["sessions"].where(asin_sales_top["sessions"] > 0)
+        )
         df_area_container.data_editor(
             asin_sales_top,
             num_rows="fixed",
@@ -751,7 +668,6 @@ else:
 
 
 def clear_data():
-    load_sales_snapshot.clear()
     if "sales" in st.session_state:
         del st.session_state["sales"]
     if "sessions" in st.session_state:
@@ -766,6 +682,7 @@ def clear_data():
         os.remove(ads_tempfile)
     if os.path.exists(forecast_tempfile) and wipe_forecast:
         os.remove(forecast_tempfile)
+    load_sales_snapshot.clear()
 
 
 wipe_forecast = False

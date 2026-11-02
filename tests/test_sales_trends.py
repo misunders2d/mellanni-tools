@@ -8,11 +8,38 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import pyarrow as pa
 import pyarrow.parquet as pq
 import streamlit as st
-from modules.sales_trends import SalesTrendsData
+from modules.sales_trends import SalesTrendsData, metric_delta, metric_value, safe_ratio
 
 PAGE = Path(__file__).resolve().parents[1] / "pages" / "15_Sales_trends.py"
+
+
+def write_cache(path, frame, version=b"2", generation=b"test"):
+    table = pa.Table.from_pandas(frame, preserve_index=False)
+    if version is not None:
+        metadata = {
+            **(table.schema.metadata or {}), b"sales_trends_version": version,
+            b"sales_trends_generation": generation,
+        }
+        table = table.replace_schema_metadata(metadata)
+    pq.write_table(table, path)
+
+
+def page_cache_functions(paths, fresh_data, wipe_forecast=False):
+    tree = ast.parse(PAGE.read_text())
+    functions = [
+        node for node in tree.body if isinstance(node, ast.FunctionDef)
+        and node.name in ("load_sales_snapshot", "clear_data")
+    ]
+    namespace = {
+        "os": os, "pa": pa, "pq": pq, "st": st, "SalesTrendsData": SalesTrendsData,
+        "events": {}, "event_dates_list": [], "get_sales_data": fresh_data,
+        "wipe_forecast": wipe_forecast, **paths,
+    }
+    exec(compile(ast.Module(body=functions, type_ignores=[]), str(PAGE), "exec"), namespace)
+    return namespace
 
 
 def load_function(previous=("2026-01-01", "2026-01-02"), events=None):
@@ -370,7 +397,7 @@ def test_page_shares_snapshot_until_explicit_refresh(tmp_path, monkeypatch, wipe
     paths = {}
     for name, frame in zip(("sales", "sessions", "ads", "forecast"), data):
         paths[f"{name}_tempfile"] = str(cache / f"{name}.parquet")
-        frame.to_parquet(paths[f"{name}_tempfile"], index=False)
+        write_cache(paths[f"{name}_tempfile"], frame)
     refreshes = []
 
     def fresh_data():
@@ -378,17 +405,7 @@ def test_page_shares_snapshot_until_explicit_refresh(tmp_path, monkeypatch, wipe
         return frames([{"date": "2026-02-01", "units": 20}])
 
     # Exercise the actual cached page loader and refresh callback without auth/BQ.
-    tree = ast.parse(PAGE.read_text())
-    functions = [
-        node for node in tree.body if isinstance(node, ast.FunctionDef)
-        and node.name in ("load_sales_snapshot", "clear_data")
-    ]
-    namespace = {
-        "os": os, "pq": pq, "st": st, "SalesTrendsData": SalesTrendsData,
-        "events": {}, "event_dates_list": [], "get_sales_data": fresh_data,
-        "wipe_forecast": wipe_forecast, **paths,
-    }
-    exec(compile(ast.Module(body=functions, type_ignores=[]), str(PAGE), "exec"), namespace)
+    namespace = page_cache_functions(paths, fresh_data, wipe_forecast)
     load = namespace["load_sales_snapshot"]
     load.clear()
     try:
@@ -404,3 +421,166 @@ def test_page_shares_snapshot_until_explicit_refresh(tmp_path, monkeypatch, wipe
         assert refreshes == [True]
     finally:
         load.clear()
+
+
+@pytest.mark.parametrize("cache_state", ["legacy", "wrong_version", "corrupt", "mixed_snapshot"])
+def test_page_rebuilds_incompatible_or_corrupt_cache(tmp_path, monkeypatch, cache_state):
+    monkeypatch.chdir(tmp_path)
+    cache = tmp_path / "temp"
+    cache.mkdir()
+    data = frames([{"date": "2026-02-01"}])
+    paths = {}
+    for name, frame in zip(("sales", "sessions", "ads", "forecast"), data):
+        paths[f"{name}_tempfile"] = str(cache / f"{name}.parquet")
+        write_cache(paths[f"{name}_tempfile"], frame)
+    if cache_state == "corrupt":
+        Path(paths["ads_tempfile"]).write_bytes(b"incomplete parquet")
+    elif cache_state == "mixed_snapshot":
+        write_cache(paths["ads_tempfile"], data[2], generation=b"interrupted refresh")
+    else:
+        write_cache(paths["ads_tempfile"], data[2], None if cache_state == "legacy" else b"1")
+    refreshes = []
+
+    def fresh_data():
+        refreshes.append(True)
+        return frames([{"date": "2026-02-01", "units": 20}])
+
+    load = page_cache_functions(paths, fresh_data)["load_sales_snapshot"]
+    load.clear()
+    try:
+        snapshot = load()
+        assert snapshot.frames[0]["units"].sum() == 20
+        assert snapshot.cached_at is not None
+        assert load() is snapshot
+        assert refreshes == [True]
+        assert not list(cache.glob("*.tmp"))
+        for path in paths.values():
+            assert pq.read_schema(path).metadata[b"sales_trends_version"] == b"2"
+    finally:
+        load.clear()
+
+
+def page_metrics(result):
+    """Run the actual KPI calculations and card calls without auth or BigQuery."""
+    tree = ast.parse(PAGE.read_text())
+    page_guard = next(node for node in tree.body if isinstance(node, ast.If)
+                      and any(isinstance(child, ast.Name) and child.id == "snapshot"
+                              for child in ast.walk(node.test)))
+    chart_guard = next(node for node in page_guard.body if isinstance(node, ast.If)
+                       and ast.unparse(node.test) == "not combined.empty")
+    start = next(index for index, node in enumerate(chart_guard.body)
+                 if isinstance(node, ast.Assign) and node.targets[0].id == "total_units_this_year")
+    end = next(index for index, node in enumerate(chart_guard.body)
+               if isinstance(node, ast.Assign) and node.targets[0].id == "num_top_sellers")
+    calculations = chart_guard.body[start:end]
+    recorded = {}
+
+    class Card:
+        def metric(self, **kwargs):
+            recorded[kwargs["label"]] = kwargs
+
+    current, previous, _, ads, ads_previous = result
+    namespace = {
+        "pd": pd, "metric_delta": metric_delta, "metric_value": metric_value,
+        "safe_ratio": safe_ratio, "combined": current, "combined_previous": previous,
+        "ads_visible": ads, "ads_previous": ads_previous, "periods": "custom",
+        "min_period": date(2026, 1, 1), "max_period": date(2026, 1, 2),
+    }
+    for node in calculations:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            namespace[node.value.func.value.id] = Card()
+    exec(compile(ast.Module(body=calculations, type_ignores=[]), str(PAGE), "exec"), namespace)
+    return recorded
+
+
+@pytest.mark.parametrize("previous_units", [None, 0])
+def test_page_handles_missing_and_zero_comparison_baselines(previous_units):
+    rows = [{"date": "2026-02-01", "units": 0, "net_sales": 0}]
+    if previous_units is not None:
+        rows.append({"date": "2026-01-01", "units": previous_units, "net_sales": 0})
+    data = frames(rows)
+    data[0]["units"] = data[0]["units"].astype("Int64")
+    result = run(data)
+    cards = page_metrics(result)
+    assert len(cards) == 16
+    assert cards["Total units sold"]["value"] == "0"
+    assert cards["Average price"]["value"] == "N/A"
+    assert cards["Conversion %"]["value"] == "N/A"
+    for card in cards.values():
+        assert card["delta"] is None
+        for field in ("value", "help"):
+            assert "nan" not in card[field].lower()
+            assert "inf" not in card[field].lower()
+
+
+def test_page_daily_averages_ignore_future_dates_but_include_observed_zero_days():
+    result = run(
+        frames([
+            {"date": "2026-02-01", "units": 10, "net_sales": 100},
+            {"date": "2026-02-02", "units": 0, "net_sales": 0},
+        ], forecast=[("2026-02-03", "A", 20, 200)]),
+        selected=("2026-02-01", "2026-02-03"),
+    )
+    cards = page_metrics(result)
+    assert cards["Avg units/day"]["value"] == "5.0"
+    assert cards["Avg sales/day"]["value"] == "$50"
+    assert cards["Total units sold"]["value"] == "10"
+
+
+def test_page_keeps_valid_ratios_and_growth_percentages():
+    cards = page_metrics(run(frames(
+        [
+            {"date": "2026-01-01", "units": 10, "net_sales": 100},
+            {"date": "2026-02-01", "units": 20, "net_sales": 200},
+        ],
+        [("2026-01-01", "A", 100), ("2026-02-01", "A", 100)],
+        [
+            ("2026-01-01", "A", 1, 10, 2, 1, 10),
+            ("2026-02-01", "A", 2, 20, 4, 2, 20),
+        ],
+    )))
+    assert cards["Total units sold"]["value"] == "20"
+    assert cards["Total units sold"]["delta"] == "100.0% vs period"
+    assert cards["Average price"]["value"] == "$10.00"
+    assert cards["Conversion %"]["value"] == "20.0%"
+    assert cards["Avg CPC"]["value"] == "$0.50"
+    assert cards["Avg ACoS"]["value"] == "10.0%"
+
+
+def test_ads_query_keeps_halo_revenue_with_advertised_asin():
+    tree = ast.parse(PAGE.read_text())
+    loader = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                  and node.name == "get_sales_data")
+    query_node = next(node for node in loader.body if isinstance(node, ast.Assign)
+                      and node.targets[0].id == "ads_query")
+    query = eval(compile(ast.Expression(query_node.value), str(PAGE), "eval"), {"interval": "3 YEAR"})
+    query = query.replace("mellanni-project-da.reports.AdvertisedProduct", "advertised")
+    query = query.replace('DATE_SUB(CURRENT_DATE("America/Los_Angeles"), INTERVAL 3 YEAR)', "'2023-02-01'")
+    with sqlite3.connect(":memory:") as connection:
+        connection.row_factory = sqlite3.Row
+        connection.executescript("""
+            CREATE TABLE advertised(date TEXT, advertisedAsin TEXT, country_code TEXT,
+                spend REAL, impressions INTEGER, clicks INTEGER, unitsSoldClicks14d INTEGER,
+                sales14d REAL, unitsSoldSameSku14d INTEGER, attributedSalesSameSku14d REAL);
+            INSERT INTO advertised VALUES ('2026-02-01', 'A', 'us', 10, 100, 10, 1, 100, 0, 0);
+            INSERT INTO advertised VALUES ('2026-02-01', 'B', 'us', 0, 0, 0, 0, 0, 0, 0);
+            INSERT INTO advertised VALUES ('2026-02-01', 'A', 'ca', 99, 999, 99, 99, 999, 99, 999);
+        """)
+        rows = {row["asin"]: dict(row) for row in connection.execute(query)}
+    assert rows["A"]["total_sales"] == 100
+    assert rows["A"]["total_units"] == 1
+    assert rows["A"]["ad_spend"] == 10
+    assert rows["B"]["total_sales"] == 0
+
+
+def test_seller_ranks_follow_display_order():
+    tree = ast.parse(PAGE.read_text())
+    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                    and node.name == "_top_n_sellers")
+    namespace = {"pd": pd}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), str(PAGE), "exec"), namespace)
+    ranked = pd.DataFrame({"asin": ["A", "B", "C"], "net_sales": [10., 30., 20.]})
+    table = namespace["_top_n_sellers"](ranked.sort_values("net_sales", ascending=False), 2)
+    assert table["asin"].iloc[:2].tolist() == ["B", "C"]
+    assert table["#"].iloc[:2].tolist() == [1, 2]
+    assert table["net_sales"].iloc[-1] == 50

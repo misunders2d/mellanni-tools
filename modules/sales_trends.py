@@ -23,6 +23,25 @@ COLUMNS = {
 }
 
 
+def safe_ratio(numerator, denominator):
+    """Return a finite scalar ratio, or NaN when it cannot be measured."""
+    if pd.isna(numerator) or pd.isna(denominator) or denominator == 0:
+        return np.nan
+    result = float(numerator) / float(denominator)
+    return result if np.isfinite(result) else np.nan
+
+
+def metric_value(value, spec, prefix=""):
+    if pd.isna(value) or not np.isfinite(float(value)):
+        return "N/A"
+    return f"{prefix}{value:{spec}}"
+
+
+def metric_delta(current, previous, label):
+    ratio = safe_ratio(current, previous)
+    return None if pd.isna(ratio) else f"{ratio - 1:.1%} {label}"
+
+
 class SalesTrendsData:
     """Load source columns once; reuse calendar demand across date/filter changes."""
 
@@ -31,6 +50,7 @@ class SalesTrendsData:
         self.event_dates = list(event_dates)
         self.lock = RLock()
         self.cache = OrderedDict()
+        self.cached_at = None
         if isinstance(source, (str, Path)):
             # BigQuery registers pandas' dbdate dtype, used by existing files.
             import db_dtypes  # noqa: F401
@@ -38,10 +58,15 @@ class SalesTrendsData:
                 pd.read_parquet(Path(source) / f"{name}.parquet", columns=COLUMNS[name])
                 for name in NAMES
             ]
+            self.cached_at = pd.Timestamp(
+                min((Path(source) / f"{name}.parquet").stat().st_mtime for name in NAMES),
+                unit="s", tz="UTC",
+            )
         else:
             frames = [frame.copy(deep=False) for frame in source]
-        for frame in frames:
+        for index, frame in enumerate(frames):
             frame["date"] = pd.to_datetime(frame["date"]).dt.normalize()
+            frames[index] = frame.sort_values("date", kind="stable", ignore_index=True)
         sales, sessions, _, forecast = frames
         if "has_sales_row" not in sales:
             sales["has_sales_row"] = True
@@ -155,18 +180,19 @@ def _filtered_sales(
     sales_coverage = (calendar >= sales_start) & (calendar <= sales_end)
     sessions_coverage = (calendar >= sessions_start) & (calendar <= sessions_end)
 
+    def select_rows(frame):
+        # Sources are sorted once at load time. Slice dates with binary search,
+        # then filter ASINs before copying potentially years of source rows.
+        start = frame["date"].searchsorted(pd.Timestamp(history_start), side="left")
+        end = frame["date"].searchsorted(pd.Timestamp(history_end), side="right")
+        rows = frame.iloc[start:end]
+        if target_asins is not None:
+            rows = rows.loc[rows["asin"].isin(target_asins)]
+        return rows.copy()
+
     sales_df, sessions_df, ads_df, forecast_df = (
-        frame.loc[
-            frame["date"].between(
-                pd.Timestamp(history_start), pd.Timestamp(history_end)
-            )
-        ].copy()
-        for frame in (sales_df, sessions_df, ads_df, forecast_df)
+        select_rows(frame) for frame in (sales_df, sessions_df, ads_df, forecast_df)
     )
-    if target_asins is not None:
-        sales_df = sales_df.loc[sales_df["asin"].isin(target_asins)]
-        sessions_df = sessions_df.loc[sessions_df["asin"].isin(target_asins)]
-        ads_df = ads_df.loc[ads_df["asin"].isin(target_asins)]
 
     # Notes and inventory-only rows must not expand the forecast universe.
     sales_asins = sales_df.loc[

@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from modules import sales_charts
 
@@ -49,3 +50,21 @@ def test_change_note_markpoint_uses_date_category(monkeypatch):
     assert mark_points[0]["coord"] == ["2026-06-01", 10]
     assert mark_points[0]["coord"][0] in captured["options"]["xAxis"][0]["data"]
     assert mark_points[0]["coord"][0] != 0
+
+
+@pytest.mark.parametrize("stockout", [[None, 0.2], [None, None]])
+def test_unknown_stockout_and_undefined_acos_remain_gaps(monkeypatch, stockout):
+    captured = {}
+    monkeypatch.setattr(sales_charts, "st_echarts", lambda options, **_: captured.update(options))
+    sales = _sales_df()
+    sales["stockout"] = pd.Series(stockout, dtype="Float64")
+    ads = _ads_df()
+    ads["total_sales"] = [0., 20.]
+    before_sales, before_ads = sales.copy(deep=True), ads.copy(deep=True)
+    sales_charts.render_sales_chart(sales, ads)
+    series = {item["name"]: item["data"] for item in captured["series"]}
+    assert series["Stockout"][0] is None
+    assert series["Stockout"][1] == (20.0 if stockout[1] is not None else None)
+    assert series["ACoS"] == [None, 12.5]
+    pd.testing.assert_frame_equal(sales, before_sales)
+    pd.testing.assert_frame_equal(ads, before_ads)
