@@ -1,6 +1,7 @@
 """Exercise the sales snapshot without Streamlit auth or live BigQuery."""
 
 import ast
+import importlib
 import os
 import sqlite3
 import sys
@@ -594,13 +595,34 @@ def test_full_page_starts_after_update_with_old_module_in_memory(
 ):
     """Exercise the real page, imports, widgets, chart, cache and Refresh button."""
     from streamlit.testing.v1 import AppTest
+    import streamlit_echarts
+    from modules import sales_charts
+
+    real_component = streamlit_echarts.st_echarts
+    chart_options = []
+
+    def record_chart(**kwargs):
+        chart_options.append(kwargs["options"])
+        return real_component(**kwargs)
+
+    monkeypatch.setattr(streamlit_echarts, "st_echarts", record_chart)
+    real_reload = importlib.reload
+    reloads = []
+
+    def record_reload(module):
+        if module.__name__ in ("modules.sales_history", "modules.sales_charts"):
+            reloads.append(module.__name__)
+        return real_reload(module)
+
+    monkeypatch.setattr(importlib, "reload", record_reload)
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "media").symlink_to(PAGE.parents[1] / "media", target_is_directory=True)
     cache = tmp_path / "temp"
     cache.mkdir()
     data = frames(
-        [{"date": "2026-02-01"}, {"date": "2026-02-02", "units": 20}],
+        [{"date": "2025-02-01", "units": 5}, {"date": "2025-02-02", "units": 7},
+         {"date": "2026-02-01"}, {"date": "2026-02-02", "units": 20}],
         [("2026-02-01", "A", 100), ("2026-02-02", "A", 200)],
         [("2026-02-01", "A", 1, 100, 10, 1, 10)],
         [("2026-02-03", "A", 11, 110)],
@@ -650,6 +672,7 @@ def test_full_page_starts_after_update_with_old_module_in_memory(
     # the pre-update module: it has the class, but none of the new helpers.
     if old_module_in_memory:
         module("modules.sales_trends", SalesTrendsData=object)
+        monkeypatch.setattr(sales_charts, "render_sales_chart", None)
     st.cache_resource.clear()
     try:
         app = AppTest.from_file(PAGE, default_timeout=15)
@@ -658,6 +681,14 @@ def test_full_page_starts_after_update_with_old_module_in_memory(
         assert not app.exception, [error.message for error in app.exception]
         assert len(app.metric) == 16
         assert app.metric[0].value == "30"
+        assert not queries
+        app.date_input[0].set_value(date(2026, 2, 1)).run()
+        comparison_toggle = next(box for box in app.checkbox if box.label == "Show comparison on chart")
+        comparison_toggle.set_value(True).run()
+        assert not app.exception, [error.message for error in app.exception]
+        comparison = next(series for series in chart_options[-1]["series"]
+                          if series["name"] == "Comparison units")
+        assert [point["value"] for point in comparison["data"]] == [5, 7]
         assert not queries
         app.text_area[0].set_value("SKU-A").run()
         assert not app.exception, [error.message for error in app.exception]
@@ -668,5 +699,14 @@ def test_full_page_starts_after_update_with_old_module_in_memory(
         assert not app.exception, [error.message for error in app.exception]
         assert len(queries) == 4
         assert app.metric[0].value == "30"
+        assert reloads == ["modules.sales_history", "modules.sales_charts"]
     finally:
         st.cache_resource.clear()
+
+
+def test_daily_notes_preserve_individual_note_boundaries():
+    visible, *_ = run(frames([
+        {"date": "2026-02-01", "asin": "A", "change_notes": "LD: sale"},
+        {"date": "2026-02-01", "asin": "B", "change_notes": "Price change: cut, keep size"},
+    ]))
+    assert visible["change_notes"].iloc[0] == "LD: sale | Price change: cut, keep size"

@@ -1,3 +1,4 @@
+import importlib
 import os
 import re
 
@@ -12,10 +13,15 @@ from google.oauth2 import service_account
 
 from login import require_login, require_role
 from modules.filter_modules import filter_dictionary
-from modules.sales_charts import render_sales_chart
-# A fresh module path keeps a running Streamlit process from binding this page
-# to the old sales_trends module retained in sys.modules during deployment.
-from modules.sales_history import SalesTrendsData, metric_delta, metric_value, safe_ratio
+
+
+@st.cache_resource(max_entries=1, show_spinner=False)
+def load_sales_runtime(source_version):
+    """Refresh imported helpers once per source change, before creating snapshots."""
+    history = importlib.reload(importlib.import_module("modules.sales_history"))
+    charts = importlib.reload(importlib.import_module("modules.sales_charts"))
+    return (history.SalesTrendsData, history.metric_delta, history.metric_value,
+            history.safe_ratio, charts.render_sales_chart)
 
 os.makedirs("temp", exist_ok=True)
 
@@ -35,6 +41,12 @@ GC_CREDENTIALS = service_account.Credentials.from_service_account_info(
 )
 
 require_role("admin", "sales")
+
+runtime_version = tuple(
+    os.stat(os.path.join(os.path.dirname(__file__), "..", "modules", filename)).st_mtime_ns
+    for filename in ("sales_history.py", "sales_charts.py")
+)
+SalesTrendsData, metric_delta, metric_value, safe_ratio, render_sales_chart = load_sales_runtime(runtime_version)
 
 collection_area, size_area, color_area, sku_area = st.columns([2, 1, 1, 2])
 (
@@ -271,7 +283,9 @@ def _top_n_sellers(asin_sales: pd.DataFrame, num_top_sellers: int) -> pd.DataFra
 
 
 @st.cache_resource(max_entries=1, show_spinner="Preparing sales history...")
-def load_sales_snapshot():
+def load_sales_snapshot(runtime_version=()):
+    # Include runtime source version in the resource cache key. Existing raw
+    # Parquet files remain reusable when only chart/aggregation code changes.
     paths = (sales_tempfile, sessions_tempfile, ads_tempfile, forecast_tempfile)
     required = {"change_notes", "has_sales_row", "has_inventory_row"}
     cache_valid = all(os.path.exists(path) for path in paths)
@@ -317,7 +331,7 @@ def load_sales_snapshot():
 # Release copies retained by sessions opened before this optimization.
 for key in ("sales", "sessions", "ads", "forecast"):
     st.session_state.pop(key, None)
-snapshot = load_sales_snapshot()
+snapshot = load_sales_snapshot(runtime_version)
 
 if snapshot is not None and not snapshot.frames[0].empty:
     min_date, max_date = snapshot.date_bounds
@@ -443,13 +457,24 @@ if snapshot is not None and not snapshot.frames[0].empty:
 
     if not combined.empty:
         with plot_area:
+            show_comparison = st.checkbox(
+                "Show comparison on chart", value=False,
+                help="Overlay unit sales from the selected comparison period, aligned by calendar day from each start.",
+            )
             render_sales_chart(
                 combined,
                 ads_visible,
                 show_change_notes=show_change_notes,
                 show_lds=show_lds,
                 available_inv=available_inv,
+                comparison_df=combined_previous if show_comparison else None,
+                comparison_start=min_period,
             )
+            if show_comparison:
+                st.caption(
+                    f"Comparison: {min_period:%b %d, %Y} – {max_period:%b %d, %Y}. "
+                    "Aligned by calendar day from each period’s start; only overlapping days are plotted."
+                )
 
         # absolute numbers metrics
         total_units_this_year = combined["units"].sum(min_count=1)

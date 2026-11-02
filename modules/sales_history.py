@@ -250,7 +250,7 @@ def _filtered_sales(
         )
         daily["change_notes"] = (
             rows.groupby("date")["change_notes"]
-            .agg(lambda notes: ", ".join(note for note in notes.unique() if note))
+            .agg(lambda notes: " | ".join(note for note in notes.unique() if note))
             .reindex(calendar, fill_value="")
         )
         daily["sessions"] = (

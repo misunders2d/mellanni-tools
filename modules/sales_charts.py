@@ -1,5 +1,8 @@
+from html import escape
+import re
+
 import streamlit as st
-from streamlit_echarts import st_echarts
+from streamlit_echarts import JsCode, st_echarts
 import pandas as pd
 
 
@@ -10,6 +13,8 @@ def render_sales_chart(
     show_lds: bool = False,
     available_inv: bool = True,
     height: int = 600,
+    comparison_df: pd.DataFrame | None = None,
+    comparison_start=None,
 ):
     """
     Renders a synchronized multi-grid ECharts visualization for Sales, Stockout, and Ads data.
@@ -35,8 +40,34 @@ def render_sales_chart(
     ]
     sessions = [int(round(x)) if pd.notna(x) else None for x in df["sessions"].tolist()]
     avg_units = [
-        int(round(x)) if pd.notna(x) else None for x in df["30-day avg"].tolist()
+        round(x, 1) if pd.notna(x) else None for x in df["30-day avg"].tolist()
     ]
+
+    comparison = None
+    if comparison_df is not None and comparison_start is not None:
+        comparison_dates = pd.date_range(comparison_start, periods=len(dates))
+        previous = pd.Series(
+            comparison_df["units"].to_numpy(),
+            index=pd.to_datetime(comparison_df["date"]).dt.normalize(),
+        ).reindex(comparison_dates)
+        comparison = [
+            {"value": round(value, 1) if pd.notna(value) else None,
+             "comparison_date": day.strftime("%Y-%m-%d")}
+            for day, value in previous.items()
+        ]
+
+    legend_names = [
+        "Units", "Unit forecast", "30-day avg", "Sessions", "Inventory", "Stockout",
+        "Ad Spend", "ACoS", "Ad Units", "Impressions", "Clicks",
+    ]
+    if comparison is not None:
+        legend_names.append("Comparison units")
+    saved_selection = st.session_state.get("sales_trends_chart_legend", {})
+    selected = {
+        name: saved_selection.get(name, name not in ("Ad Units", "Impressions", "Clicks"))
+        for name in legend_names
+    }
+    extra_axes = [name for name in ("Ad Units", "Impressions", "Clicks") if selected[name]]
 
     # Inventory Logic
     inv_col = "available" if available_inv else "inventory_supply_at_fba"
@@ -100,12 +131,14 @@ def render_sales_chart(
             if unit_val is None:
                 continue
 
-            note_str = str(note)
-            # Filter LD/BD if requested
-            if not show_lds and (
-                note_str.startswith("LD") or note_str.startswith("BD")
-            ):
+            # Both the source and daily aggregation separate individual notes
+            # with pipes. Commas inside a note remain part of its text.
+            notes = [part.strip() for part in str(note).split(" | ") if part.strip()]
+            if not show_lds:
+                notes = [part for part in notes if not re.match(r"^(?:LD|BD)\b", part, re.I)]
+            if not notes:
                 continue
+            note_str = "<br/>".join(escape(part) for part in notes)
 
             mark_points.append(
                 {
@@ -132,24 +165,33 @@ def render_sales_chart(
             "backgroundColor": "rgba(255, 255, 255, 0.9)",
             "textStyle": {"color": "#333"},
             "confine": True,
+            "formatter": JsCode(
+                "function(ps) { if (!Array.isArray(ps)) ps = [ps]; if (!ps.length) return ''; "
+                "var text = '<b>' + ps[0].axisValueLabel + '</b>'; "
+                "for (var i = 0; i < ps.length; i++) { var p = ps[i]; "
+                "if (p.value == null || !isFinite(Number(p.value))) continue; "
+                "var label = p.seriesName; var value = Number(p.value); "
+                "var display = value.toLocaleString(undefined, {maximumFractionDigits: 1}); "
+                "if (label === 'Ad Spend') display = '$' + value.toFixed(2); "
+                "if (label === 'ACoS' || label === 'Stockout') display += '%'; "
+                "if (p.data && p.data.comparison_date) label += ' (' + p.data.comparison_date + ')'; "
+                "text += '<br/>' + p.marker + ' ' + label + ': <b>' + display + '</b>'; } "
+                "return text; }"
+            ).js_code,
         },
-        "legend": {
-            "data": [
-                "Units",
-                "Unit forecast",
-                "30-day avg",
-                "Sessions",
-                "Inventory",
-                "Stockout",
-                "Ad Spend",
-                "ACoS",
-                "Ad Units",
-                "Impressions",
-                "Clicks",
-            ],
-            "top": "0%",
-            "textStyle": {"color": "#ccc"},
-        },
+        "legend": [
+            {
+                "data": legend_names[:6] + (["Comparison units"] if comparison is not None else []),
+                "selected": selected,
+                "type": "scroll", "top": "0%", "left": "2%", "width": "75%",
+                "textStyle": {"color": "#555"},
+            },
+            {
+                "data": legend_names[6:11], "selected": selected,
+                "type": "scroll", "top": "68%", "left": "2%", "width": "96%",
+                "textStyle": {"color": "#555"},
+            },
+        ],
         "toolbox": {
             "feature": {
                 "dataZoom": {"yAxisIndex": "none"},
@@ -160,11 +202,11 @@ def render_sales_chart(
         "axisPointer": {"link": {"xAxisIndex": "all"}},
         "grid": [
             # Top Grid: Sales & Inventory (50% height)
-            {"left": "5%", "right": "5%", "top": "8%", "height": "45%"},
+            {"left": 75 + 50 * len(extra_axes), "right": 115, "top": "10%", "height": "37%"},
             # Middle Grid: Stockout (15% height)
-            {"left": "5%", "right": "5%", "top": "58%", "height": "15%"},
+            {"left": 75 + 50 * len(extra_axes), "right": 115, "top": "56%", "height": "10%"},
             # Bottom Grid: Ads (20% height)
-            {"left": "5%", "right": "5%", "top": "78%", "height": "18%"},
+            {"left": 75 + 50 * len(extra_axes), "right": 115, "top": "76%", "bottom": 55},
         ],
         "xAxis": [
             # Axis 0: Top Grid
@@ -206,6 +248,7 @@ def render_sales_chart(
             },
             {
                 "name": "Sessions",
+                "nameTextStyle": {"align": "right"},
                 "type": "value",
                 "gridIndex": 0,
                 "position": "right",
@@ -215,6 +258,7 @@ def render_sales_chart(
             },
             {
                 "name": "Inventory",
+                "nameTextStyle": {"align": "left"},
                 "type": "value",
                 "gridIndex": 0,
                 "position": "right",
@@ -224,10 +268,12 @@ def render_sales_chart(
             },
             # --- Middle Grid Axis (Index 3) ---
             {
-                "name": "Stockout",
+                "name": "Stockout estimate",
+                "nameLocation": "start",
                 "type": "value",
                 "gridIndex": 1,
                 "min": 0,
+                "max": 100,
                 "inverse": True,  # Inverted axis for hanging chart
                 "splitLine": {"show": False},
                 "axisLabel": {
@@ -235,7 +281,8 @@ def render_sales_chart(
                 },  # Show as percentage (positive)
             },
             # --- Bottom Grid Axes (Index 4, 5) ---
-            {"name": "Ad Spend ($)", "type": "value", "gridIndex": 2, "inverse": False},
+            {"name": "Ad Spend ($)", "nameTextStyle": {"align": "left"},
+             "type": "value", "gridIndex": 2, "inverse": False},
             {
                 "name": "ACoS (%)",
                 "type": "value",
@@ -246,24 +293,31 @@ def render_sales_chart(
             },
             {
                 "name": "Ad Units",
+                "nameTextStyle": {"fontSize": 10},
+                "position": "left",
                 "type": "value",
-                "offset": 50,
+                "show": selected["Ad Units"],
+                "offset": 50 * (extra_axes.index("Ad Units") + 1) if selected["Ad Units"] else 0,
                 "gridIndex": 2,
                 "inverse": False,
             },
             {
                 "name": "Impressions",
+                "nameTextStyle": {"fontSize": 10},
+                "position": "left",
                 "type": "value",
-                "hidden": True,
-                "offset": -50,
+                "show": selected["Impressions"],
+                "offset": 50 * (extra_axes.index("Impressions") + 1) if selected["Impressions"] else 0,
                 "gridIndex": 2,
                 "inverse": False,
             },
             {
                 "name": "Clicks",
+                "nameTextStyle": {"fontSize": 10},
+                "position": "left",
                 "type": "value",
-                "offset": 50,
-                "hidden": True,
+                "show": selected["Clicks"],
+                "offset": 50 * (extra_axes.index("Clicks") + 1) if selected["Clicks"] else 0,
                 "gridIndex": 2,
                 "inverse": False,
             },
@@ -412,4 +466,21 @@ def render_sales_chart(
         ],
     }
 
-    st_echarts(options=option, height=f"{height}px", key="sales_trends_echarts")
+    if comparison is not None:
+        option["series"].append({
+            "name": "Comparison units", "type": "line", "xAxisIndex": 0, "yAxisIndex": 0,
+            "data": comparison, "connectNulls": False, "showSymbol": False,
+            "lineStyle": {"type": "dashed", "width": 2},
+            "itemStyle": {"color": "#707785"}, "emphasis": {"focus": "series"},
+        })
+    changed = st_echarts(
+        options=option, height=f"{height}px", key="sales_trends_echarts",
+        events={"legendselectchanged": "function(params) { return params.selected; }"},
+    )
+    if isinstance(changed, dict):
+        selection = {**selected, **{name: value for name, value in changed.items()
+                                   if name in selected and isinstance(value, bool)}}
+        if selection != selected:
+            st.session_state["sales_trends_chart_legend"] = selection
+            st.rerun()
+    st.caption("Stockout is an estimate weighted by recent demand; missing inventory remains a gap.")
